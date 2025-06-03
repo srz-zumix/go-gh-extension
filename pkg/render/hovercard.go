@@ -13,7 +13,7 @@ func (r *Renderer) RenderHovercard(hovercard *github.Hovercard) {
 
 	table := tablewriter.NewWriter(r.IO.Out)
 	headers := []string{"MESSAGE", "OCTION"}
-	table.SetHeader(headers)
+	table.Header(headers)
 
 	for _, context := range hovercard.Contexts {
 		row := make([]string, len(headers))

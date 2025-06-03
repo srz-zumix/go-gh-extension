@@ -62,7 +62,7 @@ func (r *Renderer) RenderUsers(users []*github.User, headers []string) {
 
 	getter := NewUserFieldGetters()
 	table := tablewriter.NewWriter(r.IO.Out)
-	table.SetHeader(headers)
+	table.Header(headers)
 
 	for _, user := range users {
 		row := make([]string, len(headers))

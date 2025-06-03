@@ -3,7 +3,7 @@ package render
 import (
 	"github.com/google/go-github/v71/github"
 	"github.com/olekukonko/tablewriter"
-	"github.com/srz-zumix/go-gh-extension/gh"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
 
 func (r *Renderer) RenderRepository(repos []*github.Repository) {
@@ -13,7 +13,7 @@ func (r *Renderer) RenderRepository(repos []*github.Repository) {
 	}
 	headers := []string{"NAME", "PERMISSION", "VISIBILITY"}
 	table := tablewriter.NewWriter(r.IO.Out)
-	table.SetHeader(headers)
+	table.Header(headers)
 
 	for _, repo := range repos {
 		permission := gh.GetRepositoryPermissions(repo)

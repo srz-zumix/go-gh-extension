@@ -76,7 +76,7 @@ func (r *Renderer) RenderTeams(teams []*github.Team, headers []string) {
 
 	getter := NewTeamFieldGetters()
 	table := tablewriter.NewWriter(r.IO.Out)
-	table.SetHeader(headers)
+	table.Header(headers)
 
 	for _, team := range teams {
 		row := make([]string, len(headers))

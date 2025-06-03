@@ -2,7 +2,7 @@ package render
 
 import (
 	"github.com/google/go-github/v71/github"
-	"github.com/srz-zumix/go-gh-extension/gh"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
 
 func getPermissions(v any) map[string]bool {

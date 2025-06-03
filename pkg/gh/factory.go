@@ -4,7 +4,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/k1LoW/go-github-client/v71/factory"
-	"github.com/srz-zumix/go-gh-extension/gh/client"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
 type GitHubClient = client.GitHubClient

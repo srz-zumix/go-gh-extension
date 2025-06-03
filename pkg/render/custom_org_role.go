@@ -18,7 +18,7 @@ func (r *Renderer) RenderCustomOrgRoles(roles []*github.CustomOrgRoles) {
 
 	headers := []string{"ID", "NAME", "DESCRIPTION"}
 	table := tablewriter.NewWriter(r.IO.Out)
-	table.SetHeader(headers)
+	table.Header(headers)
 
 	for _, role := range roles {
 		data := []string{
