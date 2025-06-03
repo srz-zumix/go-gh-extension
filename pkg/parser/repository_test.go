@@ -121,7 +121,7 @@ func TestRepository(t *testing.T) {
 			name:      "Empty options",
 			options:   []RepositoryOption{},
 			expectErr: false,
-			expected:  repository.Repository{Host: "github.com", Owner: "srz-zumix", Name: "gh-team-kit"},
+			expected:  repository.Repository{Host: "github.com", Owner: "srz-zumix", Name: "go-gh-extension"},
 		},
 	}
 

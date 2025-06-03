@@ -2,7 +2,7 @@ package render
 
 import (
 	"github.com/ddddddO/gtree"
-	"github.com/srz-zumix/gh-team-kit/gh"
+	"github.com/srz-zumix/go-gh-extension/gh"
 )
 
 func teamRootTree(rootName string, team gh.Team) *gtree.Node {

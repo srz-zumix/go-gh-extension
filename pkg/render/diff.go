@@ -5,7 +5,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/fatih/color"
-	"github.com/srz-zumix/gh-team-kit/gh"
+	"github.com/srz-zumix/go-gh-extension/gh"
 )
 
 func colorizeDiff(diff string) string {

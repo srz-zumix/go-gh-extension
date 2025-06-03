@@ -3,7 +3,7 @@ package render
 import (
 	"github.com/google/go-github/v71/github"
 	"github.com/olekukonko/tablewriter"
-	"github.com/srz-zumix/gh-team-kit/gh"
+	"github.com/srz-zumix/go-gh-extension/gh"
 )
 
 func (r *Renderer) RenderRepository(repos []*github.Repository) {
