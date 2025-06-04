@@ -2,7 +2,6 @@ package render
 
 import (
 	"github.com/google/go-github/v71/github"
-	"github.com/olekukonko/tablewriter"
 )
 
 func (r *Renderer) RenderHovercard(hovercard *github.Hovercard) {
@@ -11,9 +10,8 @@ func (r *Renderer) RenderHovercard(hovercard *github.Hovercard) {
 		return
 	}
 
-	table := tablewriter.NewWriter(r.IO.Out)
 	headers := []string{"MESSAGE", "OCTION"}
-	table.Header(headers)
+	table := r.newTableWriter(headers)
 
 	for _, context := range hovercard.Contexts {
 		row := make([]string, len(headers))

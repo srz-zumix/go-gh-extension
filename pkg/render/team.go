@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	"github.com/google/go-github/v71/github"
-	"github.com/olekukonko/tablewriter"
 )
 
 type teamFiledGetter func(user *github.Team) string
@@ -75,8 +74,7 @@ func (r *Renderer) RenderTeams(teams []*github.Team, headers []string) {
 	})
 
 	getter := NewTeamFieldGetters()
-	table := tablewriter.NewWriter(r.IO.Out)
-	table.Header(headers)
+	table := r.newTableWriter(headers)
 
 	for _, team := range teams {
 		row := make([]string, len(headers))

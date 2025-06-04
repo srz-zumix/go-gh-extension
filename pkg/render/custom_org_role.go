@@ -2,7 +2,6 @@ package render
 
 import (
 	"github.com/google/go-github/v71/github"
-	"github.com/olekukonko/tablewriter"
 )
 
 func (r *Renderer) RenderCustomOrgRoles(roles []*github.CustomOrgRoles) {
@@ -17,8 +16,7 @@ func (r *Renderer) RenderCustomOrgRoles(roles []*github.CustomOrgRoles) {
 	}
 
 	headers := []string{"ID", "NAME", "DESCRIPTION"}
-	table := tablewriter.NewWriter(r.IO.Out)
-	table.Header(headers)
+	table := r.newTableWriter(headers)
 
 	for _, role := range roles {
 		data := []string{

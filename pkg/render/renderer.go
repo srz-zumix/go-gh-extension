@@ -2,9 +2,11 @@ package render
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/cli/cli/v2/pkg/cmdutil"
 	"github.com/cli/cli/v2/pkg/iostreams"
+	"github.com/olekukonko/tablewriter"
 )
 
 type Renderer struct {
@@ -158,4 +160,29 @@ func toString(v any) string {
 		return i.Error()
 	}
 	return ""
+}
+
+func ToRGB(c string) (int, int, int, error) {
+	if len(c) != 6 {
+		return 0, 0, 0, fmt.Errorf("invalid color code: %s", c)
+	}
+	r, err := strconv.ParseInt(c[:2], 16, 32)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	g, err := strconv.ParseInt(c[2:4], 16, 32)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	b, err := strconv.ParseInt(c[4:6], 16, 32)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	return int(r), int(g), int(b), nil
+}
+
+func (r *Renderer) newTableWriter(header []string) *tablewriter.Table {
+	table := tablewriter.NewWriter(r.IO.Out)
+	table.SetHeader(header)
+	return table
 }

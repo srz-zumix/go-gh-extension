@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v71/github"
-	"github.com/olekukonko/tablewriter"
 )
 
 type userFiledGetter func(user *github.User) string
@@ -61,8 +60,7 @@ func (r *Renderer) RenderUsers(users []*github.User, headers []string) {
 	}
 
 	getter := NewUserFieldGetters()
-	table := tablewriter.NewWriter(r.IO.Out)
-	table.Header(headers)
+	table := r.newTableWriter(headers)
 
 	for _, user := range users {
 		row := make([]string, len(headers))

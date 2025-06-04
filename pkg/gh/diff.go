@@ -3,7 +3,6 @@ package gh
 import (
 	"fmt"
 
-	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v71/github"
 )
 
@@ -33,29 +32,6 @@ func (d *RepositoryPermissionsDiff) GetFullName() string {
 	return ""
 }
 
-func (d *RepositoryPermissionsDiff) GetDiffLines(leftTeamSlug, rightTeamSlug string) string {
-	var diff string
-	fullName := d.GetFullName()
-	leftPerm := GetRepositoryPermissions(d.Left)
-	rightPerm := GetRepositoryPermissions(d.Right)
-	diff += fmt.Sprintf("diff --gh team-kit diff %s %s %s\n", leftTeamSlug, rightTeamSlug, fullName)
-	if d.Left != nil && d.Right != nil {
-		diff += fmt.Sprintf("--- %s %s\n", *d.Left.FullName, leftTeamSlug)
-		diff += fmt.Sprintf("+++ %s %s\n", *d.Right.FullName, rightTeamSlug)
-		diff += fmt.Sprintf("- %s\n", leftPerm)
-		diff += fmt.Sprintf("+ %s\n", rightPerm)
-	} else if d.Left != nil {
-		diff += fmt.Sprintf("--- %s %s\n", *d.Left.FullName, leftTeamSlug)
-		diff += "+++ /dev/null\n"
-		diff += fmt.Sprintf("- %s\n", leftPerm)
-	} else if d.Right != nil {
-		diff += "--- /dev/null\n"
-		diff += fmt.Sprintf("+++ %s %s\n", *d.Right.FullName, rightTeamSlug)
-		diff += fmt.Sprintf("+ %s\n", rightPerm)
-	}
-	return diff
-}
-
 type RepositoryPermissionsDiffs []RepositoryPermissionsDiff
 
 func (d RepositoryPermissionsDiffs) Left() []*github.Repository {
@@ -76,14 +52,6 @@ func (d RepositoryPermissionsDiffs) Right() []*github.Repository {
 		}
 	}
 	return repos
-}
-
-func (d RepositoryPermissionsDiffs) GetDiffLines(leftTeamSlug, rightTeamSlug string) string {
-	var diffLines string
-	for _, diff := range d {
-		diffLines += diff.GetDiffLines(leftTeamSlug, rightTeamSlug)
-	}
-	return diffLines
 }
 
 func CompareRepository(left, right *github.Repository) *RepositoryPermissionsDiff {
@@ -138,44 +106,8 @@ type TeamPermissionsDiff struct {
 	Right *github.Team
 }
 
-// GetDiffLines generates a diff representation of the team permissions.
-func (d *TeamPermissionsDiff) GetDiffLines(leftRepo, rightRepo repository.Repository) string {
-	var diff string
-
-	leftOwnerRepo := fmt.Sprintf("%s/%s", leftRepo.Owner, leftRepo.Name)
-	rightOwnerRepo := fmt.Sprintf("%s/%s", rightRepo.Owner, rightRepo.Name)
-	teamSlug := d.GetSlug()
-
-	diff += fmt.Sprintf("diff --gh team-kit repo diff %s %s %s\n", leftOwnerRepo, rightOwnerRepo, teamSlug)
-	if d.Left != nil && d.Right != nil {
-		diff += fmt.Sprintf("--- %s %s\n", teamSlug, leftOwnerRepo)
-		diff += fmt.Sprintf("+++ %s %s\n", teamSlug, rightOwnerRepo)
-		diff += fmt.Sprintf("- %s\n", *d.Left.Permission)
-		diff += fmt.Sprintf("+ %s\n", *d.Right.Permission)
-	} else if d.Left != nil {
-		diff += fmt.Sprintf("--- %s %s\n", teamSlug, leftOwnerRepo)
-		diff += "+++ /dev/null\n"
-		diff += fmt.Sprintf("- %s\n", *d.Left.Permission)
-	} else if d.Right != nil {
-		diff += "--- /dev/null\n"
-		diff += fmt.Sprintf("+++ %s %s\n", teamSlug, rightOwnerRepo)
-		diff += fmt.Sprintf("+ %s\n", *d.Right.Permission)
-	}
-
-	return diff
-}
-
 // TeamPermissionsDiffs represents a collection of TeamPermissionsDiff.
 type TeamPermissionsDiffs []TeamPermissionsDiff
-
-// GetDiffLines generates a diff representation for all team permissions differences.
-func (diffs TeamPermissionsDiffs) GetDiffLines(leftRepo, rightRepo repository.Repository) string {
-	var result string
-	for _, diff := range diffs {
-		result += diff.GetDiffLines(leftRepo, rightRepo)
-	}
-	return result
-}
 
 func (d *TeamPermissionsDiff) GetSlug() string {
 	if d.Left != nil {
