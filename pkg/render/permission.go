@@ -30,3 +30,47 @@ func (r *Renderer) RenderPermission(v any) {
 
 	r.WriteLine(gh.GetPermissionName(permissions))
 }
+
+type nameWithPermissions struct {
+	Name        string
+	Permissions map[string]bool
+}
+
+func (r *Renderer) RenderPermissions(v any) {
+	switch v := v.(type) {
+	case []*github.Repository:
+		r.RenderRepositoryPermissions(v)
+	default:
+		r.RenderPermission(v)
+	}
+}
+
+func (r *Renderer) RenderRepositoryPermissions(v []*github.Repository) {
+	var permissionsList []nameWithPermissions
+	for _, item := range v {
+		var name = getName(item)
+		var permissions = getPermissions(item)
+		permissionsList = append(permissionsList, nameWithPermissions{
+			Name:        name,
+			Permissions: permissions,
+		})
+	}
+
+	if r.exporter != nil {
+		r.RenderExportedData(permissionsList)
+		return
+	}
+
+	headers := []string{"NAME", "PERMISSION"}
+	table := r.newTableWriter(headers)
+
+	for _, v := range permissionsList {
+		permission := gh.GetPermissionName(v.Permissions)
+		row := []string{
+			v.Name,
+			permission,
+		}
+		table.Append(row)
+	}
+	table.Render()
+}

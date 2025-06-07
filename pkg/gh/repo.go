@@ -7,6 +7,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v71/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
 func GetRepository(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
@@ -14,11 +15,54 @@ func GetRepository(ctx context.Context, g *GitHubClient, repo repository.Reposit
 }
 
 // CheckTeamPermissions is a wrapper function to check team permissions for a repository.
-func CheckTeamPermissions(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string) (*github.Repository, error) {
+func CheckTeamPermissions(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string) (*github.Repository, bool, error) {
 	if teamSlug == "" {
-		return nil, nil
+		return nil, false, nil
 	}
-	return g.CheckTeamPermissions(ctx, repo.Owner, teamSlug, repo.Owner, repo.Name)
+	teamRepo, err := g.CheckTeamPermissions(ctx, repo.Owner, teamSlug, repo.Owner, repo.Name)
+	if err != nil {
+		return nil, false, err
+	}
+	hasPermission := teamRepo != nil
+	if teamRepo == nil {
+		teamRepo, err = GetRepository(ctx, g, repo)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to get repository: %w", err)
+		}
+		teamRepo.RoleName = github.Ptr("none")
+		teamRepo.Permissions = CreatePermissionMap([]string{})
+	}
+	return teamRepo, hasPermission, nil
+}
+
+func CheckTeamPermissionsWithSubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string) ([]*github.Repository, bool, error) {
+	var teamRepos []*github.Repository
+	hasPermissions := true
+	teamRepo, hasPermission, err := CheckTeamPermissions(ctx, g, repo, teamSlug)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to check team permissions: %w", err)
+	}
+	if !hasPermission {
+		hasPermissions = false
+	}
+	teamRepos = append(teamRepos, teamRepo)
+
+	submodules, err := GetRepositorySubmodules(ctx, g, repo)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get submodules: %w", err)
+	}
+	for _, submodule := range submodules {
+		submoduleTeamRepo, hasPermission, err := CheckTeamPermissions(ctx, g, submodule.Repository, teamSlug)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to check team permissions for submodule '%s': %w", submodule, err)
+		}
+		if !hasPermission {
+			hasPermissions = false
+		}
+		teamRepos = append(teamRepos, submoduleTeamRepo)
+	}
+
+	return teamRepos, hasPermissions, nil
 }
 
 func ListTeamRepos(ctx context.Context, g *GitHubClient, repo repository.Repository, teamName string, roles []string, inherit bool) ([]*github.Repository, error) {
@@ -126,4 +170,42 @@ func RemoveRepositoryCollaborator(ctx context.Context, g *GitHubClient, repo rep
 // GetRepositoryPermission retrieves the permission level of a user for a specific repository.
 func GetRepositoryPermission(ctx context.Context, g *GitHubClient, repo repository.Repository, username string) (*github.RepositoryPermissionLevel, error) {
 	return g.GetRepositoryPermission(ctx, repo.Owner, repo.Name, username)
+}
+
+func GetRepositoryPermissionWithSubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository, username string) (*[]github.RepositoryPermissionLevel, error) {
+	var teamRepos []*github.Repository
+	hasPermissions := true
+	teamRepo, hasPermission, err := CheckTeamPermissions(ctx, g, repo, teamSlug)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to check team permissions: %w", err)
+	}
+	if !hasPermission {
+		hasPermissions = false
+	}
+	teamRepos = append(teamRepos, teamRepo)
+
+	submodules, err := GetRepositorySubmodules(ctx, g, repo)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get submodules: %w", err)
+	}
+	for _, submodule := range submodules {
+		submoduleTeamRepo, hasPermission, err := CheckTeamPermissions(ctx, g, submodule.Repository, teamSlug)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to check team permissions for submodule '%s': %w", submodule, err)
+		}
+		if !hasPermission {
+			hasPermissions = false
+		}
+		teamRepos = append(teamRepos, submoduleTeamRepo)
+	}
+
+	return teamRepos, hasPermissions, nil
+}
+
+func GetRepositorySubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]client.RepositorySubmodule, error) {
+	submodules, err := g.GetRepositorySubmodules(ctx, repo.Owner, repo.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get submodules for repository %s/%s: %w", repo.Owner, repo.Name, err)
+	}
+	return submodules, nil
 }

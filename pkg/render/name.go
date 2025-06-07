@@ -6,6 +6,23 @@ import (
 	"github.com/google/go-github/v71/github"
 )
 
+func getName(item any) string {
+	switch v := item.(type) {
+	case *github.Repository:
+		return *v.FullName
+	case *github.Team:
+		return *v.Slug
+	case *github.User:
+		return *v.Login
+	case *github.CustomOrgRoles:
+		return *v.Name
+	case *github.RepositoryPermissionLevel:
+		return *v.User.Login
+	default:
+		return ""
+	}
+}
+
 func getNames(items any) []string {
 	switch v := items.(type) {
 	case []*github.Repository:
