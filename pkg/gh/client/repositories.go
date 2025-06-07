@@ -122,6 +122,7 @@ type RepositorySubmodule struct {
 	Repository repository.Repository
 	Branch     string
 	Path       string
+	Submodules []RepositorySubmodule
 }
 
 type repositorySubmoduleObject struct {

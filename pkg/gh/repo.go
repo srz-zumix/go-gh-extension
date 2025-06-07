@@ -47,10 +47,11 @@ func CheckTeamPermissionsWithSubmodules(ctx context.Context, g *GitHubClient, re
 	}
 	teamRepos = append(teamRepos, teamRepo)
 
-	submodules, err := GetRepositorySubmodules(ctx, g, repo)
+	submodules, err := GetRepositorySubmodules(ctx, g, repo, true)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get submodules: %w", err)
 	}
+	submodules = FlattenRepositorySubmodules(submodules)
 	for _, submodule := range submodules {
 		submoduleTeamRepo, hasPermission, err := CheckTeamPermissions(ctx, g, submodule.Repository, teamSlug)
 		if err != nil {
@@ -167,45 +168,84 @@ func RemoveRepositoryCollaborator(ctx context.Context, g *GitHubClient, repo rep
 	return g.RemoveRepositoryCollaborator(ctx, repo.Owner, repo.Name, username)
 }
 
-// GetRepositoryPermission retrieves the permission level of a user for a specific repository.
-func GetRepositoryPermission(ctx context.Context, g *GitHubClient, repo repository.Repository, username string) (*github.RepositoryPermissionLevel, error) {
-	return g.GetRepositoryPermission(ctx, repo.Owner, repo.Name, username)
+type RepositoryPermissionLevel struct {
+	PermissionLevel *github.RepositoryPermissionLevel
+	Repository      repository.Repository
 }
 
-func GetRepositoryPermissionWithSubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository, username string) (*[]github.RepositoryPermissionLevel, error) {
-	var teamRepos []*github.Repository
-	hasPermissions := true
-	teamRepo, hasPermission, err := CheckTeamPermissions(ctx, g, repo, teamSlug)
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to check team permissions: %w", err)
+func (p *RepositoryPermissionLevel) GetPermission() string {
+	if p.PermissionLevel == nil {
+		return "none"
 	}
-	if !hasPermission {
+	return *p.PermissionLevel.Permission
+}
+
+// GetRepositoryPermission retrieves the permission level of a user for a specific repository.
+func GetRepositoryPermission(ctx context.Context, g *GitHubClient, repo repository.Repository, username string) (*RepositoryPermissionLevel, error) {
+	permissionLevel, err := g.GetRepositoryPermission(ctx, repo.Owner, repo.Name, username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repository permission for user '%s' in repository '%s/%s': %w", username, repo.Owner, repo.Name, err)
+	}
+	return &RepositoryPermissionLevel{
+		PermissionLevel: permissionLevel,
+		Repository:      repo,
+	}, nil
+}
+
+func CheckRepositoryPermissionWithSubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository, username string) ([]*RepositoryPermissionLevel, bool, error) {
+	var repoRermissions []*RepositoryPermissionLevel
+	hasPermissions := true
+	repoPermission, err := GetRepositoryPermission(ctx, g, repo, username)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get repository permission: %w", err)
+	}
+	repoRermissions = append(repoRermissions, repoPermission)
+	if repoPermission.GetPermission() == "none" {
 		hasPermissions = false
 	}
-	teamRepos = append(teamRepos, teamRepo)
 
-	submodules, err := GetRepositorySubmodules(ctx, g, repo)
+	submodules, err := GetRepositorySubmodules(ctx, g, repo, true)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get submodules: %w", err)
 	}
+	submodules = FlattenRepositorySubmodules(submodules)
 	for _, submodule := range submodules {
-		submoduleTeamRepo, hasPermission, err := CheckTeamPermissions(ctx, g, submodule.Repository, teamSlug)
+		submoduleRepoPermission, err := GetRepositoryPermission(ctx, g, submodule.Repository, username)
 		if err != nil {
-			return nil, false, fmt.Errorf("failed to check team permissions for submodule '%s': %w", submodule, err)
+			return nil, false, fmt.Errorf("failed to get repository permission for submodule '%s': %w", submodule, err)
 		}
-		if !hasPermission {
+		if submoduleRepoPermission.GetPermission() == "none" {
 			hasPermissions = false
 		}
-		teamRepos = append(teamRepos, submoduleTeamRepo)
+		repoRermissions = append(repoRermissions, submoduleRepoPermission)
 	}
 
-	return teamRepos, hasPermissions, nil
+	return repoRermissions, hasPermissions, nil
 }
 
-func GetRepositorySubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]client.RepositorySubmodule, error) {
-	submodules, err := g.GetRepositorySubmodules(ctx, repo.Owner, repo.Name)
+func GetRepositorySubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool) ([]client.RepositorySubmodule, error) {
+	allSubmodules, err := g.GetRepositorySubmodules(ctx, repo.Owner, repo.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get submodules for repository %s/%s: %w", repo.Owner, repo.Name, err)
 	}
-	return submodules, nil
+	if recursive {
+		for i, submodule := range allSubmodules {
+			if repo.Host == submodule.Repository.Host {
+				allSubmodules[i].Submodules, err = GetRepositorySubmodules(ctx, g, submodule.Repository, recursive)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get nested submodules for submodule %s: %w", submodule.Name, err)
+				}
+			}
+		}
+	}
+	return allSubmodules, nil
+}
+
+func FlattenRepositorySubmodules(submodules []client.RepositorySubmodule) []client.RepositorySubmodule {
+	var flattened []client.RepositorySubmodule
+	for _, submodule := range submodules {
+		flattened = append(flattened, submodule)
+		flattened = append(flattened, FlattenRepositorySubmodules(submodule.Submodules)...)
+	}
+	return flattened
 }

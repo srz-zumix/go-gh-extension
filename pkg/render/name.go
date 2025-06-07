@@ -1,9 +1,11 @@
 package render
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/google/go-github/v71/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
 
 func getName(item any) string {
@@ -18,6 +20,8 @@ func getName(item any) string {
 		return *v.Name
 	case *github.RepositoryPermissionLevel:
 		return *v.User.Login
+	case *gh.RepositoryPermissionLevel:
+		return fmt.Sprintf("%s/%s", v.Repository.Owner, v.Repository.Name)
 	default:
 		return ""
 	}

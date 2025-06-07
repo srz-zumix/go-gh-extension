@@ -3,6 +3,7 @@ package parser
 import (
 	"errors"
 
+	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
 )
 
@@ -40,6 +41,9 @@ func RepositoryOwner(input string) RepositoryOption {
 		}
 		if r.Owner != "" && r.Owner != input {
 			return errors.New("conflicting owner")
+		}
+		if r.Host == "" {
+			r.Host, _ = auth.DefaultHost()
 		}
 		r.Owner = input
 		return nil
