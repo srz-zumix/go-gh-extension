@@ -3,7 +3,9 @@ package client
 import (
 	"context"
 
+	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v71/github"
+	"github.com/shurcooL/githubv4"
 )
 
 func (g *GitHubClient) GetRepository(ctx context.Context, owner string, repo string) (*github.Repository, error) {
@@ -112,4 +114,76 @@ func (g *GitHubClient) AddRepositoryCollaborator(ctx context.Context, owner stri
 		return nil, err
 	}
 	return invitation, nil
+}
+
+type RepositorySubmodule struct {
+	Name       string
+	GitUrl     string
+	Repository repository.Repository
+	Branch     string
+	Path       string
+	Submodules []RepositorySubmodule
+}
+
+type repositorySubmoduleObject struct {
+	Name   githubv4.String
+	GitUrl githubv4.String
+	Branch githubv4.String
+	Path   githubv4.String
+}
+
+func convertSubmodules(nodes []repositorySubmoduleObject) []RepositorySubmodule {
+	submodules := make([]RepositorySubmodule, len(nodes))
+	for i, node := range nodes {
+
+		repo, err := repository.Parse(string(node.GitUrl))
+		if err != nil {
+			continue // Handle error appropriately, e.g., log it or return an error
+		}
+		submodules[i] = RepositorySubmodule{
+			Name:       string(node.Name),
+			GitUrl:     string(node.GitUrl),
+			Repository: repo,
+			Branch:     string(node.Branch),
+			Path:       string(node.Path),
+		}
+	}
+	return submodules
+}
+
+// GetRepositorySubmodules retrieves all submodules for a specific repository using GraphQL.
+func (g *GitHubClient) GetRepositorySubmodules(ctx context.Context, owner string, repo string) ([]RepositorySubmodule, error) {
+	var query struct {
+		Repository struct {
+			Submodules struct {
+				Nodes    []repositorySubmoduleObject
+				PageInfo struct {
+					EndCursor   githubv4.String
+					HasNextPage bool
+				}
+			} `graphql:"submodules(first: 100, after: $cursor)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+	variables := map[string]interface{}{
+		"owner":  githubv4.String(owner),
+		"name":   githubv4.String(repo),
+		"cursor": (*githubv4.String)(nil), // Null after argument to get first page.
+	}
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+	allSubmodules := []RepositorySubmodule{}
+	for {
+		err := graphql.Query(ctx, &query, variables)
+		if err != nil {
+			return nil, err
+		}
+		allSubmodules = append(allSubmodules, convertSubmodules(query.Repository.Submodules.Nodes)...)
+		if !query.Repository.Submodules.PageInfo.HasNextPage {
+			break
+		}
+		variables["cursor"] = githubv4.NewString(query.Repository.Submodules.PageInfo.EndCursor)
+	}
+	return allSubmodules, nil
 }

@@ -66,20 +66,20 @@ func TestRepositoryOwner(t *testing.T) {
 			input:     "owner",
 			initial:   repository.Repository{},
 			expectErr: false,
-			expected:  repository.Repository{Owner: "owner"},
+			expected:  repository.Repository{Host: "github.com", Owner: "owner"},
 		},
 		{
 			name:      "Conflicting owner",
 			input:     "new-owner",
-			initial:   repository.Repository{Owner: "owner"},
+			initial:   repository.Repository{Host: "github.com", Owner: "owner"},
 			expectErr: true,
 		},
 		{
 			name:      "Empty input",
 			input:     "",
-			initial:   repository.Repository{Owner: "owner"},
+			initial:   repository.Repository{Host: "github.com", Owner: "owner"},
 			expectErr: false,
-			expected:  repository.Repository{Owner: "owner"},
+			expected:  repository.Repository{Host: "github.com", Owner: "owner"},
 		},
 	}
 

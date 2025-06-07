@@ -1,10 +1,31 @@
 package render
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/google/go-github/v71/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
+
+func getName(item any) string {
+	switch v := item.(type) {
+	case *github.Repository:
+		return *v.FullName
+	case *github.Team:
+		return *v.Slug
+	case *github.User:
+		return *v.Login
+	case *github.CustomOrgRoles:
+		return *v.Name
+	case *github.RepositoryPermissionLevel:
+		return *v.User.Login
+	case *gh.RepositoryPermissionLevel:
+		return fmt.Sprintf("%s/%s", v.Repository.Owner, v.Repository.Name)
+	default:
+		return ""
+	}
+}
 
 func getNames(items any) []string {
 	switch v := items.(type) {
