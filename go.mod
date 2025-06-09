@@ -3,11 +3,12 @@ module github.com/srz-zumix/go-gh-extension
 go 1.24.2
 
 require (
-	github.com/cli/go-gh/v2 v2.12.0
+	github.com/cli/go-gh/v2 v2.12.1
 	github.com/ddddddO/gtree v1.11.7
 	github.com/fatih/color v1.18.0
 	github.com/google/go-github/v71 v71.0.0
 	github.com/olekukonko/tablewriter v0.0.5
+	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -66,7 +67,6 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7 // indirect
 	github.com/shurcooL/graphql v0.0.0-20230722043721-ed46e5a46466 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect
