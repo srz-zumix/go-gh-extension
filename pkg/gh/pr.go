@@ -67,6 +67,7 @@ func SetPullRequestLabels(ctx context.Context, g *GitHubClient, repo repository.
 	}
 	return result, nil
 }
+
 func SetPullRequestLabelsByNumber(ctx context.Context, g *GitHubClient, repo repository.Repository, number int, labels []string) ([]*github.Label, error) {
 	result, err := g.SetPullRequestLabels(ctx, repo.Owner, repo.Name, number, labels)
 	if err != nil {
