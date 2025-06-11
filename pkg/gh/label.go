@@ -17,7 +17,12 @@ func GetLabel(ctx context.Context, g *client.GitHubClient, repo repository.Repos
 	return label, nil
 }
 
-func CreateLabel(ctx context.Context, g *client.GitHubClient, repo repository.Repository, label *github.Label) (*github.Label, error) {
+func CreateLabel(ctx context.Context, g *client.GitHubClient, repo repository.Repository, name, description, color *string) (*github.Label, error) {
+	label := &github.Label{
+		Name:        name,
+		Description: description,
+		Color:       color,
+	}
 	createdLabel, err := g.CreateLabel(ctx, repo.Owner, repo.Name, label)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create label %s: %w", *label.Name, err)
