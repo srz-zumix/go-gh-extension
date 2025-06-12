@@ -67,7 +67,7 @@ func (r *Renderer) RenderLabels(labels []*github.Label, headers []string) {
 	}
 
 	if len(labels) == 0 {
-		r.WriteLine("no labels found")
+		r.writeLine("no labels found")
 		return
 	}
 

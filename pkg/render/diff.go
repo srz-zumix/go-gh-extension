@@ -35,7 +35,7 @@ func (r *Renderer) RenderDiff(diff any, left, right any, commandBuilder DiffComm
 	if r.Color {
 		diffLines = colorizeDiff(diffLines)
 	}
-	r.WriteLine(diffLines)
+	r.writeLine(diffLines)
 }
 
 func getDiffLines(diff any, left, right any, commandBuilder DiffCommandBuilder) string {

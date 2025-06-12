@@ -59,7 +59,7 @@ func (r *Renderer) RenderTeams(teams []*github.Team, headers []string) {
 	}
 
 	if len(teams) == 0 {
-		r.WriteLine("no teams found")
+		r.writeLine("no teams found")
 		return
 	}
 

@@ -1,6 +1,7 @@
 package render
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 
@@ -15,10 +16,28 @@ type Renderer struct {
 	exporter cmdutil.Exporter
 }
 
+type StringRenderer struct {
+	Renderer Renderer
+	Stdout   *bytes.Buffer
+	Stderr   *bytes.Buffer
+}
+
 func NewRenderer(ex cmdutil.Exporter) *Renderer {
 	return &Renderer{
 		IO:       iostreams.System(),
 		exporter: ex,
+	}
+}
+
+func NewStringRenderer(ex cmdutil.Exporter) *StringRenderer {
+	io, _, out, errOut := iostreams.Test()
+	return &StringRenderer{
+		Renderer: Renderer{
+			IO:       io,
+			exporter: ex,
+		},
+		Stdout: out,
+		Stderr: errOut,
 	}
 }
 
@@ -34,6 +53,13 @@ func (r *Renderer) SetColor(colorFlag string) {
 }
 
 func (r *Renderer) WriteLine(line string) {
+	if r.exporter != nil {
+		return
+	}
+	r.writeLine(line)
+}
+
+func (r *Renderer) writeLine(line string) {
 	_, err := fmt.Fprintln(r.IO.Out, line)
 	if err != nil {
 		r.WriteError(err)

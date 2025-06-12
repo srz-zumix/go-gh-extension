@@ -11,7 +11,7 @@ func (r *Renderer) RenderCustomOrgRoles(roles []*github.CustomOrgRoles) {
 	}
 
 	if len(roles) == 0 {
-		r.WriteLine("no roles found")
+		r.writeLine("no roles found")
 		return
 	}
 
