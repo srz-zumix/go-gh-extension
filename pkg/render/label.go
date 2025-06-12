@@ -66,11 +66,6 @@ func (r *Renderer) RenderLabels(labels []*github.Label, headers []string) {
 		return
 	}
 
-	if len(labels) == 0 {
-		r.writeLine("no labels found")
-		return
-	}
-
 	getter := NewLabelFieldGetters()
 	table := r.newTableWriter(headers)
 

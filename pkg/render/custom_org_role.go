@@ -10,11 +10,6 @@ func (r *Renderer) RenderCustomOrgRoles(roles []*github.CustomOrgRoles) {
 		return
 	}
 
-	if len(roles) == 0 {
-		r.writeLine("no roles found")
-		return
-	}
-
 	headers := []string{"ID", "NAME", "DESCRIPTION"}
 	table := r.newTableWriter(headers)
 
