@@ -58,17 +58,12 @@ func (r *Renderer) RenderTeams(teams []*github.Team, headers []string) {
 		return
 	}
 
-	if len(teams) == 0 {
-		r.WriteLine("no teams found")
-		return
-	}
-
 	headers = slices.DeleteFunc(headers, func(s string) bool {
 		switch s {
 		case "MEMBER_COUNT":
-			return teams[0].MembersCount == nil
+			return len(teams) == 0 || teams[0].MembersCount == nil
 		case "REPOS_COUNT":
-			return teams[0].ReposCount == nil
+			return len(teams) == 0 || teams[0].ReposCount == nil
 		}
 		return false
 	})

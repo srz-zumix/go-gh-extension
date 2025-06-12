@@ -33,7 +33,7 @@ func (r *Renderer) RenderPermission(v any) {
 		return
 	}
 
-	r.WriteLine(gh.GetPermissionName(permissions))
+	r.writeLine(gh.GetPermissionName(permissions))
 }
 
 type nameWithPermissions struct {

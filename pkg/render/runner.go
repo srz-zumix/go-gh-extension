@@ -59,7 +59,7 @@ func (r *Renderer) RenderRunners(runners []*github.Runner, headers []string) {
 	}
 
 	if len(runners) == 0 {
-		r.WriteLine("no runners found")
+		r.writeLine("no runners")
 		return
 	}
 
