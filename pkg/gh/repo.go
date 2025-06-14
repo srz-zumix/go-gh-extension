@@ -249,3 +249,26 @@ func FlattenRepositorySubmodules(submodules []client.RepositorySubmodule) []clie
 	}
 	return flattened
 }
+
+func GetRepositoryContent(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, ref *string) ([]*github.RepositoryContent, error) {
+	fileContent, dirContents, err := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, path, ref)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get content for repository %s/%s at path '%s': %w", repo.Owner, repo.Name, path, err)
+	}
+	var content []*github.RepositoryContent
+	if fileContent != nil {
+		content = append(content, fileContent)
+	}
+	if dirContents != nil {
+		content = append(content, dirContents...)
+	}
+	return content, nil
+}
+
+func GetRepositoryFileContent(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, ref *string) (*github.RepositoryContent, error) {
+	fileContent, _, err := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, path, ref)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get content for repository %s/%s at path '%s': %w", repo.Owner, repo.Name, path, err)
+	}
+	return fileContent, nil
+}

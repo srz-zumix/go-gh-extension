@@ -187,3 +187,16 @@ func (g *GitHubClient) GetRepositorySubmodules(ctx context.Context, owner string
 	}
 	return allSubmodules, nil
 }
+
+// GetRepositoryContent retrieves the content of a file or directory in a repository.
+func (g *GitHubClient) GetRepositoryContent(ctx context.Context, owner, repo, path string, ref *string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
+	opt := &github.RepositoryContentGetOptions{}
+	if ref != nil && *ref != "" {
+		opt.Ref = *ref
+	}
+	fileContent, dirContent, _, err := g.client.Repositories.GetContents(ctx, owner, repo, path, opt)
+	if err != nil {
+		return nil, nil, err
+	}
+	return fileContent, dirContent, nil
+}
