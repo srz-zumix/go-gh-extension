@@ -22,6 +22,18 @@ type StringRenderer struct {
 	Stderr   *bytes.Buffer
 }
 
+const (
+	ColorFlagAlways string = "always"
+	ColorFlagNever  string = "never"
+	ColorFlagAuto   string = "auto"
+)
+
+var ColorFlags = []string{
+	ColorFlagAlways,
+	ColorFlagNever,
+	ColorFlagAuto,
+}
+
 func NewRenderer(ex cmdutil.Exporter) *Renderer {
 	return &Renderer{
 		IO:       iostreams.System(),
@@ -43,9 +55,9 @@ func NewStringRenderer(ex cmdutil.Exporter) *StringRenderer {
 
 func (r *Renderer) SetColor(colorFlag string) {
 	switch colorFlag {
-	case "always":
+	case ColorFlagAlways:
 		r.Color = true
-	case "never":
+	case ColorFlagNever:
 		r.Color = false
 	default:
 		r.Color = r.IO.ColorEnabled()
