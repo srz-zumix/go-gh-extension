@@ -32,12 +32,3 @@ func (g *GitHubClient) ListPullRequestFiles(ctx context.Context, owner string, r
 	}
 	return allCommitFiles, nil
 }
-
-// SetPullRequestLabels sets labels for a pull request
-func (g *GitHubClient) SetPullRequestLabels(ctx context.Context, owner string, repo string, number int, labels []string) ([]*github.Label, error) {
-	result, _, err := g.client.Issues.ReplaceLabelsForIssue(ctx, owner, repo, number, labels)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
