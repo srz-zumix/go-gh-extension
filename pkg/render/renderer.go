@@ -221,6 +221,6 @@ func ToRGB(c string) (int, int, int, error) {
 
 func (r *Renderer) newTableWriter(header []string) *tablewriter.Table {
 	table := tablewriter.NewWriter(r.IO.Out)
-	table.SetHeader(header)
+	table.Header(header)
 	return table
 }
