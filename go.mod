@@ -3,10 +3,11 @@ module github.com/srz-zumix/go-gh-extension
 go 1.24.2
 
 require (
+	github.com/bradleyfalzon/ghinstallation/v2 v2.15.0
 	github.com/cli/go-gh/v2 v2.12.1
 	github.com/ddddddO/gtree v1.11.7
 	github.com/fatih/color v1.18.0
-	github.com/google/go-github/v71 v71.0.0
+	github.com/google/go-github/v73 v73.0.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
 	github.com/stretchr/testify v1.10.0
@@ -20,7 +21,6 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/bradleyfalzon/ghinstallation/v2 v2.15.0 // indirect
 	github.com/briandowns/spinner v1.18.1 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/charmbracelet/bubbles v0.21.0 // indirect
@@ -39,10 +39,10 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/goccy/go-yaml v1.17.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
+	github.com/google/go-github/v71 v71.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/henvic/httpretty v0.1.4 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -79,13 +79,11 @@ require (
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/term v0.31.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
-	golang.org/x/time v0.11.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
 require (
 	github.com/cli/cli/v2 v2.73.0
 	github.com/cli/safeexec v1.0.1 // indirect
-	github.com/k1LoW/go-github-client/v71 v71.0.17
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v73/github"
 )
 
 func (g *GitHubClient) GetLabel(ctx context.Context, owner, repo, name string) (*github.Label, error) {

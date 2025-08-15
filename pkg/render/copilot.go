@@ -1,7 +1,7 @@
 package render
 
 import (
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v73/github"
 )
 
 type copilotMetricsFieldGetter func(m *github.CopilotMetrics) string

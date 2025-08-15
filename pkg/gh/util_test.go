@@ -3,7 +3,7 @@ package gh
 import (
 	"testing"
 
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v73/github"
 )
 
 func TestFindRepository(t *testing.T) {

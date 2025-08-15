@@ -3,7 +3,7 @@ package render
 import (
 	"strings"
 
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v73/github"
 )
 
 type runnerFieldGetter func(runner *github.Runner) string
