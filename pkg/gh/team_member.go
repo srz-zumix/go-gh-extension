@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v73/github"
 )
 
 // GetTeamMembership retrieves the membership details of a user in a specific team.

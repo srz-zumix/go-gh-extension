@@ -7,7 +7,7 @@ import (
 
 	"slices"
 
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v73/github"
 )
 
 func FindRepository(target *github.Repository, repos []*github.Repository) *github.Repository {
