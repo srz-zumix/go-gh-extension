@@ -21,8 +21,7 @@ func RepositoryInput(input string) RepositoryOption {
 		if err != nil {
 			repo, err = parseFilePath(input)
 			if err != nil {
-				return err
-				// return fmt.Errorf(`expected the "[HOST/]OWNER/REPO" format or PATH, got %q`, input)
+				return fmt.Errorf(`expected the "[HOST/]OWNER/REPO" format or PATH, got %q`, input)
 			}
 		}
 		if r.Host != "" && r.Host != repo.Host {
@@ -98,29 +97,33 @@ func GetRepositoryFullNameWithHost(repo repository.Repository) string {
 	return fmt.Sprintf("%s/%s", repo.Owner, repo.Name)
 }
 
-func parseFilePath(input string) (repository.Repository, error) {
-	var r repository.Repository
+func parseFilePath(input string) (repo repository.Repository, err error) {
 	if input == "" {
-		return r, nil
+		return repo, nil
 	}
 	// Check if the file path exists
 	input += "/.git"
 	if _, err := os.Stat(input); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return r, errors.New("file path does not exist")
+			return repo, errors.New("file path does not exist")
 		}
-		return r, err
+		return repo, err
 	}
 	absPath, err := filepath.Abs(input)
 	if err != nil {
-		return r, fmt.Errorf("failed to get absolute path: %w", err)
+		return repo, fmt.Errorf("failed to get absolute path: %w", err)
 	}
 	gitDir := os.Getenv("GIT_DIR")
-	if gitDir == "" {
-		defer os.Unsetenv("GIT_DIR")
-	} else {
-		defer os.Setenv("GIT_DIR", gitDir)
+	defer func() {
+		if gitDir == "" {
+			err = os.Unsetenv("GIT_DIR")
+		} else {
+			err = os.Setenv("GIT_DIR", gitDir)
+		}
+	}()
+	err = os.Setenv("GIT_DIR", absPath)
+	if err != nil {
+		return repo, err
 	}
-	os.Setenv("GIT_DIR", absPath)
 	return repository.Current()
 }
