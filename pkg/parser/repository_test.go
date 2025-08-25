@@ -103,6 +103,7 @@ func TestRepository(t *testing.T) {
 	tests := []struct {
 		name      string
 		options   []RepositoryOption
+		env       map[string]string
 		expectErr bool
 		expected  repository.Repository
 	}{
@@ -113,9 +114,26 @@ func TestRepository(t *testing.T) {
 			expected:  repository.Repository{Host: "github.com", Owner: "owner", Name: "repo"},
 		},
 		{
+			name:      "Valid url options",
+			options:   []RepositoryOption{RepositoryInput("https://github.com/owner/repo"), RepositoryOwner("owner")},
+			expectErr: false,
+			expected:  repository.Repository{Host: "github.com", Owner: "owner", Name: "repo"},
+		},
+		{
 			name:      "Conflicting options",
 			options:   []RepositoryOption{RepositoryInput("github.com/owner/repo"), RepositoryOwner("new-owner")},
 			expectErr: true,
+		},
+		{
+			name:    "Actions Context fallback",
+			options: []RepositoryOption{},
+			env: map[string]string{
+				"GITHUB_REPOSITORY": "owner/repo",
+				"GITHUB_SERVER_URL": "https://hoge.com",
+				"GIT_DIR":           "/path/to/git/dir",
+			},
+			expectErr: false,
+			expected:  repository.Repository{Host: "hoge.com", Owner: "owner", Name: "repo"},
 		},
 		{
 			name:      "Empty options",
@@ -127,6 +145,9 @@ func TestRepository(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
 			r, err := Repository(tt.options...)
 
 			if tt.expectErr {
