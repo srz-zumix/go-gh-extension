@@ -8,6 +8,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
+	"github.com/srz-zumix/go-gh-extension/pkg/actions"
 )
 
 type RepositoryOption func(*repository.Repository) error
@@ -73,15 +74,23 @@ func RepositoryOwners(inputs []string) RepositoryOption {
 }
 
 // ParseRepository parses a string into a go-gh Repository object. If the string is empty, it returns the current repository.
-func Repository(opts ...RepositoryOption) (repository.Repository, error) {
-	var r repository.Repository
+func Repository(opts ...RepositoryOption) (r repository.Repository, err error) {
 	for _, opt := range opts {
 		if err := opt(&r); err != nil {
 			return repository.Repository{}, err
 		}
 	}
 	if r.Host == "" && r.Name == "" && r.Owner == "" {
-		return repository.Current()
+		r, err = repository.Current()
+		if err != nil {
+			opt := RepositoryInput(actions.GetRepositoryFullNameWithHost())
+			if err := opt(&r); err != nil {
+				return repository.Repository{}, err
+			}
+			if r.Host == "" && r.Name == "" && r.Owner == "" {
+				return repository.Repository{}, errors.New("failed to parse repository")
+			}
+		}
 	}
 	return r, nil
 }
