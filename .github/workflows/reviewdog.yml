@@ -11,7 +11,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
       - uses: reviewdog/action-shellcheck@1bb9751763fdfbee4b5043772c37374f103bff9e # v1.31.0
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: *review-permission
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
       - uses: reviewdog/action-actionlint@e37e2ca68a70112d21e135229272da28ce2d0d5a # v1.66.1
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: *review-permission
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
       - uses: reviewdog/action-golangci-lint@f9bba13753278f6a73b27a56a3ffb1bfda90ed71 # v2.8.0
