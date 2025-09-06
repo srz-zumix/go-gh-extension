@@ -2,6 +2,7 @@ package gh
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"slices"
 
@@ -115,4 +116,22 @@ func DetectUserTeams(ctx context.Context, g *GitHubClient, repo repository.Repos
 		}
 	}
 	return users, nil
+}
+
+func SearchUsers(ctx context.Context, g *GitHubClient, query string) ([]*github.User, error) {
+	return g.SearchUser(ctx, query)
+}
+
+func FindUserByEmail(ctx context.Context, g *GitHubClient, email string) (*github.User, error) {
+	query := fmt.Sprintf("in:email %s", email)
+	users, err := SearchUsers(ctx, g, query)
+	if err != nil {
+		return nil, err
+	}
+	for _, user := range users {
+		if user.Email != nil && *user.Email == email {
+			return user, nil
+		}
+	}
+	return nil, nil
 }
