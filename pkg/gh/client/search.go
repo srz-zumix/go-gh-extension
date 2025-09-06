@@ -25,3 +25,24 @@ func (g *GitHubClient) SearchIssues(ctx context.Context, query string) ([]*githu
 	}
 	return allIssues, nil
 }
+
+func (g *GitHubClient) SearchUser(ctx context.Context, query string) ([]*github.User, error) {
+	allUsers := []*github.User{}
+	opts := &github.SearchOptions{
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+
+	for {
+		result, resp, err := g.client.Search.Users(ctx, query, opts)
+		if err != nil {
+			return nil, err
+		}
+		allUsers = append(allUsers, result.Users...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+
+	}
+	return allUsers, nil
+}
