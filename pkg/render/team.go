@@ -15,7 +15,7 @@ func NewTeamFieldGetters() *teamFiledGetters {
 	return &teamFiledGetters{
 		Func: map[string]teamFiledGetter{
 			"NAME": func(user *github.Team) string {
-				return *user.Name
+				return ToString(user.Name)
 			},
 			"DESCRIPTION": func(user *github.Team) string {
 				return ToString(user.Description)

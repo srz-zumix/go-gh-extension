@@ -7,6 +7,7 @@ import (
 
 	"github.com/cli/cli/v2/pkg/cmdutil"
 	"github.com/cli/cli/v2/pkg/iostreams"
+	"github.com/google/go-github/v73/github"
 	"github.com/olekukonko/tablewriter"
 )
 
@@ -158,6 +159,11 @@ func ToString(v any) string {
 			return ""
 		}
 		return toString(*e)
+	} else if t, ok := v.(*github.Timestamp); ok {
+		if t == nil {
+			return ""
+		}
+		return toString(*t)
 	}
 	return toString(v)
 }
@@ -196,6 +202,8 @@ func toString(v any) string {
 		return fmt.Sprintf("%f", f)
 	} else if i, ok := v.(error); ok {
 		return i.Error()
+	} else if t, ok := v.(github.Timestamp); ok {
+		return t.String()
 	}
 	return ""
 }
