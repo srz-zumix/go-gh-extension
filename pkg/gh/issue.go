@@ -108,3 +108,55 @@ func ClearIssueLabels(ctx context.Context, g *GitHubClient, repo repository.Repo
 	}
 	return nil
 }
+
+func CreateIssueComment(ctx context.Context, g *GitHubClient, repo repository.Repository, issue any, body string) (*github.IssueComment, error) {
+	number, err := GetIssueNumber(issue)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse issue number from '%s': %w", issue, err)
+	}
+	comment, err := g.CreateIssueComment(ctx, repo.Owner, repo.Name, number, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to comment on issue #%d in repository '%s/%s': %w", number, repo.Owner, repo.Name, err)
+	}
+	return comment, nil
+}
+
+func DeleteIssueComment(ctx context.Context, g *GitHubClient, repo repository.Repository, comment any) error {
+	commentID, err := GetCommentID(comment)
+	if err != nil {
+		return fmt.Errorf("failed to parse comment ID from '%s': %w", comment, err)
+	}
+	return g.DeleteIssueComment(ctx, repo.Owner, repo.Name, commentID)
+}
+
+func EditIssueComment(ctx context.Context, g *GitHubClient, repo repository.Repository, comment any, body string) (*github.IssueComment, error) {
+	commentID, err := GetCommentID(comment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse comment ID from '%s': %w", comment, err)
+	}
+	return g.EditIssueComment(ctx, repo.Owner, repo.Name, commentID, body)
+}
+
+func ListIssueComments(ctx context.Context, g *GitHubClient, repo repository.Repository, issue any) ([]*github.IssueComment, error) {
+	number, err := GetIssueNumber(issue)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse issue number from '%s': %w", issue, err)
+	}
+	comments, err := g.ListIssueComments(ctx, repo.Owner, repo.Name, number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list comments for issue #%d in repository '%s/%s': %w", number, repo.Owner, repo.Name, err)
+	}
+	return comments, nil
+}
+
+func GetCommentID(comment any) (int64, error) {
+	switch c := comment.(type) {
+	case *github.IssueComment:
+		return c.GetID(), nil
+	case *github.PullRequestComment:
+		return c.GetID(), nil
+	case int64:
+		return c, nil
+	}
+	return 0, fmt.Errorf("failed to get comment ID from '%v'", comment)
+}

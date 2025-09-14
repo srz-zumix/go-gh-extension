@@ -164,7 +164,7 @@ func (g *GitHubClient) GetRepositorySubmodules(ctx context.Context, owner string
 			} `graphql:"submodules(first: 100, after: $cursor)"`
 		} `graphql:"repository(owner: $owner, name: $name)"`
 	}
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"owner":  githubv4.String(owner),
 		"name":   githubv4.String(repo),
 		"cursor": (*githubv4.String)(nil), // Null after argument to get first page.
