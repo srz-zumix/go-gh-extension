@@ -6,7 +6,7 @@ on:
 jobs:
   shellcheck:
     runs-on: ubuntu-latest
-    permissions: &review-permission
+    permissions:
       checks: write
       contents: read
       pull-requests: write
@@ -23,7 +23,10 @@ jobs:
 
   actionlint:
     runs-on: ubuntu-latest
-    permissions: *review-permission
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -34,7 +37,10 @@ jobs:
 
   golangci-lint:
     runs-on: ubuntu-latest
-    permissions: *review-permission
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
         with:
