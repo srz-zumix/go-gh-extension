@@ -28,6 +28,18 @@ func GetPullRequest(ctx context.Context, g *GitHubClient, repo repository.Reposi
 	return pr, nil
 }
 
+func ListPullRequestCommits(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) ([]*github.RepositoryCommit, error) {
+	number, err := GetPullRequestNumber(pull_request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse pull request number from '%s': %w", pull_request, err)
+	}
+	commits, err := g.ListPullRequestCommits(ctx, repo.Owner, repo.Name, number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list commits for pull request #%d in repository '%s/%s': %w", number, repo.Owner, repo.Name, err)
+	}
+	return commits, nil
+}
+
 func ListPullRequestFiles(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) ([]*github.CommitFile, error) {
 	number, err := GetPullRequestNumber(pull_request)
 	if err != nil {
@@ -58,4 +70,72 @@ func RemovePullRequestLabels(ctx context.Context, g *GitHubClient, repo reposito
 
 func ClearPullRequestLabels(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) error {
 	return ClearIssueLabels(ctx, g, repo, pull_request)
+}
+
+func ListPullRequestReviewComments(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) ([]*github.PullRequestComment, error) {
+	number, err := GetPullRequestNumber(pull_request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse pull request number from '%s': %w", pull_request, err)
+	}
+	comments, err := g.ListPullRequestReviewComments(ctx, repo.Owner, repo.Name, number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list review comments for pull request #%d in repository '%s/%s': %w", number, repo.Owner, repo.Name, err)
+	}
+	return comments, nil
+}
+
+func CreatePullRequestComment(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any, comment *github.PullRequestComment) (*github.PullRequestComment, error) {
+	number, err := GetPullRequestNumber(pull_request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse pull request number from '%s': %w", pull_request, err)
+	}
+	comment, err = g.CreatePullRequestComment(ctx, repo.Owner, repo.Name, number, comment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create comment for pull request #%d in repository '%s/%s': %w", number, repo.Owner, repo.Name, err)
+	}
+	return comment, nil
+}
+
+func DeletePullRequestComment(ctx context.Context, g *GitHubClient, repo repository.Repository, comment any) error {
+	commentID, err := GetCommentID(comment)
+	if err != nil {
+		return fmt.Errorf("failed to parse comment ID from '%s': %w", comment, err)
+	}
+	return g.DeletePullRequestComment(ctx, repo.Owner, repo.Name, commentID)
+}
+
+func EditPullRequestComment(ctx context.Context, g *GitHubClient, repo repository.Repository, comment any, body string) (*github.PullRequestComment, error) {
+	commentID, err := GetCommentID(comment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse comment ID from '%s': %w", comment, err)
+	}
+	return g.EditPullRequestComment(ctx, repo.Owner, repo.Name, commentID, body)
+}
+
+func ResolvePullRequestComment(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any, comment any) error {
+	threadID, err := GetPullRequestCommentThreadID(ctx, g, repo, pull_request, comment)
+	if err != nil {
+		return fmt.Errorf("failed to get thread ID from pull request '%s' and comment '%s': %w", pull_request, comment, err)
+	}
+	return g.ResolveReviewThread(ctx, repo.Owner, repo.Name, threadID)
+}
+
+func UnresolvePullRequestComment(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any, comment any) error {
+	threadID, err := GetPullRequestCommentThreadID(ctx, g, repo, pull_request, comment)
+	if err != nil {
+		return fmt.Errorf("failed to get thread ID from pull request '%s' and comment '%s': %w", pull_request, comment, err)
+	}
+	return g.UnresolveReviewThread(ctx, repo.Owner, repo.Name, threadID)
+}
+
+func GetPullRequestCommentThreadID(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any, comment any) (string, error) {
+	number, err := GetPullRequestNumber(pull_request)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse pull request number from '%s': %w", pull_request, err)
+	}
+	commentID, err := GetCommentID(comment)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse comment ID from '%s': %w", comment, err)
+	}
+	return g.GetPullRequestCommentThreadID(ctx, repo.Owner, repo.Name, number, commentID)
 }

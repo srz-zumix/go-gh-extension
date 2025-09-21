@@ -47,3 +47,44 @@ func (g *GitHubClient) ClearIssueLabels(ctx context.Context, owner string, repo 
 	}
 	return nil
 }
+
+func (g *GitHubClient) CreateIssueComment(ctx context.Context, owner string, repo string, number int, body string) (*github.IssueComment, error) {
+	comment, _, err := g.client.Issues.CreateComment(ctx, owner, repo, number, &github.IssueComment{Body: &body})
+	if err != nil {
+		return nil, err
+	}
+	return comment, nil
+}
+
+func (g *GitHubClient) DeleteIssueComment(ctx context.Context, owner string, repo string, commentID int64) error {
+	_, err := g.client.Issues.DeleteComment(ctx, owner, repo, commentID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (g *GitHubClient) EditIssueComment(ctx context.Context, owner string, repo string, commentID int64, body string) (*github.IssueComment, error) {
+	comment, _, err := g.client.Issues.EditComment(ctx, owner, repo, commentID, &github.IssueComment{Body: &body})
+	if err != nil {
+		return nil, err
+	}
+	return comment, nil
+}
+
+func (g *GitHubClient) ListIssueComments(ctx context.Context, owner string, repo string, number int) ([]*github.IssueComment, error) {
+	allComments := []*github.IssueComment{}
+	opt := &github.IssueListCommentsOptions{ListOptions: github.ListOptions{PerPage: 50}}
+	for {
+		comments, resp, err := g.client.Issues.ListComments(ctx, owner, repo, number, opt)
+		if err != nil {
+			return nil, err
+		}
+		allComments = append(allComments, comments...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return allComments, nil
+}

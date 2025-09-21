@@ -18,9 +18,20 @@ func GetLoginUser(ctx context.Context, g *GitHubClient) (*github.User, error) {
 	return user, nil
 }
 
-// GetUser is a wrapper function to get a user by username.
-func GetUser(ctx context.Context, g *GitHubClient, username string) (*github.User, error) {
+func FindUser(ctx context.Context, g *GitHubClient, username string) (*github.User, error) {
 	return g.GetUser(ctx, username)
+}
+
+func GetUsser(ctx context.Context, g *GitHubClient, username string) *github.User {
+	user, err := FindUser(ctx, g, username)
+	if err != nil {
+		return &github.User{
+			Login: github.Ptr("41898282+github-actions[bot]@users.noreply.github.com"),
+			Name:  github.Ptr(username),
+			Email: github.Ptr("41898282+github-actions[bot]@users.noreply.github.com"),
+		}
+	}
+	return user
 }
 
 func GetUserHovercard(ctx context.Context, g *GitHubClient, username string, subjectType, subjectId string) (*github.Hovercard, error) {
