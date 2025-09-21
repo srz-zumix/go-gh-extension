@@ -84,7 +84,7 @@ func (g *GitHubClient) ListIssueComments(ctx context.Context, owner string, repo
 		if resp.NextPage == 0 {
 			break
 		}
-		opt.ListOptions.Page = resp.NextPage
+		opt.Page = resp.NextPage
 	}
 	return allComments, nil
 }
