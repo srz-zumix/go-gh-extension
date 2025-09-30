@@ -33,9 +33,3 @@ jobs:
           publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # update_semver:
-  #   needs: publish_release
-  #   uses: .github/workflows/update_semver.yml@main
-  #   with:
-  #     tag: ${{ needs.publish_release.outputs.tag_name }}

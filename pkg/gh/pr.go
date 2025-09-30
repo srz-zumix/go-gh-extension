@@ -53,6 +53,13 @@ func ListPullRequestFiles(ctx context.Context, g *GitHubClient, repo repository.
 }
 
 func SetPullRequestLabels(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any, labels []string) ([]*github.Label, error) {
+	if len(labels) == 0 {
+		err := ClearIssueLabels(ctx, g, repo, pull_request)
+		if err != nil {
+			return nil, fmt.Errorf("failed to clear labels for pull request '%s': %w", pull_request, err)
+		}
+		return []*github.Label{}, nil
+	}
 	return SetIssueLabels(ctx, g, repo, pull_request, labels)
 }
 
