@@ -3,7 +3,7 @@ module github.com/srz-zumix/go-gh-extension
 go 1.24.2
 
 require (
-	github.com/bradleyfalzon/ghinstallation/v2 v2.15.0
+	github.com/bradleyfalzon/ghinstallation/v2 v2.17.0
 	github.com/cli/go-gh/v2 v2.12.2
 	github.com/ddddddO/gtree v1.11.7
 	github.com/fatih/color v1.18.0
@@ -39,7 +39,7 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/goccy/go-yaml v1.17.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
-	github.com/google/go-github/v71 v71.0.0 // indirect
+	github.com/google/go-github/v75 v75.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
