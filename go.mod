@@ -5,7 +5,7 @@ go 1.24.2
 require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.15.0
 	github.com/cli/go-gh/v2 v2.12.2
-	github.com/ddddddO/gtree v1.11.7
+	github.com/ddddddO/gtree v1.11.8
 	github.com/fatih/color v1.18.0
 	github.com/google/go-github/v73 v73.0.0
 	github.com/olekukonko/tablewriter v0.0.5
@@ -37,7 +37,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
-	github.com/goccy/go-yaml v1.17.1 // indirect
+	github.com/goccy/go-yaml v1.18.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/google/go-github/v71 v71.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
