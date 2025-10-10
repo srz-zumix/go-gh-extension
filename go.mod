@@ -10,7 +10,7 @@ require (
 	github.com/google/go-github/v73 v73.0.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
-	github.com/stretchr/testify v1.11.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
