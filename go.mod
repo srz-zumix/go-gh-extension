@@ -1,11 +1,11 @@
 module github.com/srz-zumix/go-gh-extension
 
-go 1.24.2
+go 1.25.2
 
 require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.15.0
 	github.com/cli/go-gh/v2 v2.12.2
-	github.com/ddddddO/gtree v1.11.7
+	github.com/ddddddO/gtree v1.11.9
 	github.com/fatih/color v1.18.0
 	github.com/google/go-github/v73 v73.0.0
 	github.com/olekukonko/tablewriter v0.0.5
@@ -37,7 +37,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
-	github.com/goccy/go-yaml v1.17.1 // indirect
+	github.com/goccy/go-yaml v1.18.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/google/go-github/v71 v71.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
@@ -74,8 +74,8 @@ require (
 	github.com/thlib/go-timezone-local v0.0.6 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/crypto v0.41.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/term v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
