@@ -17,6 +17,9 @@ type ReviewersRequest struct {
 func GetRequestedReviewers(reviewers []string) ReviewersRequest {
 	reviewersRequest := ReviewersRequest{}
 	for _, reviewer := range reviewers {
+		if reviewer[0] == '@' {
+			reviewer = reviewer[1:]
+		}
 		if strings.Contains(reviewer, "/") {
 			reviewersRequest.TeamReviewers = append(reviewersRequest.TeamReviewers, reviewer)
 		} else {
