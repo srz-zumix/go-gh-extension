@@ -53,6 +53,35 @@ func (g *GitHubClient) ListPullRequestFiles(ctx context.Context, owner string, r
 	return allCommitFiles, nil
 }
 
+func (g *GitHubClient) RequestReviewers(ctx context.Context, owner string, repo string, number int, reviewers []string, teamReviewers []string) (*github.PullRequest, error) {
+	request := github.ReviewersRequest{
+		Reviewers:     reviewers,
+		TeamReviewers: teamReviewers,
+	}
+	pr, _, err := g.client.PullRequests.RequestReviewers(ctx, owner, repo, number, request)
+	if err != nil {
+		return nil, err
+	}
+	return pr, nil
+}
+
+func (g *GitHubClient) RemoveReviewers(ctx context.Context, owner string, repo string, number int, reviewers []string, teamReviewers []string) error {
+	request := github.ReviewersRequest{
+		Reviewers:     reviewers,
+		TeamReviewers: teamReviewers,
+	}
+	_, err := g.client.PullRequests.RemoveReviewers(ctx, owner, repo, number, request)
+	return err
+}
+
+func (g *GitHubClient) ListRequestedReviewers(ctx context.Context, owner string, repo string, number int) (*github.Reviewers, error) {
+	reviewers, _, err := g.client.PullRequests.ListReviewers(ctx, owner, repo, number, nil)
+	if err != nil {
+		return nil, err
+	}
+	return reviewers, nil
+}
+
 func (g *GitHubClient) GetPullRequestReviews(ctx context.Context, owner string, repo string, number int) ([]*github.PullRequestReview, error) {
 	reviews, _, err := g.client.PullRequests.ListReviews(ctx, owner, repo, number, nil)
 	if err != nil {

@@ -9,6 +9,16 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
+func GetLabelNames(labels []*github.Label) []string {
+	names := []string{}
+	for _, label := range labels {
+		if label.Name != nil {
+			names = append(names, *label.Name)
+		}
+	}
+	return names
+}
+
 func GetLabel(ctx context.Context, g *client.GitHubClient, repo repository.Repository, name string) (*github.Label, error) {
 	label, err := g.GetLabel(ctx, repo.Owner, repo.Name, name)
 	if err != nil {
