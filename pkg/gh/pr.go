@@ -3,6 +3,8 @@ package gh
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
@@ -134,6 +136,34 @@ func RemovePullRequestLabels(ctx context.Context, g *GitHubClient, repo reposito
 
 func ClearPullRequestLabels(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) error {
 	return ClearIssueLabels(ctx, g, repo, pull_request)
+}
+
+func GetPullRequestReviews(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) ([]*github.PullRequestReview, error) {
+	number, err := GetPullRequestNumber(pull_request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse pull request number from '%s': %w", pull_request, err)
+	}
+	reviews, err := g.GetPullRequestReviews(ctx, repo.Owner, repo.Name, number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get reviews for pull request #%d in repository '%s/%s': %w", number, repo.Owner, repo.Name, err)
+	}
+	return reviews, nil
+}
+
+func GetPullRequestLatestReviews(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) ([]*github.PullRequestReview, error) {
+	number, err := GetPullRequestNumber(pull_request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse pull request number from '%s': %w", pull_request, err)
+	}
+	reviews, err := g.GetPullRequestReviews(ctx, repo.Owner, repo.Name, number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get review status for pull request #%d in repository '%s/%s': %w", number, repo.Owner, repo.Name, err)
+	}
+	latestReviews := make(map[string]*github.PullRequestReview)
+	for _, review := range reviews {
+		latestReviews[review.User.GetLogin()] = review
+	}
+	return slices.Collect(maps.Values(latestReviews)), nil
 }
 
 func ListPullRequestReviewComments(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) ([]*github.PullRequestComment, error) {
