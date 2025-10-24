@@ -75,19 +75,40 @@ func (g *GitHubClient) RemoveReviewers(ctx context.Context, owner string, repo s
 }
 
 func (g *GitHubClient) ListRequestedReviewers(ctx context.Context, owner string, repo string, number int) (*github.Reviewers, error) {
-	reviewers, _, err := g.client.PullRequests.ListReviewers(ctx, owner, repo, number, nil)
-	if err != nil {
-		return nil, err
+	allReviewers := &github.Reviewers{}
+	opt := &github.ListOptions{PerPage: 50}
+
+	for {
+		reviewers, resp, err := g.client.PullRequests.ListReviewers(ctx, owner, repo, number, opt)
+		if err != nil {
+			return nil, err
+		}
+		allReviewers.Users = append(allReviewers.Users, reviewers.Users...)
+		allReviewers.Teams = append(allReviewers.Teams, reviewers.Teams...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
 	}
-	return reviewers, nil
+	return allReviewers, nil
 }
 
 func (g *GitHubClient) GetPullRequestReviews(ctx context.Context, owner string, repo string, number int) ([]*github.PullRequestReview, error) {
-	reviews, _, err := g.client.PullRequests.ListReviews(ctx, owner, repo, number, nil)
-	if err != nil {
-		return nil, err
+	allReviews := []*github.PullRequestReview{}
+	opt := &github.ListOptions{PerPage: 50}
+
+	for {
+		reviews, resp, err := g.client.PullRequests.ListReviews(ctx, owner, repo, number, opt)
+		if err != nil {
+			return nil, err
+		}
+		allReviews = append(allReviews, reviews...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
 	}
-	return reviews, nil
+	return allReviews, nil
 }
 
 func (g *GitHubClient) CreatePullRequestComment(ctx context.Context, owner string, repo string, number int, comment *github.PullRequestComment) (*github.PullRequestComment, error) {
