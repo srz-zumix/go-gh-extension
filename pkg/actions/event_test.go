@@ -1,7 +1,6 @@
 package actions
 
 import (
-	"os"
 	"testing"
 
 	"github.com/google/go-github/v73/github"
@@ -62,7 +61,6 @@ func TestGetEventPayloadError(t *testing.T) {
 
 	// Test with invalid file path
 	t.Setenv("GITHUB_EVENT_PATH", "/nonexistent/path/event.json")
-	defer os.Unsetenv("GITHUB_EVENT_PATH")
 
 	_, err = GetEventPayload()
 	if err == nil {
