@@ -61,11 +61,24 @@ func TestGetEventPayloadError(t *testing.T) {
 	}
 
 	// Test with invalid file path
-	os.Setenv("GITHUB_EVENT_PATH", "/nonexistent/path/event.json")
+	t.Setenv("GITHUB_EVENT_PATH", "/nonexistent/path/event.json")
 	defer os.Unsetenv("GITHUB_EVENT_PATH")
 
 	_, err = GetEventPayload()
 	if err == nil {
 		t.Error("GetEventPayload() expected error for nonexistent file")
+	}
+}
+
+func TestLoadEventJson(t *testing.T) {
+	if !IsRunsOn() {
+		t.Skip("Skipping test; not running in GitHub Actions environment")
+	}
+	payload, err := GetEventPayload()
+	if err != nil {
+		t.Errorf("GetEventPayload() returned error: %v", err)
+	}
+	if payload == nil {
+		t.Error("GetEventPayload() returned nil payload")
 	}
 }
