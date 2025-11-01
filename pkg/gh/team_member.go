@@ -53,6 +53,23 @@ func AddTeamMember(ctx context.Context, g *GitHubClient, repo repository.Reposit
 	return g.AddOrUpdateTeamMembership(ctx, repo.Owner, teamSlug, username, role)
 }
 
+func AddTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, usernames []string, role string, allowNonOrganizationMember bool) ([]*github.Membership, error) {
+	var memberships []*github.Membership
+	errorList := []error{}
+	for _, username := range usernames {
+		membership, err := AddTeamMember(ctx, g, repo, teamSlug, username, role, allowNonOrganizationMember)
+		if err != nil {
+			errorList = append(errorList, err)
+			continue
+		}
+		memberships = append(memberships, membership)
+	}
+	if len(errorList) > 0 {
+		return memberships, fmt.Errorf("encountered errors while adding team members: %v", errorList)
+	}
+	return memberships, nil
+}
+
 func UpdateTeamMemberRole(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, username string, role string) (*github.Membership, error) {
 	membership, err := g.FindTeamMembership(ctx, repo.Owner, teamSlug, username)
 	if err != nil {
