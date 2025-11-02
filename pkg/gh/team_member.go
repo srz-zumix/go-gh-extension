@@ -92,6 +92,44 @@ func RemoveTeamMember(ctx context.Context, g *GitHubClient, repo repository.Repo
 	return g.RemoveTeamMember(ctx, repo.Owner, teamSlug, username)
 }
 
+func RemoveTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, usernames []string) error {
+	errorList := []error{}
+	for _, username := range usernames {
+		err := RemoveTeamMember(ctx, g, repo, teamSlug, username)
+		if err != nil {
+			errorList = append(errorList, err)
+		}
+	}
+	if len(errorList) > 0 {
+		return fmt.Errorf("encountered errors while removing team members: %v", errorList)
+	}
+	return nil
+}
+
+func RemoveTeamMembersOther(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, excludeUsernames []string) error {
+	members, err := ListTeamMembers(ctx, g, repo, teamSlug, nil, false)
+	if err != nil {
+		return fmt.Errorf("failed to fetch members from team: %w", err)
+	}
+	excludeMap := make(map[string]struct{})
+	for _, username := range excludeUsernames {
+		excludeMap[username] = struct{}{}
+	}
+	for _, m := range members {
+		if m.Login == nil {
+			continue
+		}
+		username := *m.Login
+		if _, exists := excludeMap[username]; !exists {
+			err := RemoveTeamMember(ctx, g, repo, teamSlug, username)
+			if err != nil {
+				return fmt.Errorf("failed to remove member %s from team: %w", username, err)
+			}
+		}
+	}
+	return nil
+}
+
 // CopyTeamMembers copies members from the source team to the destination team (add only).
 func CopyTeamMembers(ctx context.Context, srcClient *GitHubClient, srcRepo repository.Repository, srcTeamSlug string, dstClient *GitHubClient, dstRepo repository.Repository, dstTeamSlug string) error {
 	srcMembers, err := ListTeamMembers(ctx, srcClient, srcRepo, srcTeamSlug, nil, false)
@@ -166,30 +204,6 @@ func SyncTeamMembers(ctx context.Context, srcClient *GitHubClient, srcRepo repos
 			err := RemoveTeamMember(ctx, dstClient, dstRepo, dstTeamSlug, username)
 			if err != nil {
 				return fmt.Errorf("failed to remove member %s from destination team: %w", username, err)
-			}
-		}
-	}
-	return nil
-}
-
-func RemoveOtherelseTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, excludeUsernames []string) error {
-	members, err := ListTeamMembers(ctx, g, repo, teamSlug, nil, false)
-	if err != nil {
-		return fmt.Errorf("failed to fetch members from team: %w", err)
-	}
-	excludeMap := make(map[string]struct{})
-	for _, username := range excludeUsernames {
-		excludeMap[username] = struct{}{}
-	}
-	for _, m := range members {
-		if m.Login == nil {
-			continue
-		}
-		username := *m.Login
-		if _, exists := excludeMap[username]; !exists {
-			err := RemoveTeamMember(ctx, g, repo, teamSlug, username)
-			if err != nil {
-				return fmt.Errorf("failed to remove member %s from team: %w", username, err)
 			}
 		}
 	}
