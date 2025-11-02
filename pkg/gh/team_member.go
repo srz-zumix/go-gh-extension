@@ -8,6 +8,12 @@ import (
 	"github.com/google/go-github/v73/github"
 )
 
+var (
+	TeamMembershipRoleAll        = "all"
+	TeamMembershipRoleMember     = "member"
+	TeamMembershipRoleMaintainer = "maintainer"
+)
+
 // GetTeamMembership retrieves the membership details of a user in a specific team.
 func GetTeamMembership(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, username string) (*github.Membership, error) {
 	return g.GetTeamMembership(ctx, repo.Owner, teamSlug, username)
@@ -84,4 +90,122 @@ func UpdateTeamMemberRole(ctx context.Context, g *GitHubClient, repo repository.
 // RemoveTeamMember is a wrapper function to remove a user from a team.
 func RemoveTeamMember(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, username string) error {
 	return g.RemoveTeamMember(ctx, repo.Owner, teamSlug, username)
+}
+
+func RemoveTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, usernames []string) error {
+	errorList := []error{}
+	for _, username := range usernames {
+		err := RemoveTeamMember(ctx, g, repo, teamSlug, username)
+		if err != nil {
+			errorList = append(errorList, err)
+		}
+	}
+	if len(errorList) > 0 {
+		return fmt.Errorf("encountered errors while removing team members: %v", errorList)
+	}
+	return nil
+}
+
+func RemoveTeamMembersOther(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, excludeUsernames []string) error {
+	members, err := ListTeamMembers(ctx, g, repo, teamSlug, nil, false)
+	if err != nil {
+		return fmt.Errorf("failed to fetch members from team: %w", err)
+	}
+	excludeMap := make(map[string]struct{})
+	for _, username := range excludeUsernames {
+		excludeMap[username] = struct{}{}
+	}
+	for _, m := range members {
+		if m.Login == nil {
+			continue
+		}
+		username := *m.Login
+		if _, exists := excludeMap[username]; !exists {
+			err := RemoveTeamMember(ctx, g, repo, teamSlug, username)
+			if err != nil {
+				return fmt.Errorf("failed to remove member %s from team: %w", username, err)
+			}
+		}
+	}
+	return nil
+}
+
+// CopyTeamMembers copies members from the source team to the destination team (add only).
+func CopyTeamMembers(ctx context.Context, srcClient *GitHubClient, srcRepo repository.Repository, srcTeamSlug string, dstClient *GitHubClient, dstRepo repository.Repository, dstTeamSlug string) error {
+	srcMembers, err := ListTeamMembers(ctx, srcClient, srcRepo, srcTeamSlug, nil, false)
+	if err != nil {
+		return fmt.Errorf("failed to fetch members from source team: %w", err)
+	}
+	dstMembers, err := ListTeamMembers(ctx, dstClient, dstRepo, dstTeamSlug, nil, false)
+	if err != nil {
+		return fmt.Errorf("failed to fetch members from destination team: %w", err)
+	}
+	dstMemberMap := make(map[string]struct{})
+	for _, m := range dstMembers {
+		if m.Login != nil {
+			dstMemberMap[*m.Login] = struct{}{}
+		}
+	}
+	for _, m := range srcMembers {
+		if m.Login == nil {
+			continue
+		}
+		username := *m.Login
+		if _, exists := dstMemberMap[username]; !exists {
+			_, err := AddTeamMember(ctx, dstClient, dstRepo, dstTeamSlug, username, *m.RoleName, false)
+			if err != nil {
+				return fmt.Errorf("failed to add member %s to destination team: %w", username, err)
+			}
+		}
+	}
+	return nil
+}
+
+// SyncTeamMembers syncs members from the source team to the destination team.
+func SyncTeamMembers(ctx context.Context, srcClient *GitHubClient, srcRepo repository.Repository, srcTeamSlug string, dstClient *GitHubClient, dstRepo repository.Repository, dstTeamSlug string) error {
+	srcMembers, err := ListTeamMembers(ctx, srcClient, srcRepo, srcTeamSlug, nil, false)
+	if err != nil {
+		return fmt.Errorf("failed to fetch members from source team: %w", err)
+	}
+	dstMembers, err := ListTeamMembers(ctx, dstClient, dstRepo, dstTeamSlug, nil, false)
+	if err != nil {
+		return fmt.Errorf("failed to fetch members from destination team: %w", err)
+	}
+	dstMemberMap := make(map[string]struct{})
+	for _, m := range dstMembers {
+		if m.Login != nil {
+			dstMemberMap[*m.Login] = struct{}{}
+		}
+	}
+	srcMemberMap := make(map[string]struct{})
+	for _, m := range srcMembers {
+		if m.Login != nil {
+			srcMemberMap[*m.Login] = struct{}{}
+		}
+	}
+	// Add or update members in destination team
+	for _, m := range srcMembers {
+		if m.Login == nil {
+			continue
+		}
+		username := *m.Login
+		_, err := AddTeamMember(ctx, dstClient, dstRepo, dstTeamSlug, username, *m.RoleName, false)
+		if err != nil {
+			return fmt.Errorf("failed to add member %s to destination team: %w", username, err)
+		}
+	}
+	// Remove members from destination team that are not in source team
+	for _, m := range dstMembers {
+		if m.Login == nil {
+			continue
+		}
+		username := *m.Login
+		if _, exists := srcMemberMap[username]; !exists {
+			err := RemoveTeamMember(ctx, dstClient, dstRepo, dstTeamSlug, username)
+			if err != nil {
+				return fmt.Errorf("failed to remove member %s from destination team: %w", username, err)
+			}
+		}
+	}
+	return nil
 }

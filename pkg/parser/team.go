@@ -6,30 +6,27 @@ import (
 	"github.com/cli/go-gh/v2/pkg/repository"
 )
 
-// TeamSlugWithOwner splits a team slug into organization and team name, returning a repository.Repository
-func TeamSlugWithOwner(owner, teamSlug string) (repository.Repository, string) {
-	parts := strings.SplitN(teamSlug, "/", 2)
+func TeamSlugWithHostOwner(teamSlug string) (repository.Repository, string) {
+	parts := strings.SplitN(teamSlug, "/", 3)
 	if len(parts) == 2 {
 		return repository.Repository{Owner: parts[0]}, parts[1]
 	}
-	return repository.Repository{Owner: owner}, teamSlug
+	if len(parts) == 3 {
+		return repository.Repository{Host: parts[0], Owner: parts[1]}, parts[2]
+	}
+	return repository.Repository{}, teamSlug
 }
 
 func RepositoryFromTeamSlugs(owner string, teamSlug string) (repository.Repository, string, error) {
-	repo, team := TeamSlugWithOwner(owner, teamSlug)
-
-	owners := []string{
-		owner,
-		repo.Owner,
-	}
-	repository, err := Repository(RepositoryOwners(owners))
-	if err != nil {
-		return repository, team, err
-	}
+	repo, team := TeamSlugWithHostOwner(teamSlug)
 
 	if repo.Owner == "" {
+		repository, err := Repository(RepositoryOwner(owner))
+		if err != nil {
+			return repository, team, err
+		}
 		repo.Host = repository.Host
 		repo.Owner = repository.Owner
 	}
-	return repository, team, nil
+	return repo, team, nil
 }
