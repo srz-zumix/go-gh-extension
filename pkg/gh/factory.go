@@ -12,6 +12,8 @@ type GitHubClient = client.GitHubClient
 const defaultHost = "github.com"
 const defaultV3Endpoint = "https://api.github.com"
 
+var cachedClients = make(map[string]*GitHubClient)
+
 func RepositoryOption(repo repository.Repository) factory.Option {
 	return func(c *factory.Config) error {
 		host := repo.Host
@@ -41,11 +43,25 @@ func NewGitHubClient() (*GitHubClient, error) {
 
 // NewGitHubClientWithRepo creates a new GitHubClient instance with a specified go-gh Repository.
 func NewGitHubClientWithRepo(repo repository.Repository) (*GitHubClient, error) {
+	host := repo.Host
+	if host != "" {
+		if client, ok := cachedClients[host]; ok {
+			return client, nil
+		}
+	}
+
 	c, err := factory.NewGithubClient(RepositoryOption(repo))
 	if err != nil {
 		return nil, err
 	}
-	return client.NewClient(c)
+	client, err := client.NewClient(c)
+	if err != nil {
+		return nil, err
+	}
+	if host != "" {
+		cachedClients[host] = client
+	}
+	return client, nil
 }
 
 func NewGitHubClientWith2Repos(repo1, repo2 repository.Repository) (*GitHubClient, *GitHubClient, error) {

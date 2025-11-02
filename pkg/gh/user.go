@@ -146,3 +146,7 @@ func FindUserByEmail(ctx context.Context, g *GitHubClient, email string) (*githu
 	}
 	return nil, nil
 }
+
+func GetUserNames(users []*github.User) []string {
+	return GetObjectNames(users)
+}

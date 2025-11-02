@@ -162,30 +162,56 @@ func ListRepositoryTeams(ctx context.Context, g *GitHubClient, repo repository.R
 	return g.ListRepositoryTeams(ctx, repo.Owner, repo.Name)
 }
 
+func getNotificationSetting(enableNotification any) *string {
+	switch v := enableNotification.(type) {
+	case *bool:
+		if v != nil {
+			return nil
+		}
+		return getNotificationSetting(*v)
+	case bool:
+		if v {
+			return github.Ptr("notifications_enabled")
+		}
+		return github.Ptr("notifications_disabled")
+	case string:
+		return github.Ptr(v)
+	default:
+		return nil
+	}
+}
+
+func GetTeamID(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string) (*int64, error) {
+	if teamSlug == "" {
+		return nil, nil
+	}
+	team, err := g.GetTeamBySlug(ctx, repo.Owner, teamSlug)
+	if err != nil {
+		return nil, err
+	}
+	if team == nil || team.ID == nil {
+		return nil, fmt.Errorf("team '%s' not found in organization '%s'", teamSlug, repo.Owner)
+	}
+	return team.ID, nil
+}
+
 // CreateTeam creates a new team in the specified organization.
-func CreateTeam(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, description string, privacy string, enableNotification bool, parentTeamSlug string) (*github.Team, error) {
+func CreateTeam(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, description string, privacy string, enableNotification any, parentTeamSlug *string) (*github.Team, error) {
 	newTeam := &github.NewTeam{
-		Name:         name,
-		Description:  &description,
-		Privacy:      &privacy,
-		ParentTeamID: nil, // ParentTeamSlug will be handled differently
+		Name:                name,
+		Description:         &description,
+		Privacy:             &privacy,
+		NotificationSetting: getNotificationSetting(enableNotification),
+		ParentTeamID:        nil, // ParentTeamSlug will be handled differently
 	}
 
-	if parentTeamSlug != "" {
-		parentTeam, err := g.GetTeamBySlug(ctx, repo.Owner, parentTeamSlug)
+	if parentTeamSlug != nil {
+		parentTeamID, err := GetTeamID(ctx, g, repo, *parentTeamSlug)
 		if err != nil {
 			return nil, err
 		}
-		if parentTeam != nil && parentTeam.ID != nil {
-			newTeam.ParentTeamID = parentTeam.ID
-		}
+		newTeam.ParentTeamID = parentTeamID
 	}
-
-	notificationSetting := "notifications_disabled"
-	if enableNotification {
-		notificationSetting = "notifications_enabled"
-	}
-	newTeam.NotificationSetting = &notificationSetting
 
 	return g.CreateTeam(ctx, repo.Owner, newTeam)
 }
@@ -196,35 +222,27 @@ func DeleteTeam(ctx context.Context, g *GitHubClient, repo repository.Repository
 }
 
 // UpdateTeam updates the details of a team in the specified repository.
-func UpdateTeam(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, name *string, description *string, privacy *string, enableNotification *bool, parentTeamSlug *string) (*github.Team, error) {
+func UpdateTeam(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, name *string, description *string, privacy *string, enableNotification any, parentTeamSlug *string) (*github.Team, error) {
 	team := &github.NewTeam{
-		Name:         teamSlug,
-		Description:  description,
-		Privacy:      privacy,
-		ParentTeamID: nil, // ParentTeamSlug will be handled differently
+		Name:                teamSlug,
+		Description:         description,
+		Privacy:             privacy,
+		NotificationSetting: getNotificationSetting(enableNotification),
+		ParentTeamID:        nil, // ParentTeamSlug will be handled differently
 	}
 
 	if name != nil {
 		team.Name = *name
 	}
-	if enableNotification != nil {
-		notificationSetting := "notifications_disabled"
-		if *enableNotification {
-			notificationSetting = "notifications_enabled"
-		}
-		team.NotificationSetting = &notificationSetting
-	}
 
 	removeParent := false
 	if parentTeamSlug != nil {
 		if *parentTeamSlug != "" {
-			parentTeam, err := g.GetTeamBySlug(ctx, repo.Owner, *parentTeamSlug)
+			parentTeamID, err := GetTeamID(ctx, g, repo, *parentTeamSlug)
 			if err != nil {
 				return nil, err
 			}
-			if parentTeam != nil && parentTeam.ID != nil {
-				team.ParentTeamID = parentTeam.ID
-			}
+			team.ParentTeamID = parentTeamID
 		} else {
 			// If parentTeamSlug is empty, remove the parent association
 			removeParent = true
@@ -234,15 +252,29 @@ func UpdateTeam(ctx context.Context, g *GitHubClient, repo repository.Repository
 	return g.UpdateTeam(ctx, repo.Owner, teamSlug, team, removeParent)
 }
 
+func CreateOrUpdateTeam(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, name *string, description string, privacy string, enableNotification any, parentTeamSlug *string) (*github.Team, error) {
+	existingTeam, err := FindTeamBySlug(ctx, g, repo, teamSlug)
+	if err != nil {
+		return nil, err
+	}
+	if existingTeam != nil {
+		return UpdateTeam(ctx, g, repo, teamSlug, name, &description, &privacy, &enableNotification, parentTeamSlug)
+	}
+	if name != nil {
+		teamSlug = *name
+	}
+	return CreateTeam(ctx, g, repo, teamSlug, description, privacy, enableNotification, parentTeamSlug)
+}
+
 // RenameTeam renames a team by its slug in the specified repository.
 func RenameTeam(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, newName string) (*github.Team, error) {
 	return UpdateTeam(ctx, g, repo, teamSlug, &newName, nil, nil, nil, nil)
 }
 
 // CopyRepoTeamsAndPermissions copies teams and permissions from the source repository to the destination repository.
-func CopyRepoTeamsAndPermissions(ctx context.Context, g *GitHubClient, src repository.Repository, dst repository.Repository, force bool) error {
+func CopyRepoTeamsAndPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository, force bool) error {
 	// Fetch teams and permissions from the source repository
-	srcTeams, err := g.ListRepositoryTeams(ctx, src.Owner, src.Name)
+	srcTeams, err := srcClient.ListRepositoryTeams(ctx, src.Owner, src.Name)
 	if err != nil {
 		return fmt.Errorf("failed to fetch teams from source repository: %w", err)
 	}
@@ -253,7 +285,7 @@ func CopyRepoTeamsAndPermissions(ctx context.Context, g *GitHubClient, src repos
 
 		// Check if the team already has permissions on the destination repository
 		if !force {
-			existingRepo, err := g.CheckTeamPermissions(ctx, dst.Owner, team.GetSlug(), dst.Owner, dst.Name)
+			existingRepo, err := dstClient.CheckTeamPermissions(ctx, dst.Owner, team.GetSlug(), dst.Owner, dst.Name)
 			if err != nil {
 				return fmt.Errorf("failed to check existing permissions for team %s: %w", team.GetSlug(), err)
 			}
@@ -266,7 +298,7 @@ func CopyRepoTeamsAndPermissions(ctx context.Context, g *GitHubClient, src repos
 			}
 		}
 
-		if err := g.AddTeamRepo(ctx, src.Owner, team.GetSlug(), dst.Owner, dst.Name, permission); err != nil {
+		if err := dstClient.AddTeamRepo(ctx, src.Owner, team.GetSlug(), dst.Owner, dst.Name, permission); err != nil {
 			return fmt.Errorf("failed to add team %s to destination repository: %w", team.GetSlug(), err)
 		}
 	}
@@ -274,15 +306,15 @@ func CopyRepoTeamsAndPermissions(ctx context.Context, g *GitHubClient, src repos
 	return nil
 }
 
-func SyncRepoTeamsAndPermissions(ctx context.Context, g *GitHubClient, src repository.Repository, dst repository.Repository) error {
+func SyncRepoTeamsAndPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository) error {
 	// Fetch teams and permissions from the source repository
-	srcTeams, err := g.ListRepositoryTeams(ctx, src.Owner, src.Name)
+	srcTeams, err := srcClient.ListRepositoryTeams(ctx, src.Owner, src.Name)
 	if err != nil {
 		return fmt.Errorf("failed to fetch teams from source repository: %w", err)
 	}
 
 	// Fetch existing teams and permissions from the destination repository
-	dstTeams, err := g.ListRepositoryTeams(ctx, dst.Owner, dst.Name)
+	dstTeams, err := dstClient.ListRepositoryTeams(ctx, dst.Owner, dst.Name)
 	if err != nil {
 		return fmt.Errorf("failed to fetch teams from destination repository: %w", err)
 	}
@@ -307,7 +339,7 @@ func SyncRepoTeamsAndPermissions(ctx context.Context, g *GitHubClient, src repos
 			}
 		}
 
-		if err := g.AddTeamRepo(ctx, src.Owner, team.GetSlug(), dst.Owner, dst.Name, permission); err != nil {
+		if err := dstClient.AddTeamRepo(ctx, src.Owner, team.GetSlug(), dst.Owner, dst.Name, permission); err != nil {
 			return fmt.Errorf("failed to sync team %s to destination repository: %w", team.GetSlug(), err)
 		}
 	}
@@ -315,91 +347,11 @@ func SyncRepoTeamsAndPermissions(ctx context.Context, g *GitHubClient, src repos
 	// Remove teams from the destination repository that are not in the source repository
 	for _, team := range dstTeams {
 		if _, exists := srcTeamMap[team.GetSlug()]; !exists {
-			if err := g.RemoveTeamRepo(ctx, dst.Owner, team.GetSlug(), dst.Owner, dst.Name); err != nil {
+			if err := dstClient.RemoveTeamRepo(ctx, dst.Owner, team.GetSlug(), dst.Owner, dst.Name); err != nil {
 				return fmt.Errorf("failed to remove team %s from destination repository: %w", team.GetSlug(), err)
 			}
 		}
 	}
 
-	return nil
-}
-
-// CopyTeamMembers copies members from the source team to the destination team (add only).
-func CopyTeamMembers(ctx context.Context, g *GitHubClient, srcRepo repository.Repository, srcTeamSlug string, dstRepo repository.Repository, dstTeamSlug string) error {
-	srcMembers, err := ListTeamMembers(ctx, g, srcRepo, srcTeamSlug, nil, false)
-	if err != nil {
-		return fmt.Errorf("failed to fetch members from source team: %w", err)
-	}
-	dstMembers, err := ListTeamMembers(ctx, g, dstRepo, dstTeamSlug, nil, false)
-	if err != nil {
-		return fmt.Errorf("failed to fetch members from destination team: %w", err)
-	}
-	dstMemberMap := make(map[string]struct{})
-	for _, m := range dstMembers {
-		if m.Login != nil {
-			dstMemberMap[*m.Login] = struct{}{}
-		}
-	}
-	for _, m := range srcMembers {
-		if m.Login == nil {
-			continue
-		}
-		username := *m.Login
-		if _, exists := dstMemberMap[username]; !exists {
-			_, err := AddTeamMember(ctx, g, dstRepo, dstTeamSlug, username, "member", false)
-			if err != nil {
-				return fmt.Errorf("failed to add member %s to destination team: %w", username, err)
-			}
-		}
-	}
-	return nil
-}
-
-// SyncTeamMembers syncs members from the source team to the destination team.
-func SyncTeamMembers(ctx context.Context, g *GitHubClient, srcRepo repository.Repository, srcTeamSlug string, dstRepo repository.Repository, dstTeamSlug string) error {
-	srcMembers, err := ListTeamMembers(ctx, g, srcRepo, srcTeamSlug, nil, false)
-	if err != nil {
-		return fmt.Errorf("failed to fetch members from source team: %w", err)
-	}
-	dstMembers, err := ListTeamMembers(ctx, g, dstRepo, dstTeamSlug, nil, false)
-	if err != nil {
-		return fmt.Errorf("failed to fetch members from destination team: %w", err)
-	}
-	dstMemberMap := make(map[string]struct{})
-	for _, m := range dstMembers {
-		if m.Login != nil {
-			dstMemberMap[*m.Login] = struct{}{}
-		}
-	}
-	srcMemberMap := make(map[string]struct{})
-	for _, m := range srcMembers {
-		if m.Login != nil {
-			srcMemberMap[*m.Login] = struct{}{}
-		}
-	}
-	// Add or update members in destination team
-	for _, m := range srcMembers {
-		if m.Login == nil {
-			continue
-		}
-		username := *m.Login
-		_, err := AddTeamMember(ctx, g, dstRepo, dstTeamSlug, username, "member", false)
-		if err != nil {
-			return fmt.Errorf("failed to add member %s to destination team: %w", username, err)
-		}
-	}
-	// Remove members from destination team that are not in source team
-	for _, m := range dstMembers {
-		if m.Login == nil {
-			continue
-		}
-		username := *m.Login
-		if _, exists := srcMemberMap[username]; !exists {
-			err := RemoveTeamMember(ctx, g, dstRepo, dstTeamSlug, username)
-			if err != nil {
-				return fmt.Errorf("failed to remove member %s from destination team: %w", username, err)
-			}
-		}
-	}
 	return nil
 }

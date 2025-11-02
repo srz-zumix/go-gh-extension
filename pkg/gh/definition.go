@@ -15,8 +15,8 @@ var PermissionsList = []string{
 }
 
 var TeamMembershipList = []string{
-	"member",
-	"maintainer",
+	TeamMembershipRoleMember,
+	TeamMembershipRoleMaintainer,
 }
 
 var OrgMembershipList = []string{
