@@ -7,10 +7,14 @@ type MutuallyExclusiveBoolFlags struct {
 	Disabled bool
 }
 
-func (m *MutuallyExclusiveBoolFlags) AddFlag(cmd *cobra.Command, name string, enableCaseUsage string, disableCaseUsage string) {
-	cmd.Flags().BoolVar(&m.Enabled, name, false, enableCaseUsage)
-	cmd.Flags().BoolVar(&m.Disabled, "no-"+name, false, disableCaseUsage)
-	cmd.MarkFlagsMutuallyExclusive(name, "no-"+name)
+func (m *MutuallyExclusiveBoolFlags) AddNoPrefixFlag(cmd *cobra.Command, name string, enableCaseUsage string, disableCaseUsage string) {
+	m.AddFlag(cmd, name, "no-"+name, enableCaseUsage, disableCaseUsage)
+}
+
+func (m *MutuallyExclusiveBoolFlags) AddFlag(cmd *cobra.Command, enableCaseName string, disableCaseName string, enableCaseUsage string, disableCaseUsage string) {
+	cmd.Flags().BoolVar(&m.Enabled, enableCaseName, false, enableCaseUsage)
+	cmd.Flags().BoolVar(&m.Disabled, disableCaseName, false, disableCaseUsage)
+	cmd.MarkFlagsMutuallyExclusive(enableCaseName, disableCaseName)
 }
 
 func (m *MutuallyExclusiveBoolFlags) IsEnabled() bool {
