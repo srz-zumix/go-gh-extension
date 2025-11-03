@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/go-github/v73/github"
+	"github.com/shurcooL/githubv4"
 )
 
 // ListTeams retrieves all teams in the specified organization with pagination support.
@@ -185,4 +186,117 @@ func (g *GitHubClient) FindTeamMembership(ctx context.Context, org string, teamS
 		return nil, err
 	}
 	return membership, nil
+}
+
+// TeamCodeReviewSettings represents the code review settings for a team
+type TeamCodeReviewSettings struct {
+	TeamSlug                     string
+	NotifyTeam                   bool
+	Enabled                      bool
+	Algorithm                    string
+	TeamMemberCount              int
+	ExcludedTeamMemberIDs        []string
+	IncludeChildTeamMembers      *bool
+	CountMembersAlreadyRequested *bool
+	RemoveTeamRequest            *bool
+}
+
+// GetTeamCodeReviewSettings retrieves the code review assignment settings for a team using GraphQL
+func (g *GitHubClient) GetTeamCodeReviewSettings(ctx context.Context, org string, teamSlug string) (*TeamCodeReviewSettings, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var query struct {
+		Organization struct {
+			Team struct {
+				Slug                               githubv4.String
+				ReviewRequestDelegationEnabled     githubv4.Boolean
+				ReviewRequestDelegationAlgorithm   githubv4.String
+				ReviewRequestDelegationMemberCount githubv4.Int
+				ReviewRequestDelegationNotifyTeam  githubv4.Boolean
+			} `graphql:"team(slug: $teamSlug)"`
+		} `graphql:"organization(login: $org)"`
+	}
+
+	variables := map[string]interface{}{
+		"org":      githubv4.String(org),
+		"teamSlug": githubv4.String(teamSlug),
+	}
+
+	if err := graphql.Query(ctx, &query, variables); err != nil {
+		return nil, err
+	}
+
+	settings := &TeamCodeReviewSettings{
+		TeamSlug:        teamSlug,
+		Enabled:         bool(query.Organization.Team.ReviewRequestDelegationEnabled),
+		Algorithm:       string(query.Organization.Team.ReviewRequestDelegationAlgorithm),
+		TeamMemberCount: int(query.Organization.Team.ReviewRequestDelegationMemberCount),
+		NotifyTeam:      bool(query.Organization.Team.ReviewRequestDelegationNotifyTeam),
+	}
+
+	return settings, nil
+}
+
+// UpdateTeamReviewAssignmentInput represents the input for updating team review assignment settings
+type UpdateTeamReviewAssignmentInput struct {
+	ID                           githubv4.ID       `json:"id"`
+	NotifyTeam                   *githubv4.Boolean `json:"notifyTeam,omitempty"`
+	Enabled                      githubv4.Boolean  `json:"enabled"`
+	Algorithm                    *githubv4.String  `json:"algorithm,omitempty"`
+	TeamMemberCount              *githubv4.Int     `json:"teamMemberCount,omitempty"`
+	ExcludedTeamMemberIDs        []githubv4.ID     `json:"excludedTeamMemberIds,omitempty"`
+	IncludeChildTeamMembers      *githubv4.Boolean `json:"includeChildTeamMembers,omitempty"`
+	CountMembersAlreadyRequested *githubv4.Boolean `json:"countMembersAlreadyRequested,omitempty"`
+	RemoveTeamRequest            *githubv4.Boolean `json:"removeTeamRequest,omitempty"`
+	ClientMutationID             *githubv4.String  `json:"clientMutationId,omitempty"`
+}
+
+// SetTeamCodeReviewSettings updates the code review assignment settings for a team using GraphQL mutation
+func (g *GitHubClient) SetTeamCodeReviewSettings(ctx context.Context, teamID any, settings *TeamCodeReviewSettings) error {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+
+	var mutation struct {
+		UpdateTeamReviewAssignment struct {
+			Team struct {
+				ID                                 githubv4.ID
+				ReviewRequestDelegationEnabled     githubv4.Boolean
+				ReviewRequestDelegationAlgorithm   githubv4.String
+				ReviewRequestDelegationMemberCount githubv4.Int
+				ReviewRequestDelegationNotifyTeam  githubv4.Boolean
+			}
+			ClientMutationID githubv4.String
+		} `graphql:"updateTeamReviewAssignment(input: $input)"`
+	}
+
+	input := UpdateTeamReviewAssignmentInput{
+		ID: githubv4.ID(teamID),
+	}
+
+	input.Enabled = githubv4.Boolean(settings.Enabled)
+	input.Algorithm = github.Ptr(githubv4.String(settings.Algorithm))
+	input.TeamMemberCount = github.Ptr(githubv4.Int(settings.TeamMemberCount))
+	input.NotifyTeam = github.Ptr(githubv4.Boolean(settings.NotifyTeam))
+	if settings.ExcludedTeamMemberIDs != nil {
+		input.ExcludedTeamMemberIDs = make([]githubv4.ID, len(settings.ExcludedTeamMemberIDs))
+		for i, id := range settings.ExcludedTeamMemberIDs {
+			input.ExcludedTeamMemberIDs[i] = githubv4.ID(id)
+		}
+	}
+	if settings.IncludeChildTeamMembers != nil {
+		input.IncludeChildTeamMembers = github.Ptr(githubv4.Boolean(*settings.IncludeChildTeamMembers))
+	}
+	if settings.CountMembersAlreadyRequested != nil {
+		input.CountMembersAlreadyRequested = github.Ptr(githubv4.Boolean(*settings.CountMembersAlreadyRequested))
+	}
+	if settings.RemoveTeamRequest != nil {
+		input.RemoveTeamRequest = github.Ptr(githubv4.Boolean(*settings.RemoveTeamRequest))
+	}
+
+	return graphql.Mutate(ctx, &mutation, input, nil)
 }
