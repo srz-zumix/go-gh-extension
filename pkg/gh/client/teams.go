@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/go-github/v73/github"
+	"github.com/shurcooL/githubv4"
 )
 
 // ListTeams retrieves all teams in the specified organization with pagination support.
@@ -185,4 +186,52 @@ func (g *GitHubClient) FindTeamMembership(ctx context.Context, org string, teamS
 		return nil, err
 	}
 	return membership, nil
+}
+
+// TeamCodeReviewSettings represents the code review settings for a team
+type TeamCodeReviewSettings struct {
+	TeamSlug                           string
+	ReviewRequestDelegationEnabled     bool
+	ReviewRequestDelegationAlgorithm   string
+	ReviewRequestDelegationMemberCount int
+	ReviewRequestDelegationNotifyTeam  bool
+}
+
+// GetTeamCodeReviewSettings retrieves the code review assignment settings for a team using GraphQL
+func (g *GitHubClient) GetTeamCodeReviewSettings(ctx context.Context, org string, teamSlug string) (*TeamCodeReviewSettings, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var query struct {
+		Organization struct {
+			Team struct {
+				Slug                               githubv4.String
+				ReviewRequestDelegationEnabled     githubv4.Boolean
+				ReviewRequestDelegationAlgorithm   githubv4.String
+				ReviewRequestDelegationMemberCount githubv4.Int
+				ReviewRequestDelegationNotifyTeam  githubv4.Boolean
+			} `graphql:"team(slug: $teamSlug)"`
+		} `graphql:"organization(login: $org)"`
+	}
+
+	variables := map[string]interface{}{
+		"org":      githubv4.String(org),
+		"teamSlug": githubv4.String(teamSlug),
+	}
+
+	if err := graphql.Query(ctx, &query, variables); err != nil {
+		return nil, err
+	}
+
+	settings := &TeamCodeReviewSettings{
+		TeamSlug:                           string(query.Organization.Team.Slug),
+		ReviewRequestDelegationEnabled:     bool(query.Organization.Team.ReviewRequestDelegationEnabled),
+		ReviewRequestDelegationAlgorithm:   string(query.Organization.Team.ReviewRequestDelegationAlgorithm),
+		ReviewRequestDelegationMemberCount: int(query.Organization.Team.ReviewRequestDelegationMemberCount),
+		ReviewRequestDelegationNotifyTeam:  bool(query.Organization.Team.ReviewRequestDelegationNotifyTeam),
+	}
+
+	return settings, nil
 }

@@ -4,9 +4,10 @@ import (
 	"slices"
 
 	"github.com/google/go-github/v73/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
 
-type teamFiledGetter func(user *github.Team) string
+type teamFiledGetter func(team *github.Team) string
 type teamFiledGetters struct {
 	Func map[string]teamFiledGetter
 }
@@ -14,40 +15,40 @@ type teamFiledGetters struct {
 func NewTeamFieldGetters() *teamFiledGetters {
 	return &teamFiledGetters{
 		Func: map[string]teamFiledGetter{
-			"NAME": func(user *github.Team) string {
-				return ToString(user.Name)
+			"NAME": func(team *github.Team) string {
+				return ToString(team.Name)
 			},
-			"DESCRIPTION": func(user *github.Team) string {
-				return ToString(user.Description)
+			"DESCRIPTION": func(team *github.Team) string {
+				return ToString(team.Description)
 			},
-			"MEMBER_COUNT": func(user *github.Team) string {
-				return ToString(user.MembersCount)
+			"MEMBER_COUNT": func(team *github.Team) string {
+				return ToString(team.MembersCount)
 			},
-			"REPOS_COUNT": func(user *github.Team) string {
-				return ToString(user.ReposCount)
+			"REPOS_COUNT": func(team *github.Team) string {
+				return ToString(team.ReposCount)
 			},
-			"PERMISSION": func(user *github.Team) string {
-				return ToString(user.Permission)
+			"PERMISSION": func(team *github.Team) string {
+				return ToString(team.Permission)
 			},
-			"PRIVACY": func(user *github.Team) string {
-				return ToString(user.Privacy)
+			"PRIVACY": func(team *github.Team) string {
+				return ToString(team.Privacy)
 			},
-			"URL": func(user *github.Team) string {
-				return ToString(user.HTMLURL)
+			"URL": func(team *github.Team) string {
+				return ToString(team.HTMLURL)
 			},
-			"PARENT_SLUG": func(user *github.Team) string {
-				if user.Parent == nil {
+			"PARENT_SLUG": func(team *github.Team) string {
+				if team.Parent == nil {
 					return ""
 				}
-				return ToString(user.Parent.Slug)
+				return ToString(team.Parent.Slug)
 			},
 		},
 	}
 }
 
-func (u *teamFiledGetters) GetField(user *github.Team, field string) string {
+func (u *teamFiledGetters) GetField(team *github.Team, field string) string {
 	if getter, ok := u.Func[field]; ok {
-		return getter(user)
+		return getter(team)
 	}
 	return ""
 }
@@ -90,4 +91,63 @@ func (r *Renderer) RenderTeamsDefault(teams []*github.Team) {
 func (r *Renderer) RenderTeamsWithPermission(teams []*github.Team) {
 	headers := []string{"NAME", "DESCRIPTION", "MEMBER_COUNT", "REPOS_COUNT", "PRIVACY", "PERMISSION", "PARENT_SLUG"}
 	r.RenderTeams(teams, headers)
+}
+
+type teamCodeReviewFiledGetter func(s *gh.TeamCodeReviewSettings) string
+type teamCodeReviewFiledGetters struct {
+	Func map[string]teamCodeReviewFiledGetter
+}
+
+func NewTeamCodeReviewFieldGetters() *teamCodeReviewFiledGetters {
+	return &teamCodeReviewFiledGetters{
+		Func: map[string]teamCodeReviewFiledGetter{
+			"NAME": func(s *gh.TeamCodeReviewSettings) string {
+				return s.TeamSlug
+			},
+			"TEAM": func(s *gh.TeamCodeReviewSettings) string {
+				return s.TeamSlug
+			},
+			"AUTO_ASSIGNMENT": func(s *gh.TeamCodeReviewSettings) string {
+				return ToString(s.ReviewRequestDelegationEnabled)
+			},
+			"ALGORITHM": func(s *gh.TeamCodeReviewSettings) string {
+				return s.ReviewRequestDelegationAlgorithm
+			},
+			"MEMBER_COUNT": func(s *gh.TeamCodeReviewSettings) string {
+				return ToString(s.ReviewRequestDelegationMemberCount)
+			},
+			"NOTIFY_TEAM": func(s *gh.TeamCodeReviewSettings) string {
+				return ToString(s.ReviewRequestDelegationNotifyTeam)
+			},
+		},
+	}
+}
+
+func (u *teamCodeReviewFiledGetters) GetField(s *gh.TeamCodeReviewSettings, field string) string {
+	if getter, ok := u.Func[field]; ok {
+		return getter(s)
+	}
+	return ""
+}
+
+func (r *Renderer) RenderTeamCodeReviewSettings(codeReviewSettings *gh.TeamCodeReviewSettings, headers []string) {
+	if r.exporter != nil {
+		r.RenderExportedData(codeReviewSettings)
+		return
+	}
+
+	getter := NewTeamCodeReviewFieldGetters()
+	table := r.newTableWriter([]string{"FIELD", "VALUE"})
+
+	for _, header := range headers {
+		value := getter.GetField(codeReviewSettings, header)
+		table.Append([]string{header, value})
+	}
+
+	table.Render()
+}
+
+func (r *Renderer) RenderTeamCodeReviewSettingsDefault(codeReviewSettings *gh.TeamCodeReviewSettings) {
+	headers := []string{"TEAM", "AUTO_ASSIGNMENT", "MEMBER_COUNT", "ALGORITHM", "NOTIFY_TEAM"}
+	r.RenderTeamCodeReviewSettings(codeReviewSettings, headers)
 }

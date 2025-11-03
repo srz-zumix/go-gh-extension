@@ -6,6 +6,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v73/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
 type Team struct {
@@ -354,4 +355,10 @@ func SyncRepoTeamsAndPermissions(ctx context.Context, srcClient *GitHubClient, s
 	}
 
 	return nil
+}
+
+type TeamCodeReviewSettings = client.TeamCodeReviewSettings
+
+func GetTeamCodeReviewSettings(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string) (*TeamCodeReviewSettings, error) {
+	return g.GetTeamCodeReviewSettings(ctx, repo.Owner, teamSlug)
 }
