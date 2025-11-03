@@ -196,9 +196,9 @@ type TeamCodeReviewSettings struct {
 	Algorithm                    string
 	TeamMemberCount              int
 	ExcludedTeamMemberIDs        []string
-	IncludeChildTeamMembers      bool
-	CountMembersAlreadyRequested bool
-	RemoveTeamRequest            bool
+	IncludeChildTeamMembers      *bool
+	CountMembersAlreadyRequested *bool
+	RemoveTeamRequest            *bool
 }
 
 // GetTeamCodeReviewSettings retrieves the code review assignment settings for a team using GraphQL
@@ -282,13 +282,21 @@ func (g *GitHubClient) SetTeamCodeReviewSettings(ctx context.Context, teamID any
 	input.Algorithm = github.Ptr(githubv4.String(settings.Algorithm))
 	input.TeamMemberCount = github.Ptr(githubv4.Int(settings.TeamMemberCount))
 	input.NotifyTeam = github.Ptr(githubv4.Boolean(settings.NotifyTeam))
-	input.ExcludedTeamMemberIDs = make([]githubv4.ID, len(settings.ExcludedTeamMemberIDs))
-	for i, id := range settings.ExcludedTeamMemberIDs {
-		input.ExcludedTeamMemberIDs[i] = githubv4.ID(id)
+	if settings.ExcludedTeamMemberIDs != nil {
+		input.ExcludedTeamMemberIDs = make([]githubv4.ID, len(settings.ExcludedTeamMemberIDs))
+		for i, id := range settings.ExcludedTeamMemberIDs {
+			input.ExcludedTeamMemberIDs[i] = githubv4.ID(id)
+		}
 	}
-	input.IncludeChildTeamMembers = github.Ptr(githubv4.Boolean(settings.IncludeChildTeamMembers))
-	input.CountMembersAlreadyRequested = github.Ptr(githubv4.Boolean(settings.CountMembersAlreadyRequested))
-	input.RemoveTeamRequest = github.Ptr(githubv4.Boolean(settings.RemoveTeamRequest))
+	if settings.IncludeChildTeamMembers != nil {
+		input.IncludeChildTeamMembers = github.Ptr(githubv4.Boolean(*settings.IncludeChildTeamMembers))
+	}
+	if settings.CountMembersAlreadyRequested != nil {
+		input.CountMembersAlreadyRequested = github.Ptr(githubv4.Boolean(*settings.CountMembersAlreadyRequested))
+	}
+	if settings.RemoveTeamRequest != nil {
+		input.RemoveTeamRequest = github.Ptr(githubv4.Boolean(*settings.RemoveTeamRequest))
+	}
 
 	return graphql.Mutate(ctx, &mutation, input, nil)
 }

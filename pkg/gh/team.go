@@ -3,6 +3,7 @@ package gh
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v73/github"
@@ -371,7 +372,17 @@ func SyncRepoTeamsAndPermissions(ctx context.Context, srcClient *GitHubClient, s
 	return nil
 }
 
-type TeamCodeReviewSettings = client.TeamCodeReviewSettings
+type TeamCodeReviewSettings struct {
+	TeamSlug                     string
+	NotifyTeam                   bool
+	Enabled                      bool
+	Algorithm                    string
+	TeamMemberCount              int
+	ExcludedTeamMembers          []string
+	IncludeChildTeamMembers      *bool
+	CountMembersAlreadyRequested *bool
+	RemoveTeamRequest            *bool
+}
 
 var (
 	TeamCodeReviewAlgorithmRoundRobin  = "ROUND_ROBIN"
@@ -384,10 +395,42 @@ var TeamCodeReviewAlgorithm = []string{
 }
 
 func GetTeamCodeReviewSettings(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string) (*TeamCodeReviewSettings, error) {
-	return g.GetTeamCodeReviewSettings(ctx, repo.Owner, teamSlug)
+	s, err := g.GetTeamCodeReviewSettings(ctx, repo.Owner, teamSlug)
+	if err != nil {
+		return nil, err
+	}
+
+	expandedExcludedMembers := []string{}
+	for _, id := range s.ExcludedTeamMemberIDs {
+		userID, err := strconv.ParseInt(id, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse user ID %s: %w", id, err)
+		}
+		user, err := FindUserByID(ctx, g, userID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find user by ID %s: %w", id, err)
+		}
+		if user != nil && user.Login != nil {
+			expandedExcludedMembers = append(expandedExcludedMembers, *user.Login)
+		}
+	}
+
+	expandedSettings := &TeamCodeReviewSettings{
+		TeamSlug:                     s.TeamSlug,
+		NotifyTeam:                   s.NotifyTeam,
+		Enabled:                      s.Enabled,
+		Algorithm:                    s.Algorithm,
+		TeamMemberCount:              s.TeamMemberCount,
+		ExcludedTeamMembers:          expandedExcludedMembers,
+		IncludeChildTeamMembers:      s.IncludeChildTeamMembers,
+		CountMembersAlreadyRequested: s.CountMembersAlreadyRequested,
+		RemoveTeamRequest:            s.RemoveTeamRequest,
+	}
+
+	return expandedSettings, nil
 }
 
-func SetTeamCodeReviewSettings(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, settings *TeamCodeReviewSettings, excludedTeamMemberUsernames []string) error {
+func SetTeamCodeReviewSettings(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, settings *TeamCodeReviewSettings) error {
 	teamNodeID, err := GetTeamNodeID(ctx, g, repo, teamSlug)
 	if err != nil {
 		return err
@@ -395,5 +438,31 @@ func SetTeamCodeReviewSettings(ctx context.Context, g *GitHubClient, repo reposi
 	if teamNodeID == nil {
 		return fmt.Errorf("team '%s' not found in organization '%s'", teamSlug, repo.Owner)
 	}
-	return g.SetTeamCodeReviewSettings(ctx, *teamNodeID, settings)
+
+	s := &client.TeamCodeReviewSettings{
+		TeamSlug:                     settings.TeamSlug,
+		NotifyTeam:                   settings.NotifyTeam,
+		Enabled:                      settings.Enabled,
+		Algorithm:                    settings.Algorithm,
+		TeamMemberCount:              settings.TeamMemberCount,
+		ExcludedTeamMemberIDs:        nil,
+		IncludeChildTeamMembers:      settings.IncludeChildTeamMembers,
+		CountMembersAlreadyRequested: settings.CountMembersAlreadyRequested,
+		RemoveTeamRequest:            settings.RemoveTeamRequest,
+	}
+	if settings.ExcludedTeamMembers != nil {
+		s.ExcludedTeamMemberIDs = []string{}
+		for _, username := range settings.ExcludedTeamMembers {
+			user, err := FindUser(ctx, g, username)
+			if err != nil {
+				return fmt.Errorf("failed to find user '%s': %w", username, err)
+			}
+			if user == nil || user.NodeID == nil {
+				return fmt.Errorf("user '%s' not found", username)
+			}
+
+			s.ExcludedTeamMemberIDs = append(s.ExcludedTeamMemberIDs, *user.NodeID)
+		}
+	}
+	return g.SetTeamCodeReviewSettings(ctx, *teamNodeID, s)
 }

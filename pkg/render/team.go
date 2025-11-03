@@ -2,6 +2,7 @@ package render
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/google/go-github/v73/github"
 	"github.com/olekukonko/tablewriter"
@@ -119,6 +120,18 @@ func NewTeamCodeReviewFieldGetters() *teamCodeReviewFiledGetters {
 			},
 			"NOTIFY_TEAM": func(s *gh.TeamCodeReviewSettings) string {
 				return ToString(s.NotifyTeam)
+			},
+			"EXCLUDED_TEAM_MEMBERS": func(s *gh.TeamCodeReviewSettings) string {
+				return strings.Join(s.ExcludedTeamMembers, ", ")
+			},
+			"INCLUDE_CHILD_TEAM_MEMBERS": func(s *gh.TeamCodeReviewSettings) string {
+				return ToString(*s.IncludeChildTeamMembers)
+			},
+			"COUNT_MEMBERS_ALREADY_REQUESTED": func(s *gh.TeamCodeReviewSettings) string {
+				return ToString(*s.CountMembersAlreadyRequested)
+			},
+			"REMOVE_TEAM_REQUEST": func(s *gh.TeamCodeReviewSettings) string {
+				return ToString(*s.RemoveTeamRequest)
 			},
 		},
 	}
