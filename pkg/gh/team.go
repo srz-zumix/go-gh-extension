@@ -166,7 +166,7 @@ func ListRepositoryTeams(ctx context.Context, g *GitHubClient, repo repository.R
 func getNotificationSetting(enableNotification any) *string {
 	switch v := enableNotification.(type) {
 	case *bool:
-		if v != nil {
+		if v == nil {
 			return nil
 		}
 		return getNotificationSetting(*v)
