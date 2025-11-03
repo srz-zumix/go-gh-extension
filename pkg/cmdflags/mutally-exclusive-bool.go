@@ -17,7 +17,15 @@ func (m *MutuallyExclusiveBoolFlags) IsEnabled() bool {
 	return m.Enabled
 }
 
+func (m *MutuallyExclusiveBoolFlags) IsTrue() bool {
+	return m.Enabled
+}
+
 func (m *MutuallyExclusiveBoolFlags) IsDisabled() bool {
+	return m.Disabled
+}
+
+func (m *MutuallyExclusiveBoolFlags) IsFalse() bool {
 	return m.Disabled
 }
 
