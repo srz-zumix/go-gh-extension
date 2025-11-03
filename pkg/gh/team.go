@@ -196,6 +196,20 @@ func GetTeamID(ctx context.Context, g *GitHubClient, repo repository.Repository,
 	return team.ID, nil
 }
 
+func GetTeamNodeID(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string) (*string, error) {
+	if teamSlug == "" {
+		return nil, nil
+	}
+	team, err := g.GetTeamBySlug(ctx, repo.Owner, teamSlug)
+	if err != nil {
+		return nil, err
+	}
+	if team == nil || team.NodeID == nil {
+		return nil, fmt.Errorf("team '%s' not found in organization '%s'", teamSlug, repo.Owner)
+	}
+	return team.NodeID, nil
+}
+
 // CreateTeam creates a new team in the specified organization.
 func CreateTeam(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, description string, privacy string, enableNotification any, parentTeamSlug *string) (*github.Team, error) {
 	newTeam := &github.NewTeam{
@@ -359,6 +373,27 @@ func SyncRepoTeamsAndPermissions(ctx context.Context, srcClient *GitHubClient, s
 
 type TeamCodeReviewSettings = client.TeamCodeReviewSettings
 
+var (
+	TeamCodeReviewAlgorithmRoundRobin  = "ROUND_ROBIN"
+	TeamCodeReviewAlgorithmLoadBalance = "LOAD_BALANCE"
+)
+
+var TeamCodeReviewAlgorithm = []string{
+	TeamCodeReviewAlgorithmRoundRobin,
+	TeamCodeReviewAlgorithmLoadBalance,
+}
+
 func GetTeamCodeReviewSettings(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string) (*TeamCodeReviewSettings, error) {
 	return g.GetTeamCodeReviewSettings(ctx, repo.Owner, teamSlug)
+}
+
+func SetTeamCodeReviewSettings(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, settings *TeamCodeReviewSettings, excludedTeamMemberUsernames []string) error {
+	teamNodeID, err := GetTeamNodeID(ctx, g, repo, teamSlug)
+	if err != nil {
+		return err
+	}
+	if teamNodeID == nil {
+		return fmt.Errorf("team '%s' not found in organization '%s'", teamSlug, repo.Owner)
+	}
+	return g.SetTeamCodeReviewSettings(ctx, *teamNodeID, settings)
 }

@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/google/go-github/v73/github"
+	"github.com/olekukonko/tablewriter"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
 
@@ -104,20 +105,20 @@ func NewTeamCodeReviewFieldGetters() *teamCodeReviewFiledGetters {
 			"NAME": func(s *gh.TeamCodeReviewSettings) string {
 				return s.TeamSlug
 			},
-			"TEAM": func(s *gh.TeamCodeReviewSettings) string {
+			"TEAM_SLUG": func(s *gh.TeamCodeReviewSettings) string {
 				return s.TeamSlug
 			},
 			"AUTO_ASSIGNMENT": func(s *gh.TeamCodeReviewSettings) string {
-				return ToString(s.ReviewRequestDelegationEnabled)
+				return ToString(s.Enabled)
 			},
 			"ALGORITHM": func(s *gh.TeamCodeReviewSettings) string {
-				return s.ReviewRequestDelegationAlgorithm
+				return s.Algorithm
 			},
 			"MEMBER_COUNT": func(s *gh.TeamCodeReviewSettings) string {
-				return ToString(s.ReviewRequestDelegationMemberCount)
+				return ToString(s.TeamMemberCount)
 			},
 			"NOTIFY_TEAM": func(s *gh.TeamCodeReviewSettings) string {
-				return ToString(s.ReviewRequestDelegationNotifyTeam)
+				return ToString(s.NotifyTeam)
 			},
 		},
 	}
@@ -138,6 +139,7 @@ func (r *Renderer) RenderTeamCodeReviewSettings(codeReviewSettings *gh.TeamCodeR
 
 	getter := NewTeamCodeReviewFieldGetters()
 	table := r.newTableWriter([]string{"FIELD", "VALUE"})
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
 
 	for _, header := range headers {
 		value := getter.GetField(codeReviewSettings, header)
@@ -148,6 +150,6 @@ func (r *Renderer) RenderTeamCodeReviewSettings(codeReviewSettings *gh.TeamCodeR
 }
 
 func (r *Renderer) RenderTeamCodeReviewSettingsDefault(codeReviewSettings *gh.TeamCodeReviewSettings) {
-	headers := []string{"TEAM", "AUTO_ASSIGNMENT", "MEMBER_COUNT", "ALGORITHM", "NOTIFY_TEAM"}
+	headers := []string{"TEAM_SLUG", "AUTO_ASSIGNMENT", "MEMBER_COUNT", "ALGORITHM", "NOTIFY_TEAM"}
 	r.RenderTeamCodeReviewSettings(codeReviewSettings, headers)
 }
