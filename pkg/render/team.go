@@ -44,6 +44,9 @@ func NewTeamFieldGetters() *teamFiledGetters {
 				}
 				return ToString(team.Parent.Slug)
 			},
+			"ORGANIZATION": func(team *github.Team) string {
+				return ToString(team.Organization.Login)
+			},
 		},
 	}
 }
@@ -125,22 +128,13 @@ func NewTeamCodeReviewFieldGetters() *teamCodeReviewFiledGetters {
 				return strings.Join(s.ExcludedTeamMembers, ", ")
 			},
 			"INCLUDE_CHILD_TEAM_MEMBERS": func(s *gh.TeamCodeReviewSettings) string {
-				if s.IncludeChildTeamMembers == nil {
-					return ""
-				}
-				return ToString(*s.IncludeChildTeamMembers)
+				return ToString(s.IncludeChildTeamMembers)
 			},
 			"COUNT_MEMBERS_ALREADY_REQUESTED": func(s *gh.TeamCodeReviewSettings) string {
-				if s.CountMembersAlreadyRequested == nil {
-					return ""
-				}
-				return ToString(*s.CountMembersAlreadyRequested)
+				return ToString(s.CountMembersAlreadyRequested)
 			},
 			"REMOVE_TEAM_REQUEST": func(s *gh.TeamCodeReviewSettings) string {
-				if s.RemoveTeamRequest == nil {
-					return ""
-				}
-				return ToString(*s.RemoveTeamRequest)
+				return ToString(s.RemoveTeamRequest)
 			},
 		},
 	}

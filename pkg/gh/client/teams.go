@@ -7,6 +7,25 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+func (g *GitHubClient) ListMyTeams(ctx context.Context) ([]*github.Team, error) {
+	var allTeams []*github.Team
+	opt := &github.ListOptions{PerPage: 50}
+
+	for {
+		teams, resp, err := g.client.Teams.ListUserTeams(ctx, opt)
+		if err != nil {
+			return nil, err
+		}
+		allTeams = append(allTeams, teams...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+
+	return allTeams, nil
+}
+
 // ListTeams retrieves all teams in the specified organization with pagination support.
 func (g *GitHubClient) ListTeams(ctx context.Context, org string) ([]*github.Team, error) {
 	var allTeams []*github.Team

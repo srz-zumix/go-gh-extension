@@ -26,6 +26,10 @@ func (t *Team) Flatten() []*github.Team {
 	return teams
 }
 
+func ListMyTeams(ctx context.Context, g *GitHubClient) ([]*github.Team, error) {
+	return g.ListMyTeams(ctx)
+}
+
 func TeamByOwner(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool) (Team, error) {
 	var t Team
 	if repo.Owner == "" {
@@ -465,4 +469,27 @@ func SetTeamCodeReviewSettings(ctx context.Context, g *GitHubClient, repo reposi
 		}
 	}
 	return g.SetTeamCodeReviewSettings(ctx, *teamNodeID, s)
+}
+
+func ListUserTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, username string) ([]*github.Team, error) {
+	teams, err := ListTeams(ctx, g, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	var userTeams []*github.Team
+	for _, team := range teams {
+		members, err := ListTeamMembers(ctx, g, repo, team.GetSlug(), nil, false)
+		if err != nil {
+			return nil, err
+		}
+		for _, member := range members {
+			if *member.Login == username {
+				userTeams = append(userTeams, team)
+				break
+			}
+		}
+	}
+
+	return userTeams, nil
 }
