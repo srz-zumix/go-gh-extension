@@ -101,3 +101,65 @@ func (g *GitHubClient) ListDiscussions(ctx context.Context, owner string, repo s
 
 	return allDiscussions, nil
 }
+
+// AddLabelsToDiscussion adds labels to a discussion using GraphQL mutation
+func (g *GitHubClient) AddLabelsToDiscussion(ctx context.Context, discussionID string, labelIDs []string) error {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+
+	var mutation struct {
+		AddLabelsToLabelable struct {
+			ClientMutationID githubv4.String
+		} `graphql:"addLabelsToLabelable(input: $input)"`
+	}
+
+	// Convert string slice to githubv4.ID slice
+	var labelIDsGraphQL []githubv4.ID
+	for _, id := range labelIDs {
+		labelIDsGraphQL = append(labelIDsGraphQL, githubv4.ID(id))
+	}
+
+	input := githubv4.AddLabelsToLabelableInput{
+		LabelableID: githubv4.ID(discussionID),
+		LabelIDs:    labelIDsGraphQL,
+	}
+
+	if err := graphql.Mutate(ctx, &mutation, input, nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// RemoveLabelsFromDiscussion removes labels from a discussion using GraphQL mutation
+func (g *GitHubClient) RemoveLabelsFromDiscussion(ctx context.Context, discussionID string, labelIDs []string) error {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+
+	var mutation struct {
+		RemoveLabelsFromLabelable struct {
+			ClientMutationID githubv4.String
+		} `graphql:"removeLabelsFromLabelable(input: $input)"`
+	}
+
+	// Convert string slice to githubv4.ID slice
+	var labelIDsGraphQL []githubv4.ID
+	for _, id := range labelIDs {
+		labelIDsGraphQL = append(labelIDsGraphQL, githubv4.ID(id))
+	}
+
+	input := githubv4.RemoveLabelsFromLabelableInput{
+		LabelableID: githubv4.ID(discussionID),
+		LabelIDs:    labelIDsGraphQL,
+	}
+
+	if err := graphql.Mutate(ctx, &mutation, input, nil); err != nil {
+		return err
+	}
+
+	return nil
+}

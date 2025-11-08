@@ -173,6 +173,24 @@ func SyncLabels(ctx context.Context, g *client.GitHubClient, src, dst repository
 	return nil
 }
 
+func GetRepositoryLabelIDs(ctx context.Context, g *client.GitHubClient, owner string, repo string, labelNames []string) (map[string]string, error) {
+	if len(labelNames) == 0 {
+		return map[string]string{}, nil
+	}
+	if len(labelNames) == 1 {
+		labelID, err := g.GetRepositoryLabelID(ctx, owner, repo, labelNames[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to get label ID for label '%s' in repository '%s/%s': %w", labelNames[0], owner, repo, err)
+		}
+		return map[string]string{labelNames[0]: labelID}, nil
+	}
+	labelIDMap, err := g.GetRepositoryLabelIDs(ctx, owner, repo, labelNames)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get label IDs in repository '%s/%s': %w", owner, repo, err)
+	}
+	return labelIDMap, nil
+}
+
 func equalLabel(a, b *github.Label) bool {
 	if a.Name == nil || b.Name == nil {
 		return false
