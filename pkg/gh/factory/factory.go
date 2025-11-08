@@ -320,7 +320,7 @@ func detectInstallationID(c *Config, appID int64, privateKey []byte, ep string) 
 	}
 	page := 0
 	for {
-		is, res, err := gc.Apps.ListInstallations(context.Background(), &github.ListOptions{Page: page, PerPage: 1000})
+		is, res, err := gc.Apps.ListInstallations(context.Background(), &github.ListOptions{Page: page, PerPage: 100})
 		if err != nil {
 			return 0, err
 		}

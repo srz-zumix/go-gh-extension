@@ -74,7 +74,7 @@ func (g *GitHubClient) EditIssueComment(ctx context.Context, owner string, repo 
 
 func (g *GitHubClient) ListIssueComments(ctx context.Context, owner string, repo string, number int) ([]*github.IssueComment, error) {
 	allComments := []*github.IssueComment{}
-	opt := &github.IssueListCommentsOptions{ListOptions: github.ListOptions{PerPage: 50}}
+	opt := &github.IssueListCommentsOptions{ListOptions: github.ListOptions{PerPage: defaultPerPage}}
 	for {
 		comments, resp, err := g.client.Issues.ListComments(ctx, owner, repo, number, opt)
 		if err != nil {

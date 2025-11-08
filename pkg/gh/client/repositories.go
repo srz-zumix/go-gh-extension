@@ -19,7 +19,7 @@ func (g *GitHubClient) GetRepository(ctx context.Context, owner string, repo str
 // ListRepositoryTeams retrieves all teams associated with a specific repository.
 func (g *GitHubClient) ListRepositoryTeams(ctx context.Context, owner string, repo string) ([]*github.Team, error) {
 	var allTeams []*github.Team
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		teams, resp, err := g.client.Repositories.ListTeams(ctx, owner, repo, opt)
@@ -39,7 +39,7 @@ func (g *GitHubClient) ListRepositoryTeams(ctx context.Context, owner string, re
 // ListOrganizationRepositories retrieves all repositories for a specific organization.
 func (g *GitHubClient) ListOrganizationRepositories(ctx context.Context, org string, repoType string) ([]*github.Repository, error) {
 	var allRepos []*github.Repository
-	opt := &github.RepositoryListByOrgOptions{Type: repoType, ListOptions: github.ListOptions{PerPage: 50}}
+	opt := &github.RepositoryListByOrgOptions{Type: repoType, ListOptions: github.ListOptions{PerPage: defaultPerPage}}
 
 	for {
 		repos, resp, err := g.client.Repositories.ListByOrg(ctx, org, opt)
@@ -82,7 +82,7 @@ func (g *GitHubClient) ListRepositoryCollaborators(ctx context.Context, owner st
 	opt := &github.ListCollaboratorsOptions{
 		Affiliation: affiliation,
 		ListOptions: github.ListOptions{
-			PerPage: 50,
+			PerPage: defaultPerPage,
 		},
 	}
 

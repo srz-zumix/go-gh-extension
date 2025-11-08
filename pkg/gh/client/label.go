@@ -41,7 +41,7 @@ func (g *GitHubClient) EditLabel(ctx context.Context, owner, repo, name string, 
 
 func (g *GitHubClient) ListLabels(ctx context.Context, owner, repo string) ([]*github.Label, error) {
 	var allLabels []*github.Label
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		labels, resp, err := g.client.Issues.ListLabels(ctx, owner, repo, opt)

@@ -14,7 +14,7 @@ func (g *GitHubClient) GetCopilotTeamMetrics(ctx context.Context, org, teamSlug 
 		Since: since,
 		Until: until,
 		ListOptions: github.ListOptions{
-			PerPage: 100,
+			PerPage: defaultPerPage,
 		},
 	}
 	for {
@@ -37,7 +37,7 @@ func (g *GitHubClient) GetEnterpriseTeamMetrics(ctx context.Context, enterprise,
 		Since: since,
 		Until: until,
 		ListOptions: github.ListOptions{
-			PerPage: 100,
+			PerPage: defaultPerPage,
 		},
 	}
 	for {
