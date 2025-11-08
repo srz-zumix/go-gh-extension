@@ -13,7 +13,7 @@ import (
 func (g *GitHubClient) ListRunners(ctx context.Context, owner, repo string) ([]*github.Runner, error) {
 	allRunners := []*github.Runner{}
 	opt := &github.ListRunnersOptions{
-		ListOptions: github.ListOptions{PerPage: 50},
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
 	}
 	for {
 		runners, resp, err := g.client.Actions.ListRunners(ctx, owner, repo, opt)
@@ -55,7 +55,7 @@ func (g *GitHubClient) GetRunner(ctx context.Context, owner, repo string, runner
 func (g *GitHubClient) ListOrgRunners(ctx context.Context, owner string) ([]*github.Runner, error) {
 	allRunners := []*github.Runner{}
 	opt := &github.ListRunnersOptions{
-		ListOptions: github.ListOptions{PerPage: 50},
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
 	}
 	for {
 		runners, resp, err := g.client.Actions.ListOrganizationRunners(ctx, owner, opt)

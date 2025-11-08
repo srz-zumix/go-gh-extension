@@ -9,7 +9,7 @@ import (
 func (g *GitHubClient) SearchIssues(ctx context.Context, query string) ([]*github.Issue, error) {
 	allIssues := []*github.Issue{}
 	opts := &github.SearchOptions{
-		ListOptions: github.ListOptions{PerPage: 100},
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
 	}
 	for {
 		result, resp, err := g.client.Search.Issues(ctx, query, opts)
@@ -29,7 +29,7 @@ func (g *GitHubClient) SearchIssues(ctx context.Context, query string) ([]*githu
 func (g *GitHubClient) SearchUser(ctx context.Context, query string) ([]*github.User, error) {
 	allUsers := []*github.User{}
 	opts := &github.SearchOptions{
-		ListOptions: github.ListOptions{PerPage: 100},
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
 	}
 
 	for {

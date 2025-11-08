@@ -9,7 +9,7 @@ import (
 
 func (g *GitHubClient) ListMyTeams(ctx context.Context) ([]*github.Team, error) {
 	var allTeams []*github.Team
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		teams, resp, err := g.client.Teams.ListUserTeams(ctx, opt)
@@ -29,7 +29,7 @@ func (g *GitHubClient) ListMyTeams(ctx context.Context) ([]*github.Team, error) 
 // ListTeams retrieves all teams in the specified organization with pagination support.
 func (g *GitHubClient) ListTeams(ctx context.Context, org string) ([]*github.Team, error) {
 	var allTeams []*github.Team
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		teams, resp, err := g.client.Teams.ListTeams(ctx, org, opt)
@@ -49,7 +49,7 @@ func (g *GitHubClient) ListTeams(ctx context.Context, org string) ([]*github.Tea
 // ListChildTeams retrieves all child teams of a specified team.
 func (g *GitHubClient) ListChildTeams(ctx context.Context, org string, parentSlug string) ([]*github.Team, error) {
 	var allChildTeams []*github.Team
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		teams, resp, err := g.client.Teams.ListChildTeamsByParentSlug(ctx, org, parentSlug, opt)
@@ -91,7 +91,7 @@ func (g *GitHubClient) FindTeamBySlug(ctx context.Context, org string, teamSlug 
 // ListTeamRepos retrieves all repositories associated with a specific team in the organization.
 func (g *GitHubClient) ListTeamRepos(ctx context.Context, org string, teamSlug string) ([]*github.Repository, error) {
 	var allRepos []*github.Repository
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		repos, resp, err := g.client.Teams.ListTeamReposBySlug(ctx, org, teamSlug, opt)
@@ -167,7 +167,7 @@ func (g *GitHubClient) ListTeamMembers(ctx context.Context, org string, teamSlug
 	var allMembers []*github.User
 	opt := &github.TeamListTeamMembersOptions{
 		Role:        role,
-		ListOptions: github.ListOptions{PerPage: 50},
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
 	}
 
 	for {

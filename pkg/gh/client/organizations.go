@@ -19,7 +19,7 @@ func (g *GitHubClient) ListOrgMembers(ctx context.Context, org string, role stri
 	var allMembers []*github.User
 	opt := &github.ListMembersOptions{
 		Role:        role,
-		ListOptions: github.ListOptions{PerPage: 50},
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
 	}
 
 	for {
@@ -109,7 +109,7 @@ func (g *GitHubClient) UpdateTeam(ctx context.Context, owner string, teamSlug st
 // ListOrgTeams retrieves all teams assigned to an organization.
 func (g *GitHubClient) ListOrgTeams(ctx context.Context, org string) ([]*github.Team, error) {
 	var allTeams []*github.Team
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		teams, resp, err := g.client.Teams.ListTeams(ctx, org, opt)
@@ -129,7 +129,7 @@ func (g *GitHubClient) ListOrgTeams(ctx context.Context, org string) ([]*github.
 // ListTeamsAssignedToOrgRole retrieves teams assigned to a specific organization role by roleID.
 func (g *GitHubClient) ListTeamsAssignedToOrgRole(ctx context.Context, org string, roleID int64) ([]*github.Team, error) {
 	var allTeams []*github.Team
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		teams, resp, err := g.client.Organizations.ListTeamsAssignedToOrgRole(ctx, org, roleID, opt)

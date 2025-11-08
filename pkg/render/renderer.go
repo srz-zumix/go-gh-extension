@@ -164,6 +164,8 @@ func ToString(v any) string {
 			return ""
 		}
 		return toString(*t)
+	} else if a, ok := v.(*any); ok && a == nil {
+		return toString(*a)
 	}
 	return toString(v)
 }

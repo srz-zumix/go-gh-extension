@@ -8,10 +8,10 @@ import (
 
 func (g *GitHubClient) ListCommits(ctx context.Context, owner, repo string, options *github.CommitsListOptions) ([]*github.RepositoryCommit, error) {
 	var allCommits []*github.RepositoryCommit
-	opt := github.CommitsListOptions{ListOptions: github.ListOptions{PerPage: 50}}
+	opt := github.CommitsListOptions{ListOptions: github.ListOptions{PerPage: defaultPerPage}}
 	if options != nil {
 		opt = *options
-		opt.PerPage = 50
+		opt.PerPage = defaultPerPage
 	}
 
 	for {
@@ -35,7 +35,7 @@ func (g *GitHubClient) ListBranchesHeadCommit(ctx context.Context, owner, repo, 
 }
 
 func (g *GitHubClient) GetCommit(ctx context.Context, owner, repo, sha string) (commit *github.RepositoryCommit, err error) {
-	opt := &github.ListOptions{PerPage: 100}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 	for {
 		c, resp, err := g.client.Repositories.GetCommit(ctx, owner, repo, sha, opt)
 		if err != nil {
@@ -63,7 +63,7 @@ func (g *GitHubClient) GetCommitSHA1(ctx context.Context, owner, repo, ref strin
 }
 
 func (g *GitHubClient) CompareCommits(ctx context.Context, owner, repo, base, head string) (commitComparison *github.CommitsComparison, err error) {
-	opt := &github.ListOptions{PerPage: 100}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		comp, resp, err := g.client.Repositories.CompareCommits(ctx, owner, repo, base, head, opt)

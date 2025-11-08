@@ -18,7 +18,7 @@ func (g *GitHubClient) GetPullRequest(ctx context.Context, owner string, repo st
 
 func (g *GitHubClient) ListPullRequestCommits(ctx context.Context, owner string, repo string, number int) ([]*github.RepositoryCommit, error) {
 	allCommits := []*github.RepositoryCommit{}
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		commits, resp, err := g.client.PullRequests.ListCommits(ctx, owner, repo, number, opt)
@@ -37,7 +37,7 @@ func (g *GitHubClient) ListPullRequestCommits(ctx context.Context, owner string,
 // ListFiles lists files for a pull request
 func (g *GitHubClient) ListPullRequestFiles(ctx context.Context, owner string, repo string, number int) ([]*github.CommitFile, error) {
 	allCommitFiles := []*github.CommitFile{}
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		files, resp, err := g.client.PullRequests.ListFiles(ctx, owner, repo, number, opt)
@@ -76,7 +76,7 @@ func (g *GitHubClient) RemoveReviewers(ctx context.Context, owner string, repo s
 
 func (g *GitHubClient) ListRequestedReviewers(ctx context.Context, owner string, repo string, number int) (*github.Reviewers, error) {
 	allReviewers := &github.Reviewers{}
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		reviewers, resp, err := g.client.PullRequests.ListReviewers(ctx, owner, repo, number, opt)
@@ -95,7 +95,7 @@ func (g *GitHubClient) ListRequestedReviewers(ctx context.Context, owner string,
 
 func (g *GitHubClient) GetPullRequestReviews(ctx context.Context, owner string, repo string, number int) ([]*github.PullRequestReview, error) {
 	allReviews := []*github.PullRequestReview{}
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		reviews, resp, err := g.client.PullRequests.ListReviews(ctx, owner, repo, number, opt)
@@ -141,7 +141,7 @@ func (g *GitHubClient) EditPullRequestComment(ctx context.Context, owner string,
 func (g *GitHubClient) ListPullRequestReviewComments(ctx context.Context, owner string, repo string, number int) ([]*github.PullRequestComment, error) {
 	allComments := []*github.PullRequestComment{}
 	opt := &github.PullRequestListCommentsOptions{
-		ListOptions: github.ListOptions{PerPage: 50},
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
 	}
 
 	for {

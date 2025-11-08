@@ -13,6 +13,10 @@ type GitHubClient struct {
 	graphql *githubv4.Client
 }
 
+var (
+	defaultPerPage = 100
+)
+
 const defaultV4Endpoint = "https://api.github.com/graphql"
 
 func NewClient(client *github.Client) (*GitHubClient, error) {
