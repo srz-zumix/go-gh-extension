@@ -14,6 +14,19 @@ func GetRepository(ctx context.Context, g *GitHubClient, repo repository.Reposit
 	return g.GetRepository(ctx, repo.Owner, repo.Name)
 }
 
+func ListBranches(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Branch, error) {
+	return g.ListBranches(ctx, repo.Owner, repo.Name, nil)
+}
+
+func ListTags(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.RepositoryTag, error) {
+	return g.ListTags(ctx, repo.Owner, repo.Name)
+}
+
+func ListProtectedBranches(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Branch, error) {
+	protected := true
+	return g.ListBranches(ctx, repo.Owner, repo.Name, &protected)
+}
+
 // CheckTeamPermissions is a wrapper function to check team permissions for a repository.
 func CheckTeamPermissions(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string) (*github.Repository, bool, error) {
 	if teamSlug == "" {

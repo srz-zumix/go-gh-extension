@@ -238,3 +238,38 @@ func (g *GitHubClient) GetPullRequestCommentThreadID(ctx context.Context, owner 
 	}
 	return "", fmt.Errorf("failed to find thread ID for comment %d", commentID)
 }
+
+// ListPullRequests retrieves all pull requests for a specific repository.
+func (g *GitHubClient) ListPullRequests(ctx context.Context, owner string, repo string, opts *github.PullRequestListOptions, maxCount int) ([]*github.PullRequest, error) {
+	var allPullRequests []*github.PullRequest
+	perPage := defaultPerPage
+	if maxCount > 0 {
+		if maxCount < perPage {
+			perPage = maxCount
+		}
+	}
+	opt := &github.PullRequestListOptions{
+		ListOptions: github.ListOptions{PerPage: perPage},
+	}
+	if opts != nil {
+		opt.State = opts.State
+		opt.Head = opts.Head
+		opt.Base = opts.Base
+		opt.Sort = opts.Sort
+		opt.Direction = opts.Direction
+	}
+
+	for {
+		prs, resp, err := g.client.PullRequests.List(ctx, owner, repo, opt)
+		if err != nil {
+			return nil, err
+		}
+		allPullRequests = append(allPullRequests, prs...)
+		if resp.NextPage == 0 || maxCount < 0 || len(allPullRequests) >= maxCount {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+
+	return allPullRequests, nil
+}

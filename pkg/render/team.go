@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v73/github"
-	"github.com/olekukonko/tablewriter"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
 
@@ -155,7 +154,6 @@ func (r *Renderer) RenderTeamCodeReviewSettings(codeReviewSettings *gh.TeamCodeR
 
 	getter := NewTeamCodeReviewFieldGetters()
 	table := r.newTableWriter([]string{"FIELD", "VALUE"})
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
 
 	for _, header := range headers {
 		value := getter.GetField(codeReviewSettings, header)
