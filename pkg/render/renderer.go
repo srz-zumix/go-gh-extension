@@ -164,6 +164,11 @@ func ToString(v any) string {
 			return ""
 		}
 		return toString(*t)
+	} else if p, ok := v.(*github.EmptyRuleParameters); ok {
+		if p == nil {
+			return "DISABLED"
+		}
+		return "ENABLED"
 	} else if a, ok := v.(*any); ok && a == nil {
 		return toString(*a)
 	}
@@ -232,5 +237,6 @@ func ToRGB(c string) (int, int, int, error) {
 func (r *Renderer) newTableWriter(header []string) *tablewriter.Table {
 	table := tablewriter.NewWriter(r.IO.Out)
 	table.SetHeader(header)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
 	return table
 }

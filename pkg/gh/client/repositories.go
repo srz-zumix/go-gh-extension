@@ -200,3 +200,45 @@ func (g *GitHubClient) GetRepositoryContent(ctx context.Context, owner, repo, pa
 	}
 	return fileContent, dirContent, nil
 }
+
+// ListBranches retrieves all branches for a specific repository.
+func (g *GitHubClient) ListBranches(ctx context.Context, owner string, repo string, protected *bool) ([]*github.Branch, error) {
+	var allBranches []*github.Branch
+	opt := &github.BranchListOptions{
+		Protected:   protected,
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
+	}
+	for {
+		branches, resp, err := g.client.Repositories.ListBranches(ctx, owner, repo, opt)
+		if err != nil {
+			return nil, err
+		}
+		allBranches = append(allBranches, branches...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+
+	return allBranches, nil
+}
+
+// ListTags retrieves all tags for a specific repository.
+func (g *GitHubClient) ListTags(ctx context.Context, owner string, repo string) ([]*github.RepositoryTag, error) {
+	var allTags []*github.RepositoryTag
+	opt := &github.ListOptions{PerPage: defaultPerPage}
+
+	for {
+		tags, resp, err := g.client.Repositories.ListTags(ctx, owner, repo, opt)
+		if err != nil {
+			return nil, err
+		}
+		allTags = append(allTags, tags...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+
+	return allTags, nil
+}

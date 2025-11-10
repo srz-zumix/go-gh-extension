@@ -16,6 +16,115 @@ type ReviewersRequest struct {
 	TeamReviewers []string
 }
 
+type ListPullRequestsOption interface {
+	apply(*github.PullRequestListOptions)
+}
+
+type ListPullRequestsOptionHead struct {
+	Head string
+}
+
+func (o *ListPullRequestsOptionHead) apply(opts *github.PullRequestListOptions) {
+	opts.Head = o.Head
+}
+
+type ListPullRequestsOptionBase struct {
+	Base string
+}
+
+func (o *ListPullRequestsOptionBase) apply(opts *github.PullRequestListOptions) {
+	opts.Base = o.Base
+}
+
+type ListPullRequestsOptionState struct {
+	State string
+}
+
+func (o *ListPullRequestsOptionState) apply(opts *github.PullRequestListOptions) {
+	opts.State = o.State
+}
+
+func ListPullRequestsOptionStateOpen() *ListPullRequestsOptionState {
+	return &ListPullRequestsOptionState{State: "open"}
+}
+
+func ListPullRequestsOptionStateClosed() *ListPullRequestsOptionState {
+	return &ListPullRequestsOptionState{State: "closed"}
+}
+
+func ListPullRequestsOptionStateAll() *ListPullRequestsOptionState {
+	return &ListPullRequestsOptionState{State: "all"}
+}
+
+type ListPullRequestsOptionSort struct {
+	Sort string
+}
+
+func (o *ListPullRequestsOptionSort) apply(opts *github.PullRequestListOptions) {
+	opts.Sort = o.Sort
+}
+
+func ListPullRequestsOptionSortCreated() *ListPullRequestsOptionSort {
+	return &ListPullRequestsOptionSort{Sort: "created"}
+}
+
+func ListPullRequestsOptionSortUpdated() *ListPullRequestsOptionSort {
+	return &ListPullRequestsOptionSort{Sort: "updated"}
+}
+
+func ListPullRequestsOptionSortPopularity() *ListPullRequestsOptionSort {
+	return &ListPullRequestsOptionSort{Sort: "popularity"}
+}
+
+func ListPullRequestsOptionSortLongRunning() *ListPullRequestsOptionSort {
+	return &ListPullRequestsOptionSort{Sort: "long-running"}
+}
+
+type ListPullRequestsOptionDirection struct {
+	Direction string
+}
+
+func (o *ListPullRequestsOptionDirection) apply(opts *github.PullRequestListOptions) {
+	opts.Direction = o.Direction
+}
+
+func ListPullRequestsOptionDirectionAscending() *ListPullRequestsOptionDirection {
+	return &ListPullRequestsOptionDirection{Direction: "asc"}
+}
+
+func ListPullRequestsOptionDirectionDescending() *ListPullRequestsOptionDirection {
+	return &ListPullRequestsOptionDirection{Direction: "desc"}
+}
+
+func ListPullRequests(ctx context.Context, g *GitHubClient, repo repository.Repository, opts ...ListPullRequestsOption) ([]*github.PullRequest, error) {
+	var ghOpts *github.PullRequestListOptions
+	if opts != nil {
+		ghOpts = &github.PullRequestListOptions{}
+		for _, opt := range opts {
+			opt.apply(ghOpts)
+		}
+	}
+	return g.ListPullRequests(ctx, repo.Owner, repo.Name, ghOpts, -1)
+}
+
+func FindPullRequest(ctx context.Context, g *GitHubClient, repo repository.Repository, opts ...ListPullRequestsOption) (*github.PullRequest, error) {
+	var ghOpts *github.PullRequestListOptions
+	if opts != nil {
+		ghOpts = &github.PullRequestListOptions{}
+		for _, opt := range opts {
+			opt.apply(ghOpts)
+		}
+	}
+	prs, err := g.ListPullRequests(ctx, repo.Owner, repo.Name, ghOpts, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(prs) == 0 {
+		return nil, fmt.Errorf("no pull request found")
+	}
+	return prs[0], nil
+}
+
 func GetRequestedReviewers(reviewers []string) ReviewersRequest {
 	reviewersRequest := ReviewersRequest{}
 	for _, reviewer := range reviewers {

@@ -74,7 +74,7 @@ func (g *GitHubClient) DeleteMilestone(ctx context.Context, owner, repo string, 
 
 func (g *GitHubClient) ListLabelsForMilestone(ctx context.Context, owner, repo string, number int) ([]*github.Label, error) {
 	var allLabels []*github.Label
-	opt := &github.ListOptions{PerPage: 50}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
 
 	for {
 		labels, resp, err := g.client.Issues.ListLabelsForMilestone(ctx, owner, repo, number, opt)
