@@ -2,11 +2,13 @@ package gh
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v73/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
 type RepositoryRulesetConfig struct {
@@ -148,26 +150,83 @@ func ExportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo r
 	}, nil
 }
 
-func ImportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, migrateConfig *RepositoryRulesetMigrateConfig) (*github.RepositoryRuleset, error) {
+var GitHubComGitHubActionsAppID int64 = 15368
+
+func ImportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, migrateConfig *RepositoryRulesetMigrateConfig, gitHubActionsAppID *int64) (*github.RepositoryRuleset, error) {
 	ruleset := migrateConfig.Ruleset
-	for _, actor := range ruleset.BypassActors {
-		if *actor.ActorType == github.BypassActorTypeTeam {
-			_, err := g.GetTeamByID(ctx, repo.Owner, *actor.ActorID)
-			if err != nil {
-				if team, ok := migrateConfig.Teams[*actor.ActorID]; ok {
-					t, err := g.GetTeamBySlug(ctx, repo.Owner, team.GetSlug())
-					if err == nil {
-						*actor.ActorID = t.GetID()
-					}
-				}
-			}
-		}
+	teams := GetRulesetActorsTeams(ctx, g, repo, ruleset)
+
+	org, err := GetOrganizationProfile(ctx, g, repo)
+	if err != nil {
+		return nil, err
 	}
 
-	if repo.Host != "" && repo.Host != "github.com" {
+	newBypassActors := []*github.BypassActor{}
+	for _, actor := range ruleset.BypassActors {
+		if *actor.ActorType == github.BypassActorTypeOrganizationAdmin {
+			if org.IsUser() {
+				logger.Warn("Bypass actor organization admin is not supported on user accounts, skipping...")
+				continue
+			}
+		}
+		if *actor.ActorType != github.BypassActorTypeTeam {
+			newBypassActors = append(newBypassActors, actor)
+			continue
+		}
+		if _, ok := teams[*actor.ActorID]; ok {
+			newBypassActors = append(newBypassActors, actor)
+			continue
+		}
+		if team, ok := migrateConfig.Teams[*actor.ActorID]; ok {
+			t, err := g.GetTeamBySlug(ctx, repo.Owner, team.GetSlug())
+			if err == nil {
+				*actor.ActorID = t.GetID()
+				logger.Info("Team ID has been converted to team with same name in migration destination", "team", t.GetSlug(), "id", t.GetID())
+				newBypassActors = append(newBypassActors, actor)
+			}
+		}
+		teamName := fmt.Sprintf("%d", *actor.ActorID)
+		orgTeam := migrateConfig.Teams[*actor.ActorID]
+		if orgTeam != nil {
+			teamName = orgTeam.GetName()
+		}
+		logger.Warn("Bypass actor team not found in target repository, skipping...", "team", teamName)
+	}
+	ruleset.BypassActors = newBypassActors
+
+	if org.IsUser() || org.IsGitHubEnterpriseServer() {
+		if *ruleset.Target == github.RulesetTargetPush {
+			logger.Warn("Push target rulesets are not supported on user accounts or GitHub Enterprise Server, skipping...")
+			return nil, nil
+		}
+	}
+	if !org.IsGitHubEnterprise() {
+		if ruleset.Rules != nil {
+			ruleset.Rules.MergeQueue = nil
+			logger.Warn("Merge Queue settings are not supported on GitHub.com or GitHub Team plan, removing...")
+			ruleset.Rules.CommitMessagePattern = nil
+			ruleset.Rules.CommitAuthorEmailPattern = nil
+			ruleset.Rules.CommitterEmailPattern = nil
+			logger.Warn("Restrict commit metadata settings are not supported on GitHub.com or GitHub Team plan, removing...")
+			ruleset.Rules.BranchNamePattern = nil
+			ruleset.Rules.TagNamePattern = nil
+			logger.Warn("Restrict branch and tag names settings are not supported on GitHub.com or GitHub Team plan, removing...")
+		}
+	}
+	if org.IsGitHubEnterpriseServer() {
 		if ruleset.Rules.PullRequest != nil {
 			ruleset.Rules.PullRequest.AllowedMergeMethods = nil
 			ruleset.Rules.PullRequest.AutomaticCopilotCodeReviewEnabled = nil
+			logger.Warn("Pull Request settings are not supported on GitHub Enterprise Server, removing...")
+		}
+	} else {
+		if ruleset.Rules.PullRequest != nil {
+			ruleset.Rules.PullRequest.AllowedMergeMethods = []github.PullRequestMergeMethod{
+				github.PullRequestMergeMethodSquash,
+				github.PullRequestMergeMethodRebase,
+				github.PullRequestMergeMethodMerge,
+			}
+			logger.Info("Allowed merge methods have been set to all methods supported on GitHub.com")
 		}
 	}
 
@@ -191,18 +250,50 @@ func ImportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo r
 				}
 				check.IntegrationID = nil
 				checkRun := migrateConfig.CheckRuns[id]
-				if checkRun == nil {
-					continue
+				if checkRun != nil {
+					found, err = findIntegrationID(ctx, g, repo, ref, check.Context, nil, checkRun.App)
+					if err == nil {
+						if found != nil {
+							check.IntegrationID = found.App.ID
+							foundIntegrations[id] = found.App.ID
+							logger.Info("Mapped required status check integration to target repository", "integration", check.Context, "id", found.App.GetID())
+							continue
+						}
+
+						if checkRun.App != nil && checkRun.App.GetSlug() == "github-actions" {
+							actionAppId := gitHubActionsAppID
+							if org.IsGitHubCom() {
+								gitHubActionsAppID = &GitHubComGitHubActionsAppID
+							}
+							if actionAppId != nil {
+								check.IntegrationID = actionAppId
+								foundIntegrations[id] = actionAppId
+								logger.Info("Mapped required status check integration to GitHub Actions in target repository", "integration", check.Context)
+								continue
+							}
+						}
+					}
 				}
-				found, err = findIntegrationID(ctx, g, repo, ref, check.Context, nil, checkRun.App)
-				if err != nil {
-					continue
-				}
-				if found != nil {
-					check.IntegrationID = found.App.ID
-					foundIntegrations[id] = found.App.ID
-				}
+				logger.Warn("Required status check integration not found in target repository, replace to any-source", "integration", check.Context)
 			}
+		}
+	}
+
+	if ruleset.Rules.RequiredDeployments != nil {
+		newEnvrionments := []string{}
+		for _, env := range ruleset.Rules.RequiredDeployments.RequiredDeploymentEnvironments {
+			deployments, err := ListEnvrionmentDeployments(ctx, g, repo, env)
+			if err != nil || len(deployments) == 0 {
+				logger.Warn("Required deployment environment not found in target repository, skipping...", "environment", env)
+			} else {
+				newEnvrionments = append(newEnvrionments, env)
+			}
+		}
+		if len(newEnvrionments) == 0 {
+			ruleset.Rules.RequiredDeployments = nil
+			logger.Warn("No valid required deployment environments found in target repository, removing required deployments rule...")
+		} else {
+			ruleset.Rules.RequiredDeployments.RequiredDeploymentEnvironments = newEnvrionments
 		}
 	}
 
@@ -217,11 +308,21 @@ func ImportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo r
 func GetRulesetActorsTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) map[int64]*github.Team {
 	teams := make(map[int64]*github.Team)
 
+	var allTeams []*github.Team
 	for _, actor := range ruleset.BypassActors {
 		if *actor.ActorType == github.BypassActorTypeTeam {
-			team, err := g.GetTeamByID(ctx, repo.Owner, *actor.ActorID)
-			if err == nil {
-				teams[*actor.ActorID] = team
+			if allTeams == nil {
+				teamTree, err := TeamByOwner(ctx, g, repo, true)
+				if err != nil {
+					return teams
+				}
+				allTeams = teamTree.Flatten()
+			}
+			for _, t := range allTeams {
+				if t.GetID() == *actor.ActorID {
+					teams[*actor.ActorID] = t
+					break
+				}
 			}
 		}
 	}
@@ -252,6 +353,7 @@ func findIntegrationID(ctx context.Context, g *GitHubClient, repo repository.Rep
 			}
 		}
 	}
+
 	if appID == nil {
 		return nil, nil
 	}

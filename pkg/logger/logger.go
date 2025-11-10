@@ -58,21 +58,33 @@ func SetLogLevel(level string) {
 
 // Debug logs a debug message
 func Debug(msg string, args ...any) {
+	if defaultLogger == nil {
+		return
+	}
 	defaultLogger.Debug(msg, args...)
 }
 
 // Info logs an info message
 func Info(msg string, args ...any) {
+	if defaultLogger == nil {
+		return
+	}
 	defaultLogger.Info(msg, args...)
 }
 
 // Warn logs a warning message
 func Warn(msg string, args ...any) {
+	if defaultLogger == nil {
+		return
+	}
 	defaultLogger.Warn(msg, args...)
 }
 
 // Error logs an error message
 func Error(msg string, args ...any) {
+	if defaultLogger == nil {
+		return
+	}
 	defaultLogger.Error(msg, args...)
 }
 

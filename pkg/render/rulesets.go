@@ -116,7 +116,11 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 		table.Render()
 	}
 
-	if showConditionsAndRules {
+	if !showConditionsAndRules {
+		return
+	}
+
+	{
 		r.writeLine("Bypass Actors:")
 		table := r.newTableWriter([]string{"ACTOR_ID", "ACTOR_TYPE", "BYPASS_MODE"})
 		for _, actor := range ruleset.BypassActors {
@@ -130,7 +134,7 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 		table.Render()
 	}
 
-	if ruleset.Conditions != nil && showConditionsAndRules {
+	if ruleset.Conditions != nil {
 		r.writeLine("Targets:")
 		table := r.newTableWriter([]string{"CONDITION", "FIELD", "VALUE"})
 
@@ -187,60 +191,131 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 		table.Render()
 	}
 
-	if ruleset.Rules != nil && showConditionsAndRules {
+	if ruleset.Rules == nil {
+		return
+	}
+
+	rules := ruleset.Rules
+
+	{
 		r.writeLine("Rules:")
 		table := r.newTableWriter([]string{"FIELD", "VALUE"})
-		table.Append([]string{"Restrict creations", ToString(ruleset.Rules.Creation)})
-		if ruleset.Rules.Update != nil {
+		table.Append([]string{"Restrict creations", ToString(rules.Creation)})
+		if rules.Update != nil {
 			table.Append([]string{"Restrict updates", "ENABLED"})
-			table.Append([]string{"  - Allows fetch and merge", ToString(ruleset.Rules.Update.UpdateAllowsFetchAndMerge)})
+			table.Append([]string{"  - Allows fetch and merge", ToString(rules.Update.UpdateAllowsFetchAndMerge)})
 		} else {
 			table.Append([]string{"Restrict updates", "DISABLED"})
 		}
-		table.Append([]string{"Restrict deletions", ToString(ruleset.Rules.Deletion)})
-		table.Append([]string{"Require linear history", ToString(ruleset.Rules.RequiredLinearHistory)})
-		if ruleset.Rules.RequiredDeployments != nil {
+		table.Append([]string{"Restrict deletions", ToString(rules.Deletion)})
+		table.Append([]string{"Require linear history", ToString(rules.RequiredLinearHistory)})
+		if rules.RequiredDeployments != nil {
 			table.Append([]string{"Require deployments to succeed", "ENABLED"})
-			table.Append([]string{"  - Environments", strings.Join(ruleset.Rules.RequiredDeployments.RequiredDeploymentEnvironments, ", ")})
+			table.Append([]string{"  - Environments", strings.Join(rules.RequiredDeployments.RequiredDeploymentEnvironments, ", ")})
 		} else {
 			table.Append([]string{"Require deployments to succeed", "DISABLED"})
 		}
-		table.Append([]string{"Require signed commits", ToString(ruleset.Rules.RequiredSignatures)})
-		if ruleset.Rules.PullRequest != nil {
+		table.Append([]string{"Require signed commits", ToString(rules.RequiredSignatures)})
+		if rules.PullRequest != nil {
 			table.Append([]string{"Require a pull request before merging", "ENABLED"})
-			table.Append([]string{"  - Required approvals", ToString(ruleset.Rules.PullRequest.RequiredApprovingReviewCount)})
-			table.Append([]string{"  - Dismiss stale pull request approvals when new commits are pushed", ToString(ruleset.Rules.PullRequest.DismissStaleReviewsOnPush)})
+			table.Append([]string{"  - Required approvals", ToString(rules.PullRequest.RequiredApprovingReviewCount)})
+			table.Append([]string{"  - Dismiss stale pull request approvals when new commits are pushed", ToString(rules.PullRequest.DismissStaleReviewsOnPush)})
 			// Require review from specific teams
-			table.Append([]string{"  - Require review from Code Owners", ToString(ruleset.Rules.PullRequest.RequireCodeOwnerReview)})
-			table.Append([]string{"  - Require approval of the most recent reviewable push", ToString(ruleset.Rules.PullRequest.RequireLastPushApproval)})
-			table.Append([]string{"  - Require conversation resolution before merging", ToString(ruleset.Rules.PullRequest.RequiredReviewThreadResolution)})
-			table.Append([]string{"  - Automatically request Copilot code review", ToString(ruleset.Rules.PullRequest.AutomaticCopilotCodeReviewEnabled)})
+			table.Append([]string{"  - Require review from Code Owners", ToString(rules.PullRequest.RequireCodeOwnerReview)})
+			table.Append([]string{"  - Require approval of the most recent reviewable push", ToString(rules.PullRequest.RequireLastPushApproval)})
+			table.Append([]string{"  - Require conversation resolution before merging", ToString(rules.PullRequest.RequiredReviewThreadResolution)})
+			table.Append([]string{"  - Automatically request Copilot code review", ToString(rules.PullRequest.AutomaticCopilotCodeReviewEnabled)})
 			allowedMergeMethod := []string{}
-			for _, method := range ruleset.Rules.PullRequest.AllowedMergeMethods {
+			for _, method := range rules.PullRequest.AllowedMergeMethods {
 				allowedMergeMethod = append(allowedMergeMethod, string(method))
 			}
 			table.Append([]string{"  - Allowed merge methods", strings.Join(allowedMergeMethod, ", ")})
 		} else {
 			table.Append([]string{"Require a pull request before merging", "DISABLED"})
 		}
-		if ruleset.Rules.RequiredStatusChecks != nil {
+		if rules.RequiredStatusChecks != nil {
 			table.Append([]string{"Require status checks to pass", "ENABLED"})
-			table.Append([]string{"  - Require branches to be up to date before merging", ToString(ruleset.Rules.RequiredStatusChecks.StrictRequiredStatusChecksPolicy)})
-			table.Append([]string{"  - Do not require status checks on creation", ToString(ruleset.Rules.RequiredStatusChecks.DoNotEnforceOnCreate)})
-			for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
+			table.Append([]string{"  - Require branches to be up to date before merging", ToString(rules.RequiredStatusChecks.StrictRequiredStatusChecksPolicy)})
+			table.Append([]string{"  - Do not require status checks on creation", ToString(rules.RequiredStatusChecks.DoNotEnforceOnCreate)})
+			for _, check := range rules.RequiredStatusChecks.RequiredStatusChecks {
 				table.Append([]string{"  - Require status check: " + check.Context, ToString(check.IntegrationID)})
 			}
 		} else {
 			table.Append([]string{"Require status checks to pass", "DISABLED"})
 		}
-		table.Append([]string{"Block force pushes", ToString(ruleset.Rules.NonFastForward)})
-		if ruleset.Rules.CodeScanning != nil {
+		table.Append([]string{"Block force pushes", ToString(rules.NonFastForward)})
+		if rules.CodeScanning != nil {
 			table.Append([]string{"Require code scanning results to be up to date", "ENABLED"})
-			for _, tools := range ruleset.Rules.CodeScanning.CodeScanningTools {
+			for _, tools := range rules.CodeScanning.CodeScanningTools {
 				table.Append([]string{"  - " + tools.Tool, fmt.Sprintf("AlertsThreshold: %s, SecurityAlertsThreshold: %s", tools.AlertsThreshold, tools.SecurityAlertsThreshold)})
 			}
 		}
 
 		table.Render()
+	}
+
+	{
+		r.writeLine("Restrict commit metadata:")
+		table := r.newTableWriter([]string{"TYPE", "NAME", "NEGATE", "OPERATOR", "PATTERN"})
+		if rules.CommitMessagePattern != nil {
+			row := []string{"Commit Message Pattern"}
+			row = append(row, rowRepositoryRulesetPatternRuleParameters(rules.CommitMessagePattern)...)
+			table.Append(row)
+		}
+		if rules.CommitAuthorEmailPattern != nil {
+			row := []string{"Commit Author Email Pattern"}
+			row = append(row, rowRepositoryRulesetPatternRuleParameters(rules.CommitAuthorEmailPattern)...)
+			table.Append(row)
+		}
+		if rules.CommitterEmailPattern != nil {
+			row := []string{"Committer Email Pattern"}
+			row = append(row, rowRepositoryRulesetPatternRuleParameters(rules.CommitterEmailPattern)...)
+			table.Append(row)
+		}
+		table.Render()
+	}
+
+	{
+		r.writeLine("Restrict branch and tag names:")
+		table := r.newTableWriter([]string{"TYPE", "NAME", "NEGATE", "OPERATOR", "PATTERN"})
+		if rules.BranchNamePattern != nil {
+			row := []string{"Branch Name Pattern"}
+			row = append(row, rowRepositoryRulesetPatternRuleParameters(rules.BranchNamePattern)...)
+			table.Append(row)
+		}
+		if rules.TagNamePattern != nil {
+			row := []string{"Tag Name Pattern"}
+			row = append(row, rowRepositoryRulesetPatternRuleParameters(rules.TagNamePattern)...)
+			table.Append(row)
+		}
+		table.Render()
+	}
+
+	if *ruleset.Target == github.RulesetTargetPush {
+		r.writeLine("Push rules:")
+		table := r.newTableWriter([]string{"NAME", "VALUE"})
+		if rules.FilePathRestriction != nil {
+			table.Append([]string{"Maximum file changes", strings.Join(rules.FilePathRestriction.RestrictedFilePaths, ", ")})
+		}
+		if rules.MaxFilePathLength != nil {
+			table.Append([]string{"Maximum file deletions", ToString(rules.MaxFilePathLength.MaxFilePathLength)})
+		}
+		if rules.FileExtensionRestriction != nil {
+			table.Append([]string{"Restricted file extensions", strings.Join(rules.FileExtensionRestriction.RestrictedFileExtensions, ", ")})
+		}
+		if rules.MaxFileSize != nil {
+			table.Append([]string{"Maximum file size (in bytes)", ToString(rules.MaxFileSize.MaxFileSize)})
+		}
+
+		table.Render()
+	}
+}
+
+func rowRepositoryRulesetPatternRuleParameters(pattern *github.PatternRuleParameters) []string {
+	return []string{
+		ToString(pattern.Name),
+		ToString(pattern.Negate),
+		ToString((string)(pattern.Operator)),
+		ToString(pattern.Pattern),
 	}
 }
