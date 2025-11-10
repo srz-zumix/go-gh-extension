@@ -164,7 +164,8 @@ func ImportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo r
 		}
 	}
 
-	if repo.Host != "" && repo.Host != "github.com" {
+	isGitHubCom := repo.Host == "" || repo.Host == "github.com"
+	if !isGitHubCom {
 		if ruleset.Rules.PullRequest != nil {
 			ruleset.Rules.PullRequest.AllowedMergeMethods = nil
 			ruleset.Rules.PullRequest.AutomaticCopilotCodeReviewEnabled = nil
@@ -202,6 +203,11 @@ func ImportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo r
 					check.IntegrationID = found.App.ID
 					foundIntegrations[id] = found.App.ID
 				}
+
+				if isGitHubCom && checkRun.App != nil && checkRun.App.GetSlug() == "github-actions" {
+					check.IntegrationID = &GitHubComGitHubActionsAppID
+					foundIntegrations[id] = &GitHubComGitHubActionsAppID
+				}
 			}
 		}
 	}
@@ -229,6 +235,8 @@ func GetRulesetActorsTeams(ctx context.Context, g *GitHubClient, repo repository
 	return teams
 }
 
+var GitHubComGitHubActionsAppID int64 = 15368
+
 func findIntegrationID(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, name string, appID *int64, app *github.App) (*github.CheckRun, error) {
 	checkRuns, err := ListCheckRunsForRef(ctx, g, repo, ref, &ListChecksRunFilterOptions{
 		AppID: appID,
@@ -252,6 +260,7 @@ func findIntegrationID(ctx context.Context, g *GitHubClient, repo repository.Rep
 			}
 		}
 	}
+
 	if appID == nil {
 		return nil, nil
 	}
