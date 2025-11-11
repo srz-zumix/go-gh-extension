@@ -301,8 +301,9 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 	if org.IsGitHubEnterpriseServer() {
 		if ruleset.Rules.PullRequest != nil {
 			ruleset.Rules.PullRequest.AllowedMergeMethods = nil
+			logger.Warn("Allowed merge methods are not supported on GitHub Enterprise Server, removing...")
 			ruleset.Rules.PullRequest.AutomaticCopilotCodeReviewEnabled = nil
-			logger.Warn("Pull Request settings are not supported on GitHub Enterprise Server, removing...")
+			logger.Warn("Automatic Copilot code review is not supported on GitHub Enterprise Server, removing...")
 		}
 	} else {
 		if ruleset.Rules.PullRequest != nil {
@@ -347,8 +348,8 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 
 						if checkRun.App != nil && checkRun.App.GetSlug() == "github-actions" {
 							actionAppId := gitHubActionsAppID
-							if org.IsGitHubCom() {
-								gitHubActionsAppID = &GitHubComGitHubActionsAppID
+							if actionAppId == nil && org.IsGitHubCom() {
+								actionAppId = &GitHubComGitHubActionsAppID
 							}
 							if actionAppId != nil {
 								check.IntegrationID = actionAppId
