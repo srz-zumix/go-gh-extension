@@ -163,3 +163,45 @@ func (g *GitHubClient) RemoveLabelsFromDiscussion(ctx context.Context, discussio
 
 	return nil
 }
+
+// SearchDiscussions searches discussions using GraphQL
+func (g *GitHubClient) SearchDiscussions(ctx context.Context, query string, first int) ([]Discussion, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var searchQuery struct {
+		Search struct {
+			Nodes []struct {
+				Discussion Discussion `graphql:"... on Discussion"`
+			}
+			PageInfo struct {
+				EndCursor   githubv4.String
+				HasNextPage bool
+			}
+		} `graphql:"search(query: $query, type: DISCUSSION, first: $first, after: $cursor)"`
+	}
+
+	variables := map[string]interface{}{
+		"query":  githubv4.String(query),
+		"first":  githubv4.Int(first),
+		"cursor": (*githubv4.String)(nil),
+	}
+
+	allDiscussions := []Discussion{}
+	for {
+		if err := graphql.Query(ctx, &searchQuery, variables); err != nil {
+			return nil, err
+		}
+		for _, node := range searchQuery.Search.Nodes {
+			allDiscussions = append(allDiscussions, node.Discussion)
+		}
+		if !searchQuery.Search.PageInfo.HasNextPage {
+			break
+		}
+		variables["cursor"] = githubv4.NewString(searchQuery.Search.PageInfo.EndCursor)
+	}
+
+	return allDiscussions, nil
+}
