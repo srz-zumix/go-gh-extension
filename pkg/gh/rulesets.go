@@ -2,7 +2,10 @@ package gh
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -81,7 +84,67 @@ func FindRepositoryRulesetByName(ctx context.Context, g *GitHubClient, repo repo
 	return nil, nil
 }
 
-func ExportRepositoryRuleset(ruleset *github.RepositoryRuleset) *RepositoryRulesetConfig {
+// ListOrgRulesets retrieves all rulesets for a specific organization
+func ListOrgRulesets(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.RepositoryRuleset, error) {
+	return g.ListOrgRulesets(ctx, repo.Owner)
+}
+
+// GetOrgRuleset retrieves a single ruleset for a specific organization by ruleset ID
+func GetOrgRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, rulesetID int64) (*github.RepositoryRuleset, error) {
+	return g.GetOrgRuleset(ctx, repo.Owner, rulesetID)
+}
+
+// CreateOrgRuleset creates a new ruleset for a specific organization
+func CreateOrgRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) (*github.RepositoryRuleset, error) {
+	return g.CreateOrgRuleset(ctx, repo.Owner, ruleset)
+}
+
+// UpdateOrgRuleset updates an existing ruleset for a specific organization
+func UpdateOrgRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, rulesetID int64, ruleset *github.RepositoryRuleset) (*github.RepositoryRuleset, error) {
+	return g.UpdateOrgRuleset(ctx, repo.Owner, rulesetID, ruleset)
+}
+
+// CreateOrUpdateOrgRuleset creates or updates an organization ruleset
+func CreateOrUpdateOrgRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) (*github.RepositoryRuleset, error) {
+	existingRuleset, err := FindOrgRuleset(ctx, g, repo, *ruleset.ID, ruleset.Name)
+	if err != nil {
+		return nil, err
+	}
+	if existingRuleset != nil {
+		return UpdateOrgRuleset(ctx, g, repo, *existingRuleset.ID, ruleset)
+	}
+	return CreateOrgRuleset(ctx, g, repo, ruleset)
+}
+
+// DeleteOrgRuleset deletes a single ruleset for a specific organization by ruleset ID
+func DeleteOrgRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, rulesetID int64) error {
+	return g.DeleteOrgRuleset(ctx, repo.Owner, rulesetID)
+}
+
+// FindOrgRuleset finds an organization ruleset by ID or name
+func FindOrgRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, rulesetID int64, name string) (*github.RepositoryRuleset, error) {
+	ruleset, err := g.GetOrgRuleset(ctx, repo.Owner, rulesetID)
+	if err == nil {
+		return ruleset, nil
+	}
+	return FindOrgRulesetByName(ctx, g, repo, name)
+}
+
+// FindOrgRulesetByName finds an organization ruleset by name
+func FindOrgRulesetByName(ctx context.Context, g *GitHubClient, repo repository.Repository, name string) (*github.RepositoryRuleset, error) {
+	rulesets, err := ListOrgRulesets(ctx, g, repo)
+	if err != nil {
+		return nil, err
+	}
+	for _, ruleset := range rulesets {
+		if ruleset.Name == name {
+			return ruleset, nil
+		}
+	}
+	return nil, nil
+}
+
+func ExportRuleset(ruleset *github.RepositoryRuleset) *RepositoryRulesetConfig {
 	config := &RepositoryRulesetConfig{
 		ID:           ruleset.ID,
 		Name:         ruleset.Name,
@@ -97,7 +160,7 @@ func ExportRepositoryRuleset(ruleset *github.RepositoryRuleset) *RepositoryRules
 	return config
 }
 
-func ImportRepositoryRuleset(config *RepositoryRulesetConfig, ruleset *github.RepositoryRuleset) *github.RepositoryRuleset {
+func ImportRuleset(config *RepositoryRulesetConfig, ruleset *github.RepositoryRuleset) *github.RepositoryRuleset {
 	if ruleset == nil {
 		ruleset = &github.RepositoryRuleset{}
 	}
@@ -113,7 +176,29 @@ func ImportRepositoryRuleset(config *RepositoryRulesetConfig, ruleset *github.Re
 	return ruleset
 }
 
-func ExportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, rulesetID int64) (*RepositoryRulesetMigrateConfig, error) {
+func LoadRepositoryRulesetConfigFromReader(r io.Reader) (*RepositoryRulesetConfig, error) {
+	var config RepositoryRulesetConfig
+	jsonData, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(jsonData, &config)
+	if err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
+func LoadRepositoryRulesetConfig(path string) (*RepositoryRulesetConfig, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close() // nolint
+	return LoadRepositoryRulesetConfigFromReader(f)
+}
+
+func ExportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, rulesetID int64) (*RepositoryRulesetMigrateConfig, error) {
 	ruleset, err := GetRepositoryRuleset(ctx, g, repo, rulesetID, false)
 	if err != nil {
 		return nil, err
@@ -123,7 +208,7 @@ func ExportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo r
 
 	checkRuns := make(map[int64]*github.CheckRun)
 	if ruleset.Rules.RequiredStatusChecks != nil {
-		ref, err := FindRepositoryRulesetRequireStatusCheckRunRef(ctx, g, repo, ruleset)
+		ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, repo, ruleset)
 		if err != nil {
 			ref = "HEAD"
 		}
@@ -152,7 +237,7 @@ func ExportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo r
 
 var GitHubComGitHubActionsAppID int64 = 15368
 
-func ImportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, migrateConfig *RepositoryRulesetMigrateConfig, gitHubActionsAppID *int64) (*github.RepositoryRuleset, error) {
+func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, migrateConfig *RepositoryRulesetMigrateConfig, gitHubActionsAppID *int64) (*github.RepositoryRuleset, error) {
 	ruleset := migrateConfig.Ruleset
 	teams := GetRulesetActorsTeams(ctx, g, repo, ruleset)
 
@@ -216,8 +301,9 @@ func ImportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo r
 	if org.IsGitHubEnterpriseServer() {
 		if ruleset.Rules.PullRequest != nil {
 			ruleset.Rules.PullRequest.AllowedMergeMethods = nil
+			logger.Warn("Allowed merge methods are not supported on GitHub Enterprise Server, removing...")
 			ruleset.Rules.PullRequest.AutomaticCopilotCodeReviewEnabled = nil
-			logger.Warn("Pull Request settings are not supported on GitHub Enterprise Server, removing...")
+			logger.Warn("Automatic Copilot code review is not supported on GitHub Enterprise Server, removing...")
 		}
 	} else {
 		if ruleset.Rules.PullRequest != nil {
@@ -233,7 +319,7 @@ func ImportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo r
 	foundIntegrations := make(map[int64]*int64)
 
 	if ruleset.Rules.RequiredStatusChecks != nil {
-		ref, err := FindRepositoryRulesetRequireStatusCheckRunRef(ctx, g, repo, ruleset)
+		ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, repo, ruleset)
 		if err != nil {
 			ref = "HEAD"
 		}
@@ -262,8 +348,8 @@ func ImportMigrateRepositoryRuleset(ctx context.Context, g *GitHubClient, repo r
 
 						if checkRun.App != nil && checkRun.App.GetSlug() == "github-actions" {
 							actionAppId := gitHubActionsAppID
-							if org.IsGitHubCom() {
-								gitHubActionsAppID = &GitHubComGitHubActionsAppID
+							if actionAppId == nil && org.IsGitHubCom() {
+								actionAppId = &GitHubComGitHubActionsAppID
 							}
 							if actionAppId != nil {
 								check.IntegrationID = actionAppId
@@ -360,8 +446,8 @@ func findIntegrationID(ctx context.Context, g *GitHubClient, repo repository.Rep
 	return checkRuns.CheckRuns[0], nil
 }
 
-func FindRepositoryRulesetRequireStatusCheckRunRef(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) (string, error) {
-	refs, err := FindRepositoryRulesetTargetRefs(ctx, g, repo, ruleset)
+func FindRulesetRequireStatusCheckRunRef(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) (string, error) {
+	refs, err := FindRulesetTargetRefs(ctx, g, repo, ruleset)
 	if err != nil {
 		return "HEAD", err
 	}
@@ -379,23 +465,23 @@ func FindRepositoryRulesetRequireStatusCheckRunRef(ctx context.Context, g *GitHu
 	return refs[0], nil
 }
 
-func FindRepositoryRulesetTargetRefs(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) ([]string, error) {
+func FindRulesetTargetRefs(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) ([]string, error) {
 	if ruleset.Target == nil {
 		return []string{"HEAD"}, nil
 	}
 	switch *ruleset.Target {
 	case github.RulesetTargetBranch:
-		return FindRepositoryRulesetTargetBranches(ctx, g, repo, ruleset)
+		return FindRulesetTargetBranches(ctx, g, repo, ruleset)
 	case github.RulesetTargetPush:
-		return FindRepositoryRulesetTargetBranches(ctx, g, repo, ruleset)
+		return FindRulesetTargetBranches(ctx, g, repo, ruleset)
 	case github.RulesetTargetTag:
-		return FindRepositoryRulesetTargetTags(ctx, g, repo, ruleset)
+		return FindRulesetTargetTags(ctx, g, repo, ruleset)
 	default:
 		return []string{"HEAD"}, nil
 	}
 }
 
-func FindRepositoryRulesetTargetBranches(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) ([]string, error) {
+func FindRulesetTargetBranches(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) ([]string, error) {
 	if ruleset.Conditions == nil || ruleset.Conditions.RefName == nil {
 		return []string{"HEAD"}, nil
 	}
@@ -422,7 +508,7 @@ func FindRepositoryRulesetTargetBranches(ctx context.Context, g *GitHubClient, r
 	var matchedBranches []string
 	for _, branch := range branches {
 		branchName := branch.GetName()
-		if MatchRepositoryRulesetRefName(branchName, defaultBranch, ruleset.Conditions.RefName) {
+		if MatchRulesetRefName(branchName, defaultBranch, ruleset.Conditions.RefName) {
 			matchedBranches = append(matchedBranches, branchName)
 		}
 	}
@@ -439,7 +525,7 @@ func FindRepositoryRulesetTargetBranches(ctx context.Context, g *GitHubClient, r
 	return []string{"HEAD"}, nil
 }
 
-func FindRepositoryRulesetTargetTags(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) ([]string, error) {
+func FindRulesetTargetTags(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) ([]string, error) {
 	if ruleset.Conditions == nil || ruleset.Conditions.RefName == nil {
 		return []string{"HEAD"}, nil
 	}
@@ -459,7 +545,7 @@ func FindRepositoryRulesetTargetTags(ctx context.Context, g *GitHubClient, repo 
 	var matchedTags []string
 	for _, tag := range tags {
 		tagName := tag.GetName()
-		if MatchRepositoryRulesetRefName(tagName, defaultBranch, ruleset.Conditions.RefName) {
+		if MatchRulesetRefName(tagName, defaultBranch, ruleset.Conditions.RefName) {
 			matchedTags = append(matchedTags, tagName)
 		}
 	}
@@ -473,7 +559,7 @@ func FindRepositoryRulesetTargetTags(ctx context.Context, g *GitHubClient, repo 
 }
 
 // matchRefName checks if a branch name matches the RefName conditions
-func MatchRepositoryRulesetRefName(branchName string, defaultBranch string, refName *github.RepositoryRulesetRefConditionParameters) bool {
+func MatchRulesetRefName(branchName string, defaultBranch string, refName *github.RepositoryRulesetRefConditionParameters) bool {
 	// Check exclude patterns first
 	for _, exclude := range refName.Exclude {
 		if matchPattern(branchName, defaultBranch, exclude) {
