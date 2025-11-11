@@ -40,16 +40,10 @@ func NewRepositoryRulesetFieldGetters() *repositoryRulesetFieldGetters {
 				return ToString(ruleset.NodeID)
 			},
 			"CREATED_AT": func(ruleset *github.RepositoryRuleset) string {
-				if ruleset.CreatedAt != nil {
-					return ruleset.CreatedAt.Format("2006-01-02 15:04:05")
-				}
-				return ""
+				return ToString(ruleset.CreatedAt)
 			},
 			"UPDATED_AT": func(ruleset *github.RepositoryRuleset) string {
-				if ruleset.UpdatedAt != nil {
-					return ruleset.UpdatedAt.Format("2006-01-02 15:04:05")
-				}
-				return ""
+				return ToString(ruleset.UpdatedAt)
 			},
 			"BYPASS_ACTORS": func(ruleset *github.RepositoryRuleset) string {
 				actors := []string{}

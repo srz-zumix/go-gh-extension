@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/cli/cli/v2/pkg/cmdutil"
 	"github.com/cli/cli/v2/pkg/iostreams"
 	"github.com/google/go-github/v73/github"
 	"github.com/olekukonko/tablewriter"
+	"github.com/shurcooL/githubv4"
 )
 
 type Renderer struct {
@@ -16,6 +18,10 @@ type Renderer struct {
 	Color    bool
 	exporter cmdutil.Exporter
 }
+
+var defaultTimeFormat = "2006-01-02 15:04:05"
+
+var TimeFormat = defaultTimeFormat
 
 type StringRenderer struct {
 	Renderer Renderer
@@ -159,6 +165,11 @@ func ToString(v any) string {
 			return ""
 		}
 		return toString(*e)
+	} else if t, ok := v.(*time.Time); ok {
+		if t == nil {
+			return ""
+		}
+		return toString(*t)
 	} else if t, ok := v.(*github.Timestamp); ok {
 		if t == nil {
 			return ""
@@ -169,7 +180,50 @@ func ToString(v any) string {
 			return "DISABLED"
 		}
 		return "ENABLED"
-	} else if a, ok := v.(*any); ok && a == nil {
+	} else if str, ok := v.(*githubv4.String); ok {
+		if str == nil {
+			return ""
+		}
+		return toString(*str)
+	} else if s, ok := v.(*githubv4.Base64String); ok {
+		if s == nil {
+			return ""
+		}
+		return toString(*s)
+	} else if b, ok := v.(*githubv4.Boolean); ok {
+		if b == nil {
+			return ""
+		}
+		return toString(*b)
+	} else if id, ok := v.(*githubv4.ID); ok {
+		if id == nil {
+			return ""
+		}
+		return toString(*id)
+	} else if i, ok := v.(*githubv4.Int); ok {
+		if i == nil {
+			return ""
+		}
+		return toString(*i)
+	} else if f, ok := v.(*githubv4.Float); ok {
+		if f == nil {
+			return ""
+		}
+		return toString(*f)
+	} else if uri, ok := v.(*githubv4.URI); ok {
+		if uri == nil {
+			return ""
+		}
+		return toString(*uri)
+	} else if t, ok := v.(*githubv4.DateTime); ok {
+		if t == nil {
+			return ""
+		}
+		return toString(*t)
+	} else if a, ok := v.(*any); ok {
+		if a == nil {
+			return ""
+		}
 		return toString(*a)
 	}
 	return toString(v)
@@ -209,8 +263,29 @@ func toString(v any) string {
 		return fmt.Sprintf("%f", f)
 	} else if i, ok := v.(error); ok {
 		return i.Error()
+	} else if t, ok := v.(time.Time); ok {
+		return t.Format(TimeFormat)
 	} else if t, ok := v.(github.Timestamp); ok {
-		return t.String()
+		return t.Format(TimeFormat)
+	} else if str, ok := v.(githubv4.String); ok {
+		return string(str)
+	} else if s, ok := v.(githubv4.Base64String); ok {
+		return string(s)
+	} else if b, ok := v.(githubv4.Boolean); ok {
+		if b {
+			return "YES"
+		}
+		return "NO"
+	} else if id, ok := v.(githubv4.ID); ok {
+		return fmt.Sprintf("%v", id)
+	} else if i, ok := v.(githubv4.Int); ok {
+		return fmt.Sprintf("%d", i)
+	} else if f, ok := v.(githubv4.Float); ok {
+		return fmt.Sprintf("%f", f)
+	} else if uri, ok := v.(githubv4.URI); ok {
+		return uri.String()
+	} else if t, ok := v.(githubv4.DateTime); ok {
+		return t.Format(TimeFormat)
 	}
 	return ""
 }

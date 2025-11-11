@@ -271,3 +271,13 @@ func getLabelsFromNames(ctx context.Context, g *GitHubClient, repo repository.Re
 
 	return result, nil
 }
+
+// SearchDiscussions searches discussions in a repository
+func SearchDiscussions(ctx context.Context, g *GitHubClient, repo repository.Repository, query string) ([]client.Discussion, error) {
+	searchQuery := fmt.Sprintf("repo:%s/%s %s", repo.Owner, repo.Name, query)
+	discussions, err := g.SearchDiscussions(ctx, searchQuery, 100)
+	if err != nil {
+		return nil, err
+	}
+	return discussions, nil
+}
