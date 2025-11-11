@@ -165,6 +165,11 @@ func ToString(v any) string {
 			return ""
 		}
 		return toString(*e)
+	} else if t, ok := v.(*time.Time); ok {
+		if t == nil {
+			return ""
+		}
+		return toString(*t)
 	} else if t, ok := v.(*github.Timestamp); ok {
 		if t == nil {
 			return ""
@@ -175,11 +180,6 @@ func ToString(v any) string {
 			return "DISABLED"
 		}
 		return "ENABLED"
-	} else if t, ok := v.(*time.Time); ok {
-		if t == nil {
-			return ""
-		}
-		return toString(*t)
 	} else if str, ok := v.(*githubv4.String); ok {
 		if str == nil {
 			return ""
@@ -266,7 +266,7 @@ func toString(v any) string {
 	} else if t, ok := v.(time.Time); ok {
 		return t.Format(TimeFormat)
 	} else if t, ok := v.(github.Timestamp); ok {
-		return t.String()
+		return t.Format(TimeFormat)
 	} else if str, ok := v.(githubv4.String); ok {
 		return string(str)
 	} else if s, ok := v.(githubv4.Base64String); ok {
@@ -285,7 +285,7 @@ func toString(v any) string {
 	} else if uri, ok := v.(githubv4.URI); ok {
 		return uri.String()
 	} else if t, ok := v.(githubv4.DateTime); ok {
-		return t.Time.Format(TimeFormat)
+		return t.Format(TimeFormat)
 	}
 	return ""
 }
