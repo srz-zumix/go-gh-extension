@@ -16,6 +16,14 @@ func (g *GitHubClient) GetRepository(ctx context.Context, owner string, repo str
 	return repository, nil
 }
 
+func (g *GitHubClient) GetRepositoryByID(ctx context.Context, id int64) (*github.Repository, error) {
+	repository, _, err := g.client.Repositories.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return repository, nil
+}
+
 // ListRepositoryTeams retrieves all teams associated with a specific repository.
 func (g *GitHubClient) ListRepositoryTeams(ctx context.Context, owner string, repo string) ([]*github.Team, error) {
 	var allTeams []*github.Team

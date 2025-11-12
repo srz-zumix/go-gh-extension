@@ -27,9 +27,10 @@ type RepositoryRulesetConfig struct {
 }
 
 type RepositoryRulesetMigrateConfig struct {
-	Ruleset   *github.RepositoryRuleset
-	Teams     map[int64]*github.Team
-	CheckRuns map[int64]*github.CheckRun
+	Ruleset      *github.RepositoryRuleset
+	Teams        map[int64]*github.Team
+	CheckRuns    map[int64]*github.CheckRun
+	Repositories map[int64]*github.Repository
 }
 
 func ListRepositoryRulesets(ctx context.Context, g *GitHubClient, repo repository.Repository, includesParents bool) ([]*github.RepositoryRuleset, error) {
@@ -144,6 +145,62 @@ func FindOrgRulesetByName(ctx context.Context, g *GitHubClient, repo repository.
 	return nil, nil
 }
 
+func ListRulesets(ctx context.Context, g *GitHubClient, repo repository.Repository, includesParents bool) ([]*github.RepositoryRuleset, error) {
+	if repo.Name == "" {
+		return ListOrgRulesets(ctx, g, repo)
+	}
+	return ListRepositoryRulesets(ctx, g, repo, includesParents)
+}
+
+func GetRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, rulesetID int64, includesParents bool) (*github.RepositoryRuleset, error) {
+	if repo.Name == "" {
+		return GetOrgRuleset(ctx, g, repo, rulesetID)
+	}
+	return GetRepositoryRuleset(ctx, g, repo, rulesetID, includesParents)
+}
+
+func CreateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) (*github.RepositoryRuleset, error) {
+	if repo.Name == "" {
+		return CreateOrgRuleset(ctx, g, repo, ruleset)
+	}
+	return CreateRepositoryRuleset(ctx, g, repo, ruleset)
+}
+
+func UpdateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, rulesetID int64, ruleset *github.RepositoryRuleset) (*github.RepositoryRuleset, error) {
+	if repo.Name == "" {
+		return UpdateOrgRuleset(ctx, g, repo, rulesetID, ruleset)
+	}
+	return UpdateRepositoryRuleset(ctx, g, repo, rulesetID, ruleset)
+}
+
+func CreateOrUpdateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) (*github.RepositoryRuleset, error) {
+	if repo.Name == "" {
+		return CreateOrUpdateOrgRuleset(ctx, g, repo, ruleset)
+	}
+	return CreateOrUpdateRepositoryRuleset(ctx, g, repo, ruleset)
+}
+
+func DeleteRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, rulesetID int64) error {
+	if repo.Name == "" {
+		return DeleteOrgRuleset(ctx, g, repo, rulesetID)
+	}
+	return DeleteRepositoryRuleset(ctx, g, repo, rulesetID)
+}
+
+func FindRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, rulesetID int64, name string, includesParents bool) (*github.RepositoryRuleset, error) {
+	if repo.Name == "" {
+		return FindOrgRuleset(ctx, g, repo, rulesetID, name)
+	}
+	return FindRepositoryRuleset(ctx, g, repo, rulesetID, name, includesParents)
+}
+
+func FindRulesetByName(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, includesParents bool) (*github.RepositoryRuleset, error) {
+	if repo.Name == "" {
+		return FindOrgRulesetByName(ctx, g, repo, name)
+	}
+	return FindRepositoryRulesetByName(ctx, g, repo, name, includesParents)
+}
+
 func ExportRuleset(ruleset *github.RepositoryRuleset) *RepositoryRulesetConfig {
 	config := &RepositoryRulesetConfig{
 		ID:           ruleset.ID,
@@ -199,9 +256,17 @@ func LoadRepositoryRulesetConfig(path string) (*RepositoryRulesetConfig, error) 
 }
 
 func ExportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, rulesetID int64) (*RepositoryRulesetMigrateConfig, error) {
-	ruleset, err := GetRepositoryRuleset(ctx, g, repo, rulesetID, false)
+	ruleset, err := GetRuleset(ctx, g, repo, rulesetID, false)
 	if err != nil {
 		return nil, err
+	}
+
+	targetRepository, err := GetRulesetTargetRepository(ctx, g, repo, ruleset)
+	if err != nil {
+		return nil, err
+	}
+	if targetRepository != nil {
+		repo = *targetRepository
 	}
 
 	teams := GetRulesetActorsTeams(ctx, g, repo, ruleset)
@@ -228,10 +293,33 @@ func ExportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 		}
 	}
 
+	repositories := make(map[int64]*github.Repository)
+	if ruleset.Conditions.RepositoryID != nil {
+		for _, id := range ruleset.Conditions.RepositoryID.RepositoryIDs {
+			r, err := GetRepositoryByID(ctx, g, id)
+			if err != nil {
+				logger.Warn("Failed to get repository by ID", "id", id, "error", err)
+			} else {
+				repositories[id] = r
+			}
+		}
+	}
+	if ruleset.Rules.Workflows != nil {
+		for _, workflow := range ruleset.Rules.Workflows.Workflows {
+			r, err := GetRepositoryByID(ctx, g, workflow.GetRepositoryID())
+			if err != nil {
+				logger.Warn("Failed to get workflow repository by ID", "id", workflow.GetRepositoryID(), "error", err)
+			} else {
+				repositories[workflow.GetRepositoryID()] = r
+			}
+		}
+	}
+
 	return &RepositoryRulesetMigrateConfig{
-		Ruleset:   ruleset,
-		Teams:     teams,
-		CheckRuns: checkRuns,
+		Ruleset:      ruleset,
+		Teams:        teams,
+		CheckRuns:    checkRuns,
+		Repositories: repositories,
 	}, nil
 }
 
@@ -244,6 +332,14 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 	org, err := GetOrganizationProfile(ctx, g, repo)
 	if err != nil {
 		return nil, err
+	}
+
+	targetRepository, err := GetRulesetTargetRepository(ctx, g, repo, ruleset)
+	if err != nil {
+		return nil, err
+	}
+	if targetRepository != nil {
+		repo = *targetRepository
 	}
 
 	newBypassActors := []*github.BypassActor{}
@@ -383,7 +479,54 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 		}
 	}
 
-	result, err := CreateOrUpdateRepositoryRuleset(ctx, g, repo, ruleset)
+	for id, r := range migrateConfig.Repositories {
+		dstRepo, err := g.GetRepository(ctx, repo.Owner, r.GetName())
+		if err != nil {
+			logger.Warn("Repository ID condition target repository not found in target organization, skipping...", "name", r.GetName())
+			continue
+		}
+		migrateConfig.Repositories[id] = dstRepo
+	}
+	if ruleset.Conditions.RepositoryID != nil {
+		newRepoIDs := []int64{}
+		for _, id := range ruleset.Conditions.RepositoryID.RepositoryIDs {
+			_, err := GetRepositoryByID(ctx, g, id)
+			if err == nil {
+				newRepoIDs = append(newRepoIDs, id)
+				continue
+			}
+			r, ok := migrateConfig.Repositories[id]
+			if !ok {
+				logger.Warn("Repository ID condition not found in target repository, skipping...", "id", id)
+				continue
+			}
+			newRepoIDs = append(newRepoIDs, r.GetID())
+			logger.Info("Repository ID condition has been mapped to target repository", "name", r.GetName(), "id", r.GetID())
+		}
+		if len(newRepoIDs) == 0 {
+			ruleset.Conditions.RepositoryID = nil
+			logger.Warn("No valid repository IDs found in target repository, removing repository ID condition...")
+		} else {
+			ruleset.Conditions.RepositoryID.RepositoryIDs = newRepoIDs
+		}
+	}
+	if ruleset.Rules.Workflows != nil {
+		for i, workflow := range ruleset.Rules.Workflows.Workflows {
+			_, err := GetRepositoryByID(ctx, g, workflow.GetRepositoryID())
+			if err == nil {
+				continue
+			}
+			r, ok := migrateConfig.Repositories[workflow.GetRepositoryID()]
+			if !ok {
+				logger.Warn("Workflow repository not found in target organization, skipping...", "id", workflow.GetRepositoryID())
+				continue
+			}
+			ruleset.Rules.Workflows.Workflows[i].RepositoryID = r.ID
+			logger.Info("Workflow repository has been mapped to target repository", "name", r.GetName(), "id", r.GetID())
+		}
+	}
+
+	result, err := CreateOrUpdateRuleset(ctx, g, repo, ruleset)
 	if err != nil {
 		return nil, err
 	}
@@ -621,4 +764,188 @@ func getDefaultBranchIfNeeded(ctx context.Context, g *GitHubClient, repo reposit
 	}
 
 	return defaultBranch, nil
+}
+
+func GetRulesetTargetRepository(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) (*repository.Repository, error) {
+	if repo.Name != "" {
+		return &repo, nil
+	}
+	repos, err := GetRulesetTargetRepositories(ctx, g, repo, ruleset)
+	if err != nil {
+		return nil, err
+	}
+	if len(repos) > 0 {
+		return repos[0], nil
+	}
+	return nil, nil
+}
+
+func GetRulesetTargetRepositories(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) ([]*repository.Repository, error) {
+	if ruleset.Conditions == nil {
+		return nil, nil
+	}
+	if ruleset.Conditions.RepositoryName != nil {
+		repos, err := getRulesetTargetRepositoriesFromName(ctx, g, repo, ruleset.Conditions.RepositoryName)
+		if err != nil {
+			return nil, err
+		}
+		return repos, nil
+	}
+	if ruleset.Conditions.RepositoryProperty != nil {
+		repos, err := getRulesetTargetRepositoriesFromProperty(ctx, g, repo, ruleset.Conditions.RepositoryProperty)
+		if err != nil {
+			return nil, err
+		}
+		return repos, nil
+	}
+	if ruleset.Conditions.RepositoryID != nil {
+		repos, err := getRulesetTargetRepositoriesFromID(ctx, g, repo, ruleset.Conditions.RepositoryID)
+		if err != nil {
+			return nil, err
+		}
+		return repos, nil
+	}
+	return nil, nil
+}
+
+func getRulesetTargetRepositoriesFromName(ctx context.Context, g *GitHubClient, repo repository.Repository, condition *github.RepositoryRulesetRepositoryNamesConditionParameters) ([]*repository.Repository, error) {
+	// Get all repositories in the organization
+	ghRepos, err := g.ListOrganizationRepositories(ctx, repo.Owner, "all")
+	if err != nil {
+		return nil, err
+	}
+
+	var targetRepos []*repository.Repository
+
+	for _, ghRepo := range ghRepos {
+		repoName := ghRepo.GetName()
+
+		// Check if repository name matches the conditions
+		if matchRepositoryName(repoName, condition) {
+			targetRepos = append(targetRepos, &repository.Repository{
+				Owner: repo.Owner,
+				Name:  repoName,
+			})
+		}
+	}
+
+	return targetRepos, nil
+}
+
+// matchRepositoryName checks if a repository name matches the RepositoryName conditions
+func matchRepositoryName(repoName string, condition *github.RepositoryRulesetRepositoryNamesConditionParameters) bool {
+	// Check exclude patterns first
+	for _, exclude := range condition.Exclude {
+		if matchPattern(repoName, "", exclude) {
+			return false
+		}
+	}
+
+	// Check include patterns
+	for _, include := range condition.Include {
+		if matchPattern(repoName, "", include) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func getRulesetTargetRepositoriesFromProperty(ctx context.Context, g *GitHubClient, repo repository.Repository, condition *github.RepositoryRulesetRepositoryPropertyConditionParameters) ([]*repository.Repository, error) {
+	// Get all repositories in the organization
+	ghRepos, err := g.ListOrganizationRepositories(ctx, repo.Owner, "all")
+	if err != nil {
+		return nil, err
+	}
+
+	var targetRepos []*repository.Repository
+
+	for _, ghRepo := range ghRepos {
+		// Check if repository properties match the conditions
+		if matchRepositoryProperty(ghRepo, condition) {
+			targetRepos = append(targetRepos, &repository.Repository{
+				Owner: repo.Owner,
+				Name:  ghRepo.GetName(),
+			})
+		}
+	}
+
+	return targetRepos, nil
+}
+
+// matchRepositoryProperty checks if a repository's custom properties match the conditions
+func matchRepositoryProperty(ghRepo *github.Repository, condition *github.RepositoryRulesetRepositoryPropertyConditionParameters) bool {
+	// Build a map of repository properties for quick lookup
+	repoProperties := make(map[string]string)
+	if ghRepo.CustomProperties != nil {
+		for key, value := range ghRepo.CustomProperties {
+			// CustomProperties values can be of different types, convert to string
+			if strValue, ok := value.(string); ok {
+				repoProperties[key] = strValue
+			}
+		}
+	}
+
+	// Check exclude patterns first
+	for _, exclude := range condition.Exclude {
+		if matchPropertyPattern(repoProperties, exclude) {
+			return false
+		}
+	}
+
+	// Check include patterns
+	for _, include := range condition.Include {
+		if matchPropertyPattern(repoProperties, include) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// matchPropertyPattern checks if a repository's properties match a specific pattern
+func matchPropertyPattern(repoProperties map[string]string, pattern *github.RepositoryRulesetRepositoryPropertyTargetParameters) bool {
+	propertyValue, exists := repoProperties[pattern.Name]
+
+	// If property doesn't exist, it doesn't match
+	if !exists {
+		return false
+	}
+
+	// If no specific values are required, any value matches
+	if len(pattern.PropertyValues) == 0 {
+		return true
+	}
+
+	// Check if the property value matches any of the required values
+	for _, requiredValue := range pattern.PropertyValues {
+		if propertyValue == requiredValue {
+			return true
+		}
+	}
+
+	return false
+}
+
+func getRulesetTargetRepositoriesFromID(ctx context.Context, g *GitHubClient, repo repository.Repository, condition *github.RepositoryRulesetRepositoryIDsConditionParameters) ([]*repository.Repository, error) {
+	if len(condition.RepositoryIDs) == 0 {
+		return []*repository.Repository{}, nil
+	}
+
+	// Get repositories by ID
+	var targetRepos []*repository.Repository
+	for _, id := range condition.RepositoryIDs {
+		ghRepo, err := GetRepositoryByID(ctx, g, id)
+		if err != nil {
+			logger.Warn("Failed to get repository by ID, skipping...", "id", id, "error", err)
+			continue
+		}
+
+		targetRepos = append(targetRepos, &repository.Repository{
+			Owner: ghRepo.GetOwner().GetLogin(),
+			Name:  ghRepo.GetName(),
+		})
+	}
+
+	return targetRepos, nil
 }
