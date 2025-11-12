@@ -14,6 +14,10 @@ func GetRepository(ctx context.Context, g *GitHubClient, repo repository.Reposit
 	return g.GetRepository(ctx, repo.Owner, repo.Name)
 }
 
+func GetRepositoryByID(ctx context.Context, g *GitHubClient, id int64) (*github.Repository, error) {
+	return g.GetRepositoryByID(ctx, id)
+}
+
 func ListBranches(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Branch, error) {
 	return g.ListBranches(ctx, repo.Owner, repo.Name, nil)
 }

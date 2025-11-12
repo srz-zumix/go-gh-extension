@@ -57,6 +57,27 @@ func RepositoryOwner(input string) RepositoryOption {
 	}
 }
 
+func RepositoryOwnerWithHost(input string) RepositoryOption {
+	return func(r *repository.Repository) error {
+		if input == "" {
+			return nil
+		}
+		parsed, err := repository.Parse(input + "/dummy")
+		if err != nil {
+			return fmt.Errorf(`expected the "[HOST/]OWNER" format, got %q`, input)
+		}
+		if r.Owner != "" && r.Owner != parsed.Owner {
+			return errors.New("conflicting owner")
+		}
+		if r.Host != "" && r.Host != parsed.Host {
+			return errors.New("conflicting host")
+		}
+		r.Host = parsed.Host
+		r.Owner = parsed.Owner
+		return nil
+	}
+}
+
 func RepositoryOwners(inputs []string) RepositoryOption {
 	return func(r *repository.Repository) error {
 		for _, input := range inputs {
