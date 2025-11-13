@@ -479,22 +479,23 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 		}
 	}
 
+	migrateRepositoryNames := map[int64]string{}
 	for id, r := range migrateConfig.Repositories {
+		migrateRepositoryNames[id] = r.GetName()
 		dstRepo, err := g.GetRepository(ctx, repo.Owner, r.GetName())
 		if err != nil {
+			delete(migrateConfig.Repositories, id)
 			logger.Warn("Repository ID condition target repository not found in target organization, skipping...", "name", r.GetName())
 			continue
 		}
 		migrateConfig.Repositories[id] = dstRepo
 	}
+
 	if ruleset.Conditions.RepositoryID != nil {
 		newRepoIDs := []int64{}
+		newRepoNames := []string{}
 		for _, id := range ruleset.Conditions.RepositoryID.RepositoryIDs {
-			_, err := GetRepositoryByID(ctx, g, id)
-			if err == nil {
-				newRepoIDs = append(newRepoIDs, id)
-				continue
-			}
+			newRepoNames = append(newRepoNames, migrateRepositoryNames[id])
 			r, ok := migrateConfig.Repositories[id]
 			if !ok {
 				logger.Warn("Repository ID condition not found in target repository, skipping...", "id", id)
@@ -505,24 +506,34 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 		}
 		if len(newRepoIDs) == 0 {
 			ruleset.Conditions.RepositoryID = nil
-			logger.Warn("No valid repository IDs found in target repository, removing repository ID condition...")
+			ruleset.Conditions.RepositoryName = &github.RepositoryRulesetRepositoryNamesConditionParameters{
+				Include:   newRepoNames,
+				Exclude:   []string{},
+				Protected: nil,
+			}
+			logger.Warn("No valid repository ID conditions found in target repository, converting to repository name condition...")
 		} else {
 			ruleset.Conditions.RepositoryID.RepositoryIDs = newRepoIDs
 		}
 	}
+
 	if ruleset.Rules.Workflows != nil {
-		for i, workflow := range ruleset.Rules.Workflows.Workflows {
-			_, err := GetRepositoryByID(ctx, g, workflow.GetRepositoryID())
-			if err == nil {
-				continue
-			}
+		newWorkflows := []*github.RuleWorkflow{}
+		for _, workflow := range ruleset.Rules.Workflows.Workflows {
 			r, ok := migrateConfig.Repositories[workflow.GetRepositoryID()]
 			if !ok {
 				logger.Warn("Workflow repository not found in target organization, skipping...", "id", workflow.GetRepositoryID())
 				continue
 			}
-			ruleset.Rules.Workflows.Workflows[i].RepositoryID = r.ID
+			workflow.RepositoryID = r.ID
+			newWorkflows = append(newWorkflows, workflow)
 			logger.Info("Workflow repository has been mapped to target repository", "name", r.GetName(), "id", r.GetID())
+		}
+		if len(newWorkflows) == 0 {
+			ruleset.Rules.Workflows = nil
+			logger.Warn("No valid workflows found in target repository, removing workflows rule...")
+		} else {
+			ruleset.Rules.Workflows.Workflows = newWorkflows
 		}
 	}
 
