@@ -480,15 +480,15 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 	}
 
 	migrateRepositoryNames := map[int64]string{}
+	migrateRepositories := map[int64]*github.Repository{}
 	for id, r := range migrateConfig.Repositories {
 		migrateRepositoryNames[id] = r.GetName()
 		dstRepo, err := g.GetRepository(ctx, repo.Owner, r.GetName())
 		if err != nil {
-			delete(migrateConfig.Repositories, id)
 			logger.Warn("Repository ID condition target repository not found in target organization, skipping...", "name", r.GetName())
 			continue
 		}
-		migrateConfig.Repositories[id] = dstRepo
+		migrateRepositories[id] = dstRepo
 	}
 
 	if ruleset.Conditions.RepositoryID != nil {
@@ -496,7 +496,7 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 		newRepoNames := []string{}
 		for _, id := range ruleset.Conditions.RepositoryID.RepositoryIDs {
 			newRepoNames = append(newRepoNames, migrateRepositoryNames[id])
-			r, ok := migrateConfig.Repositories[id]
+			r, ok := migrateRepositories[id]
 			if !ok {
 				logger.Warn("Repository ID condition not found in target repository, skipping...", "id", id)
 				continue
@@ -520,7 +520,7 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 	if ruleset.Rules.Workflows != nil {
 		newWorkflows := []*github.RuleWorkflow{}
 		for _, workflow := range ruleset.Rules.Workflows.Workflows {
-			r, ok := migrateConfig.Repositories[workflow.GetRepositoryID()]
+			r, ok := migrateRepositories[workflow.GetRepositoryID()]
 			if !ok {
 				logger.Warn("Workflow repository not found in target organization, skipping...", "id", workflow.GetRepositoryID())
 				continue
