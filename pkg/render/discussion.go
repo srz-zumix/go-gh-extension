@@ -82,6 +82,11 @@ func (r *Renderer) RenderDiscussions(discussions []client.Discussion, headers []
 		return
 	}
 
+	if len(discussions) == 0 {
+		r.writeLine("No discussions.")
+		return
+	}
+
 	getter := NewDiscussionFieldGetters(r.Color)
 	table := r.newTableWriter(headers)
 	table.SetAutoWrapText(false)

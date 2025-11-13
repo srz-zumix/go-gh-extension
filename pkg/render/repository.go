@@ -10,6 +10,12 @@ func (r *Renderer) RenderRepository(repos []*github.Repository) {
 		r.RenderExportedData(repos)
 		return
 	}
+
+	if len(repos) == 0 {
+		r.writeLine("No repositories.")
+		return
+	}
+
 	headers := []string{"NAME", "PERMISSION", "VISIBILITY"}
 	table := r.newTableWriter(headers)
 

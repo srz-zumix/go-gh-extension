@@ -71,6 +71,11 @@ func (r *Renderer) RenderRepositoryRulesets(rulesets []*github.RepositoryRuleset
 		return
 	}
 
+	if len(rulesets) == 0 {
+		r.writeLine("No repository rulesets.")
+		return
+	}
+
 	getter := NewRepositoryRulesetFieldGetters()
 	table := r.newTableWriter(headers)
 
