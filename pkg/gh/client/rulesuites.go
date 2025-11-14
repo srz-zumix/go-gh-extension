@@ -94,7 +94,7 @@ func (g *GitHubClient) ListRepositoryRuleSuites(ctx context.Context, owner strin
 	return allRuleSuites, nil
 }
 
-// GetRuleSuite retrieves a single rule suite for a specific repository by rule suite ID
+// GetRepositoryRuleSuite retrieves a single rule suite for a specific repository by rule suite ID
 func (g *GitHubClient) GetRepositoryRuleSuite(ctx context.Context, owner string, repo string, ruleSuiteID int64) (*RuleSuite, error) {
 	u := fmt.Sprintf("repos/%s/%s/rulesets/rule-suites/%d", owner, repo, ruleSuiteID)
 
