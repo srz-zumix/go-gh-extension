@@ -51,7 +51,7 @@ type ListRuleSuitesOptions struct {
 	github.ListOptions
 }
 
-// ListRuleSuites retrieves all rule suites for a specific repository
+// ListRepositoryRuleSuites retrieves all rule suites for a specific repository
 func (g *GitHubClient) ListRepositoryRuleSuites(ctx context.Context, owner string, repo string, opts *ListRuleSuitesOptions) ([]*RuleSuite, error) {
 	allRuleSuites := []*RuleSuite{}
 	opt := &ListRuleSuitesOptions{
