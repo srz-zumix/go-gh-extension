@@ -128,8 +128,7 @@ func (g *GitHubClient) ListOrgRuleSuites(ctx context.Context, org string, opts *
 	}
 
 	for {
-		u := fmt.Sprintf("orgs/%s/rulesets/rule-suites", org)
-		u, err := addOptions(u, opt)
+		u, err := addOptions(fmt.Sprintf("orgs/%s/rulesets/rule-suites", org), opt)
 		if err != nil {
 			return nil, err
 		}
