@@ -67,8 +67,7 @@ func (g *GitHubClient) ListRepositoryRuleSuites(ctx context.Context, owner strin
 	}
 
 	for {
-		u := fmt.Sprintf("repos/%s/%s/rulesets/rule-suites", owner, repo)
-		u, err := addOptions(u, opt)
+		u, err := addOptions(fmt.Sprintf("repos/%s/%s/rulesets/rule-suites", owner, repo), opt)
 		if err != nil {
 			return nil, err
 		}
