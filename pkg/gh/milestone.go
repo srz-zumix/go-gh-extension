@@ -29,11 +29,7 @@ func ListMilestones(ctx context.Context, g *GitHubClient, repo repository.Reposi
 		opts.Sort = options.Sort
 		opts.Direction = options.Direction
 	}
-	milestones, err := g.ListMilestones(ctx, repo.Owner, repo.Name, opts)
-	if err != nil {
-		return nil, err
-	}
-	return milestones, nil
+	return g.ListMilestones(ctx, repo.Owner, repo.Name, opts)
 }
 
 // GetMilestone gets a single milestone by number for a repository (wrapper)
