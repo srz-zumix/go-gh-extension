@@ -106,6 +106,23 @@ func ExcludeOrganizationAdmins(ctx context.Context, g *GitHubClient, repo reposi
 	return filteredUsers, nil
 }
 
+func ExcludeUsers(users []*github.User, excludeUsernames []string) []*github.User {
+	var filteredUsers []*github.User
+	for _, user := range users {
+		excluded := false
+		for _, excludeName := range excludeUsernames {
+			if user.Login != nil && *user.Login == excludeName {
+				excluded = true
+				break
+			}
+		}
+		if !excluded {
+			filteredUsers = append(filteredUsers, user)
+		}
+	}
+	return filteredUsers
+}
+
 // DetectUserTeams adds team information to each user (collaborator) for a repository
 func DetectUserTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, users []*github.User) ([]*github.User, error) {
 	teams, err := g.ListRepositoryTeams(ctx, repo.Owner, repo.Name)
