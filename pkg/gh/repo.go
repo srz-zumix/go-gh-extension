@@ -10,6 +10,8 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
+type RepositorySubmodule = client.RepositorySubmodule
+
 func GetRepository(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
 	return g.GetRepository(ctx, repo.Owner, repo.Name)
 }
@@ -240,7 +242,7 @@ func CheckRepositoryPermissionWithSubmodules(ctx context.Context, g *GitHubClien
 	return repoRermissions, hasPermissions, nil
 }
 
-func GetRepositorySubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool) ([]client.RepositorySubmodule, error) {
+func GetRepositorySubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool) ([]RepositorySubmodule, error) {
 	allSubmodules, err := g.GetRepositorySubmodules(ctx, repo.Owner, repo.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get submodules for repository %s/%s: %w", repo.Owner, repo.Name, err)
@@ -258,8 +260,8 @@ func GetRepositorySubmodules(ctx context.Context, g *GitHubClient, repo reposito
 	return allSubmodules, nil
 }
 
-func FlattenRepositorySubmodules(submodules []client.RepositorySubmodule) []client.RepositorySubmodule {
-	var flattened []client.RepositorySubmodule
+func FlattenRepositorySubmodules(submodules []RepositorySubmodule) []RepositorySubmodule {
+	var flattened []RepositorySubmodule
 	for _, submodule := range submodules {
 		flattened = append(flattened, submodule)
 		flattened = append(flattened, FlattenRepositorySubmodules(submodule.Submodules)...)

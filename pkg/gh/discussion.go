@@ -9,6 +9,8 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
+type Discussion = client.Discussion
+
 // GetDiscussion retrieves a specific discussion by number
 func GetDiscussion(ctx context.Context, g *GitHubClient, repo repository.Repository, number any) ([]*github.Label, error) {
 	discussionNumber, err := GetDiscussionNumber(number)
@@ -234,7 +236,7 @@ func GetDiscussionNumber(number any) (int, error) {
 		return GetNumberFromString(t)
 	case int:
 		return t, nil
-	case *client.Discussion:
+	case *Discussion:
 		return int(t.Number), nil
 	default:
 		return 0, fmt.Errorf("unsupported number type: %T", number)
@@ -273,7 +275,7 @@ func getLabelsFromNames(ctx context.Context, g *GitHubClient, repo repository.Re
 }
 
 // SearchDiscussions searches discussions in a repository
-func SearchDiscussions(ctx context.Context, g *GitHubClient, repo repository.Repository, query string) ([]client.Discussion, error) {
+func SearchDiscussions(ctx context.Context, g *GitHubClient, repo repository.Repository, query string) ([]Discussion, error) {
 	searchQuery := fmt.Sprintf("repo:%s/%s %s", repo.Owner, repo.Name, query)
 	discussions, err := g.SearchDiscussions(ctx, searchQuery, 100)
 	if err != nil {

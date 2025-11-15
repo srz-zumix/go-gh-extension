@@ -22,28 +22,18 @@ func (g *GitHubClient) CreateMilestone(ctx context.Context, owner, repo string, 
 	return milestone, nil
 }
 
-func (g *GitHubClient) ListMilestones(ctx context.Context, owner, repo, state, sort, direction string) ([]*github.Milestone, error) {
+func (g *GitHubClient) ListMilestones(ctx context.Context, owner, repo string, opts *github.MilestoneListOptions) ([]*github.Milestone, error) {
 	var allMilestones []*github.Milestone
-	if state == "" {
-		state = "open"
-	}
-	if sort == "" {
-		sort = "due_on"
-	}
-	if direction == "" {
-		direction = "asc"
-	}
-	opt := &github.MilestoneListOptions{
-		State:     state,
-		Sort:      sort,
-		Direction: direction,
-		ListOptions: github.ListOptions{
-			PerPage: 50,
-		},
+	if opts == nil {
+		opts = &github.MilestoneListOptions{
+			ListOptions: github.ListOptions{PerPage: defaultPerPage},
+		}
+	} else if opts.PerPage == 0 {
+		opts.PerPage = defaultPerPage
 	}
 
 	for {
-		milestones, resp, err := g.client.Issues.ListMilestones(ctx, owner, repo, opt)
+		milestones, resp, err := g.client.Issues.ListMilestones(ctx, owner, repo, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -51,11 +41,12 @@ func (g *GitHubClient) ListMilestones(ctx context.Context, owner, repo, state, s
 		if resp.NextPage == 0 {
 			break
 		}
-		opt.Page = resp.NextPage
+		opts.Page = resp.NextPage
 	}
 
 	return allMilestones, nil
 }
+
 func (g *GitHubClient) EditMilestone(ctx context.Context, owner, repo string, number int, milestone *github.Milestone) (*github.Milestone, error) {
 	milestone, _, err := g.client.Issues.EditMilestone(ctx, owner, repo, number, milestone)
 	if err != nil {

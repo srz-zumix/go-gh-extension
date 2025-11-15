@@ -6,7 +6,6 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v73/github"
-	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
 func GetLabelNames(labels []*github.Label) []string {
@@ -19,7 +18,7 @@ func GetLabelNames(labels []*github.Label) []string {
 	return names
 }
 
-func GetLabel(ctx context.Context, g *client.GitHubClient, repo repository.Repository, name string) (*github.Label, error) {
+func GetLabel(ctx context.Context, g *GitHubClient, repo repository.Repository, name string) (*github.Label, error) {
 	label, err := g.GetLabel(ctx, repo.Owner, repo.Name, name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get label %s: %w", name, err)
@@ -27,7 +26,7 @@ func GetLabel(ctx context.Context, g *client.GitHubClient, repo repository.Repos
 	return label, nil
 }
 
-func CreateLabel(ctx context.Context, g *client.GitHubClient, repo repository.Repository, name, description, color *string) (*github.Label, error) {
+func CreateLabel(ctx context.Context, g *GitHubClient, repo repository.Repository, name, description, color *string) (*github.Label, error) {
 	label := &github.Label{
 		Name:        name,
 		Description: description,
@@ -40,14 +39,14 @@ func CreateLabel(ctx context.Context, g *client.GitHubClient, repo repository.Re
 	return createdLabel, nil
 }
 
-func DeleteLabel(ctx context.Context, g *client.GitHubClient, repo repository.Repository, name string) error {
+func DeleteLabel(ctx context.Context, g *GitHubClient, repo repository.Repository, name string) error {
 	if err := g.DeleteLabel(ctx, repo.Owner, repo.Name, name); err != nil {
 		return fmt.Errorf("failed to delete label %s: %w", name, err)
 	}
 	return nil
 }
 
-func DeleteUnusedLabel(ctx context.Context, g *client.GitHubClient, repo repository.Repository, name string) (*github.Label, error) {
+func DeleteUnusedLabel(ctx context.Context, g *GitHubClient, repo repository.Repository, name string) (*github.Label, error) {
 	issues, err := g.SearchIssues(ctx, fmt.Sprintf("repo:%s/%s label:%s", repo.Owner, repo.Name, name))
 	if err != nil {
 		return nil, fmt.Errorf("failed to search issues with label %s: %w", name, err)
@@ -58,7 +57,7 @@ func DeleteUnusedLabel(ctx context.Context, g *client.GitHubClient, repo reposit
 	return nil, DeleteLabel(ctx, g, repo, name)
 }
 
-func EditLabel(ctx context.Context, g *client.GitHubClient, repo repository.Repository, name string, label *github.Label) (*github.Label, error) {
+func EditLabel(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, label *github.Label) (*github.Label, error) {
 	editedLabel, err := g.EditLabel(ctx, repo.Owner, repo.Name, name, label)
 	if err != nil {
 		return nil, fmt.Errorf("failed to edit label %s: %w", name, err)
@@ -66,7 +65,7 @@ func EditLabel(ctx context.Context, g *client.GitHubClient, repo repository.Repo
 	return editedLabel, nil
 }
 
-func ListLabels(ctx context.Context, g *client.GitHubClient, repo repository.Repository) ([]*github.Label, error) {
+func ListLabels(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Label, error) {
 	labels, err := g.ListLabels(ctx, repo.Owner, repo.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list labels: %w", err)
@@ -76,7 +75,7 @@ func ListLabels(ctx context.Context, g *client.GitHubClient, repo repository.Rep
 
 // CopyLabels copies all labels from src repository to dst repository.
 // If force is true, existing labels in dst will be updated.
-func CopyLabels(ctx context.Context, g *client.GitHubClient, src, dst repository.Repository, force bool) error {
+func CopyLabels(ctx context.Context, g *GitHubClient, src, dst repository.Repository, force bool) error {
 	srcLabels, err := g.ListLabels(ctx, src.Owner, src.Name)
 	if err != nil {
 		return fmt.Errorf("failed to list labels from source: %w", err)
@@ -114,7 +113,7 @@ func CopyLabels(ctx context.Context, g *client.GitHubClient, src, dst repository
 
 // SyncLabels synchronizes all labels from the src repository to the dst repository.
 // Existing labels are updated, new labels are created, and labels that exist only in dst are not deleted.
-func SyncLabels(ctx context.Context, g *client.GitHubClient, src, dst repository.Repository, force bool) error {
+func SyncLabels(ctx context.Context, g *GitHubClient, src, dst repository.Repository, force bool) error {
 	srcLabels, err := g.ListLabels(ctx, src.Owner, src.Name)
 	if err != nil {
 		return fmt.Errorf("failed to list labels from source: %w", err)
@@ -173,7 +172,7 @@ func SyncLabels(ctx context.Context, g *client.GitHubClient, src, dst repository
 	return nil
 }
 
-func GetRepositoryLabelIDs(ctx context.Context, g *client.GitHubClient, owner string, repo string, labelNames []string) (map[string]string, error) {
+func GetRepositoryLabelIDs(ctx context.Context, g *GitHubClient, owner string, repo string, labelNames []string) (map[string]string, error) {
 	if len(labelNames) == 0 {
 		return map[string]string{}, nil
 	}
