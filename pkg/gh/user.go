@@ -106,6 +106,7 @@ func ExcludeOrganizationAdmins(ctx context.Context, g *GitHubClient, repo reposi
 	return filteredUsers, nil
 }
 
+// ExcludeUsers filters out users whose login names match any of the provided excludeUsernames.
 func ExcludeUsers(users []*github.User, excludeUsernames []string) []*github.User {
 	var filteredUsers []*github.User
 	for _, user := range users {
