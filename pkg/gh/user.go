@@ -109,14 +109,9 @@ func ExcludeOrganizationAdmins(ctx context.Context, g *GitHubClient, repo reposi
 func ExcludeUsers(users []*github.User, excludeUsernames []string) []*github.User {
 	var filteredUsers []*github.User
 	for _, user := range users {
-		excluded := false
-		for _, excludeName := range excludeUsernames {
-			if user.Login != nil && *user.Login == excludeName {
-				excluded = true
-				break
-			}
-		}
-		if !excluded {
+		if !slices.ContainsFunc(excludeUsernames, func(excludeName string) bool {
+			return user.Login != nil && *user.Login == excludeName
+		}) {
 			filteredUsers = append(filteredUsers, user)
 		}
 	}
