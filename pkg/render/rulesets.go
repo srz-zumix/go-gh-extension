@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 )
 
 type repositoryRulesetFieldGetter func(ruleset *github.RepositoryRuleset) string

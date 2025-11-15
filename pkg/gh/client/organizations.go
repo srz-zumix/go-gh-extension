@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 )
 
 func (g *GitHubClient) GetOrg(ctx context.Context, org string) (*github.Organization, error) {

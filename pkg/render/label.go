@@ -2,7 +2,7 @@ package render
 
 import (
 	"github.com/fatih/color"
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 )
 
 type labelFieldGetter func(label *github.Label) string

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 )
 
 // ListRunners lists all self-hosted runners for a repository (wrapper)

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 )
 
 // UnionUsers calculates the union of two slices of *github.User

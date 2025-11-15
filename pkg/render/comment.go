@@ -1,6 +1,6 @@
 package render
 
-import "github.com/google/go-github/v73/github"
+import "github.com/google/go-github/v79/github"
 
 type commentFieldGetters struct {
 	issueCommentGetter       *issueCommentFieldGetters

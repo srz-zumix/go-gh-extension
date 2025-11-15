@@ -6,7 +6,7 @@ import (
 	"slices"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 )
 
 func GetIssue(ctx context.Context, g *GitHubClient, repo repository.Repository, issue any) (*github.Issue, error) {

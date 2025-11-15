@@ -1,7 +1,7 @@
 package render
 
 import (
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 )
 
 type issueCommentFieldGetter func(comment *github.IssueComment) string
