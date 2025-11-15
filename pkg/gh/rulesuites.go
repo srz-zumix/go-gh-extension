@@ -16,15 +16,21 @@ type ListRuleSuitesOptions struct {
 	RuleSuiteResult string
 }
 
+func (opts *ListRuleSuitesOptions) ToGitHubOptions() *client.ListRuleSuitesOptions {
+	if opts == nil {
+		return &client.ListRuleSuitesOptions{}
+	}
+	return &client.ListRuleSuitesOptions{
+		Ref:             opts.Ref,
+		TimePeriod:      opts.TimePeriod,
+		ActorName:       opts.ActorName,
+		RuleSuiteResult: opts.RuleSuiteResult,
+	}
+}
+
 // ListRepositoryRuleSuites retrieves all rule suites for a specific repository
 func ListRepositoryRuleSuites(ctx context.Context, g *GitHubClient, repo repository.Repository, options *ListRuleSuitesOptions) ([]*client.RuleSuite, error) {
-	opts := &client.ListRuleSuitesOptions{}
-	if options != nil {
-		opts.Ref = options.Ref
-		opts.TimePeriod = options.TimePeriod
-		opts.ActorName = options.ActorName
-		opts.RuleSuiteResult = options.RuleSuiteResult
-	}
+	opts := options.ToGitHubOptions()
 	return g.ListRepositoryRuleSuites(ctx, repo.Owner, repo.Name, opts)
 }
 
@@ -35,13 +41,7 @@ func GetRepositoryRuleSuite(ctx context.Context, g *GitHubClient, repo repositor
 
 // ListOrgRuleSuites retrieves all rule suites for a specific organization
 func ListOrgRuleSuites(ctx context.Context, g *GitHubClient, repo repository.Repository, options *ListRuleSuitesOptions) ([]*RuleSuite, error) {
-	opts := &client.ListRuleSuitesOptions{}
-	if options != nil {
-		opts.Ref = options.Ref
-		opts.TimePeriod = options.TimePeriod
-		opts.ActorName = options.ActorName
-		opts.RuleSuiteResult = options.RuleSuiteResult
-	}
+	opts := options.ToGitHubOptions()
 	return g.ListOrgRuleSuites(ctx, repo.Owner, opts)
 }
 

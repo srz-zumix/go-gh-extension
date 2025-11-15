@@ -21,14 +21,20 @@ type MilestoneListOptions struct {
 	Direction string
 }
 
+func (opts *MilestoneListOptions) ToGitHubOptions() *github.MilestoneListOptions {
+	if opts == nil {
+		return &github.MilestoneListOptions{}
+	}
+	return &github.MilestoneListOptions{
+		State:     opts.State,
+		Sort:      opts.Sort,
+		Direction: opts.Direction,
+	}
+}
+
 // ListMilestones lists all milestones in a repository
 func ListMilestones(ctx context.Context, g *GitHubClient, repo repository.Repository, options *MilestoneListOptions) ([]*github.Milestone, error) {
-	opts := &github.MilestoneListOptions{}
-	if options != nil {
-		opts.State = options.State
-		opts.Sort = options.Sort
-		opts.Direction = options.Direction
-	}
+	opts := options.ToGitHubOptions()
 	return g.ListMilestones(ctx, repo.Owner, repo.Name, opts)
 }
 
