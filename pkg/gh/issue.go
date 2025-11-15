@@ -160,3 +160,13 @@ func GetCommentID(comment any) (int64, error) {
 	}
 	return 0, fmt.Errorf("failed to get comment ID from '%v'", comment)
 }
+
+// SearchIssues searches issues in a repository
+func SearchIssues(ctx context.Context, g *GitHubClient, repo repository.Repository, query string) ([]*github.Issue, error) {
+	searchQuery := fmt.Sprintf("repo:%s/%s %s", repo.Owner, repo.Name, query)
+	issues, err := g.SearchIssues(ctx, searchQuery)
+	if err != nil {
+		return nil, err
+	}
+	return issues, nil
+}
