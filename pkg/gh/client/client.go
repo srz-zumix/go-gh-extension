@@ -6,7 +6,7 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/google/go-querystring/query"
 	"github.com/shurcooL/githubv4"
 )

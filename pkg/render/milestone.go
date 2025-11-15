@@ -3,7 +3,7 @@ package render
 import (
 	"strconv"
 
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 )
 
 // RenderMilestones renders a table of milestones

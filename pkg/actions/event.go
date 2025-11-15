@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 )
 
 // GetEventName returns the name of the GitHub Actions event that triggered the workflow

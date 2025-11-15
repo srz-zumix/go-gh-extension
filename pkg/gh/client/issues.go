@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 )
 
 // GetIssueByNumber retrieves an issue by owner, repo, and issue number

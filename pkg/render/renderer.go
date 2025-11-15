@@ -8,7 +8,7 @@ import (
 
 	"github.com/cli/cli/v2/pkg/cmdutil"
 	"github.com/cli/cli/v2/pkg/iostreams"
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/olekukonko/tablewriter"
 	"github.com/shurcooL/githubv4"
 )

@@ -1,18 +1,19 @@
 module github.com/srz-zumix/go-gh-extension
 
-go 1.24.2
+go 1.25.4
 
 require (
-	github.com/bradleyfalzon/ghinstallation/v2 v2.15.0
-	github.com/cli/go-gh/v2 v2.12.2
-	github.com/ddddddO/gtree v1.11.7
+	github.com/bradleyfalzon/ghinstallation/v2 v2.17.0
+	github.com/cli/go-gh/v2 v2.13.0
+	github.com/ddddddO/gtree v1.11.9
 	github.com/fatih/color v1.18.0
-	github.com/google/go-github/v73 v73.0.0
+	github.com/google/go-github/v79 v79.0.0
+	github.com/google/go-querystring v1.1.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/pflag v1.0.10
-	github.com/stretchr/testify v1.11.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
@@ -39,10 +40,9 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
-	github.com/goccy/go-yaml v1.17.1 // indirect
+	github.com/goccy/go-yaml v1.18.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
-	github.com/google/go-github/v71 v71.0.0 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/go-github/v75 v75.0.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/henvic/httpretty v0.1.4 // indirect
@@ -73,16 +73,16 @@ require (
 	github.com/spf13/cast v1.9.2 // indirect
 	github.com/thlib/go-timezone-local v0.0.6 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/crypto v0.41.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/term v0.34.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/crypto v0.43.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/term v0.36.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
 require (
-	github.com/cli/cli/v2 v2.81.0
+	github.com/cli/cli/v2 v2.83.1
 	github.com/cli/safeexec v1.0.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -1,7 +1,7 @@
 package render
 
 import (
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 )
 
 func (r *Renderer) RenderCustomOrgRoles(roles []*github.CustomOrgRoles) {
