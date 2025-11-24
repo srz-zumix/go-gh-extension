@@ -146,7 +146,10 @@ func (r *Renderer) RenderCheckRunsDetails(checkRuns []*gh.CheckRun) {
 	r.RenderCheckRuns(checkRuns, headers)
 }
 
+// checkSuiteFieldGetter is a function type that extracts a string field from a github.CheckSuite.
 type checkSuiteFieldGetter func(checkSuite *github.CheckSuite) string
+
+// checkSuiteFieldGetters holds a map of field names to their corresponding getter functions for github.CheckSuite.
 type checkSuiteFieldGetters struct {
 	Func map[string]checkSuiteFieldGetter
 }
