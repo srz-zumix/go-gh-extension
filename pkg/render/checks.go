@@ -73,8 +73,8 @@ func NewCheckRunFieldGetters(enableColor bool) *checkRunFieldGetters {
 				return ToString(checkRun.URL)
 			},
 			"ELAPSED": func(checkRun *gh.CheckRun) string {
-				elapaed := checkRun.GetCompletedAt().Sub(checkRun.GetStartedAt().Time)
-				return ToString(elapaed)
+				elapsed := checkRun.GetCompletedAt().Sub(checkRun.GetStartedAt().Time)
+				return ToString(elapsed)
 			},
 			"REQUIRED": func(checkRun *gh.CheckRun) string {
 				return ToString(checkRun.IsRequired)
