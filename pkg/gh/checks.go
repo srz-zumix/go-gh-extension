@@ -58,7 +58,6 @@ var (
 	ChecksRunConclusionStale = "stale"
 	// ChecksRunConclusionSuccess indicates that the check run completed successfully.
 	ChecksRunConclusionSuccess = "success"
-	// ChecksRunConclusionTimedOut indicates that the check run timed out before completion.
 	// ChecksRunConclusionTimedOut indicates that the check run timed out.
 	ChecksRunConclusionTimedOut = "timed_out"
 )
