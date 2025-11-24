@@ -13,10 +13,13 @@
 ### ソースコード全般
 
 * ディレクトリ・ファイル構成は以下の責務分割に従うこと
+  * action/: GitHub Actions 関連のビジネスロジック層
+  * cmdflag/: コマンドライン引数の定義・パース
   * gh/: GitHub APIラッパー・ビジネスロジック層。API呼び出しはgh/client/配下で行い、gh/直下はラッパー・ユーティリティ関数のみ
-  * gh/client/: go-github等の外部APIクライアント呼び出し専用。APIレスポンスの整形やエラーラップは行わない
-  * render/: 表示用の整形・出力処理（テーブル/JSON/hovercard等）
+  * gh/client/: go-github等の外部APIクライアント呼び出し、GraphQL 呼び出し専用。API と GraphQL のレスポンス型統一以外の理由でAPIレスポンスの整形は行わない。エラーはそのまま返す
+  * ioutil/: 入出力関連のユーティリティ関数（ファイル操作、アーカイブ展開等）
   * parser/: 入力値のパース・バリデーション等
+  * render/: 表示用の整形・出力処理（テーブル/JSON/hovercard等）
 * gh/配下のラッパー関数は必ずctx context.Context, g *GitHubClientを先頭引数に取り、repository.Repository型等を利用する
 * コメントは英語で記載し、関数・構造体・パッケージの責務が明確になるよう記述する
 * テストコードは*_test.goで実装し、各責務ごとに配置する
