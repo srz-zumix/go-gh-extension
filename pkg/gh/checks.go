@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
@@ -20,50 +21,43 @@ type ListCheckRunsResults struct {
 // https://docs.github.com/ja/pull-requests/collaborating-with-pull-requests/collaborating-on-repositories-with-code-quality-features/about-status-checks#check-statuses-and-conclusions
 var (
 	// ChecksRunStatusCompleted indicates that the check run has completed.
-	ChecksRunStatusCompleted      = "completed"
+	ChecksRunStatusCompleted = "completed"
 	// ChecksRunStatusExpected indicates that the check run is expected but has not started.
-	ChecksRunStatusExpected       = "expected"
+	ChecksRunStatusExpected = "expected"
 	// ChecksRunStatusFailure indicates that the check run has failed.
-	ChecksRunStatusFailure        = "failure"
+	ChecksRunStatusFailure = "failure"
 	// ChecksRunStatusInProgress indicates that the check run is currently in progress.
-	ChecksRunStatusInProgress     = "in_progress"
+	ChecksRunStatusInProgress = "in_progress"
 	// ChecksRunStatusPending indicates that the check run is pending and has not started.
-	ChecksRunStatusPending        = "pending"
+	ChecksRunStatusPending = "pending"
 	// ChecksRunStatusQueued indicates that the check run is queued to start.
-	ChecksRunStatusQueued         = "queued"
+	ChecksRunStatusQueued = "queued"
 	// ChecksRunStatusRequested indicates that the check run has been requested.
-	ChecksRunStatusRequested      = "requested"
+	ChecksRunStatusRequested = "requested"
 	// ChecksRunStatusStartupFailure indicates that the check run failed to start.
 	ChecksRunStatusStartupFailure = "startup_failure"
 	// ChecksRunStatusWaiting indicates that the check run is waiting for resources or dependencies.
-	ChecksRunStatusWaiting        = "waiting"
+	ChecksRunStatusWaiting = "waiting"
 )
 
 var (
 	// ChecksRunConclusionActionRequired indicates that further action is required for the check run.
 	ChecksRunConclusionActionRequired = "action_required"
 	// ChecksRunConclusionCancelled indicates that the check run was cancelled.
-	ChecksRunConclusionCancelled      = "cancelled"
+	ChecksRunConclusionCancelled = "cancelled"
 	// ChecksRunConclusionFailure indicates that the check run concluded with a failure.
-	ChecksRunConclusionFailure        = "failure"
-var (
-	// ChecksRunConclusionActionRequired indicates that further action is required before the check run can be considered complete.
-	ChecksRunConclusionActionRequired = "action_required"
-	// ChecksRunConclusionCancelled indicates that the check run was cancelled before completion.
-	ChecksRunConclusionCancelled      = "cancelled"
-	// ChecksRunConclusionFailure indicates that the check run has failed.
-	ChecksRunConclusionFailure        = "failure"
+	ChecksRunConclusionFailure = "failure"
 	// ChecksRunConclusionNeutral indicates that the check run completed with a neutral result.
-	ChecksRunConclusionNeutral        = "neutral"
+	ChecksRunConclusionNeutral = "neutral"
 	// ChecksRunConclusionSkipped indicates that the check run was skipped.
-	ChecksRunConclusionSkipped        = "skipped"
+	ChecksRunConclusionSkipped = "skipped"
 	// ChecksRunConclusionStale indicates that the check run is stale and may need to be re-run.
-	ChecksRunConclusionStale          = "stale"
+	ChecksRunConclusionStale = "stale"
 	// ChecksRunConclusionSuccess indicates that the check run completed successfully.
-	ChecksRunConclusionSuccess        = "success"
+	ChecksRunConclusionSuccess = "success"
 	// ChecksRunConclusionTimedOut indicates that the check run timed out before completion.
 	// ChecksRunConclusionTimedOut indicates that the check run timed out.
-	ChecksRunConclusionTimedOut       = "timed_out"
+	ChecksRunConclusionTimedOut = "timed_out"
 )
 
 var (
@@ -150,40 +144,23 @@ func ExtractRunIDFromCheckRunAsInt64(checkRun *CheckRun) (int64, error) {
 // extractRunIDFromURL extracts run ID from various GitHub URL patterns
 func extractRunIDFromURL(url string) string {
 	// Try /runs/ pattern
-	if parts := splitURL(url, "/runs/"); len(parts) == 2 {
+
+	parts := strings.Split(url, "/runs/")
+	if len(parts) == 2 {
 		if runID := extractIDFromPath(parts[1]); runID != "" {
 			return runID
 		}
 	}
 
 	// Try /actions/runs/ pattern
-	if parts := splitURL(url, "/actions/runs/"); len(parts) == 2 {
+	parts = strings.Split(url, "/actions/runs/")
+	if len(parts) == 2 {
 		if runID := extractIDFromPath(parts[1]); runID != "" {
 			return runID
 		}
 	}
 
 	return ""
-}
-
-// splitURL splits URL by delimiter
-func splitURL(url, delimiter string) []string {
-	parts := []string{}
-	if idx := findString(url, delimiter); idx >= 0 {
-		parts = append(parts, url[:idx])
-		parts = append(parts, url[idx+len(delimiter):])
-	}
-	return parts
-}
-
-// findString returns the index of the first occurrence of delimiter in s, or -1 if not found
-func findString(s, delimiter string) int {
-	for i := 0; i+len(delimiter) <= len(s); i++ {
-		if s[i:i+len(delimiter)] == delimiter {
-			return i
-		}
-	}
-	return -1
 }
 
 // extractIDFromPath extracts the first segment of the path (the ID)
@@ -273,9 +250,9 @@ func filterCheckRuns(checkRuns []*CheckRun, options *ListChecksRunFilterOptions)
 	if options == nil || options.Filter == nil || *options.Filter == "latest" {
 		latestMap := map[string]*CheckRun{}
 		for _, checkRun := range checkRuns {
-			name := checkRun.CheckRun.GetName()
+			name := checkRun.GetName()
 			if existing, ok := latestMap[name]; ok {
-				if checkRun.CheckRun.GetCompletedAt().After(existing.CheckRun.GetCompletedAt().Time) {
+				if checkRun.GetCompletedAt().After(existing.GetCompletedAt().Time) {
 					latestMap[name] = checkRun
 				}
 			} else {
@@ -291,17 +268,17 @@ func filterCheckRuns(checkRuns []*CheckRun, options *ListChecksRunFilterOptions)
 	if options != nil {
 		filteredCheckRuns := []*CheckRun{}
 		for _, checkRun := range checkRuns {
-			if options.CheckName != nil && checkRun.CheckRun.GetName() != *options.CheckName {
+			if options.CheckName != nil && checkRun.GetName() != *options.CheckName {
 				continue
 			}
-			if options.Status != nil && checkRun.CheckRun.GetStatus() != *options.Status {
+			if options.Status != nil && checkRun.GetStatus() != *options.Status {
 				continue
 			}
-			if options.Conclusion != nil && checkRun.CheckRun.GetConclusion() != *options.Conclusion {
+			if options.Conclusion != nil && checkRun.GetConclusion() != *options.Conclusion {
 				continue
 			}
 			if options.AppID != nil {
-				appID := checkRun.CheckRun.GetApp().GetID()
+				appID := checkRun.GetApp().GetID()
 				if appID != *options.AppID {
 					continue
 				}
