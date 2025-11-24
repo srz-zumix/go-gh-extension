@@ -55,8 +55,16 @@ func GetLogUrlFetcher(context any) LogUrlFetcher {
 		attempt := int(*v.RunAttempt)
 		return &RunLogUrlFetcher{RunID: *v.RunID, Attempt: &attempt}
 	case github.WorkflowRun:
+		// Check for nil ID to avoid panic
+		if v.ID == nil {
+			return nil
+		}
 		return &RunLogUrlFetcher{RunID: *v.ID, Attempt: v.RunAttempt}
 	case *github.WorkflowRun:
+		// Check for nil ID to avoid panic
+		if v.ID == nil {
+			return nil
+		}
 		return &RunLogUrlFetcher{RunID: *v.ID, Attempt: v.RunAttempt}
 	default:
 		return nil
