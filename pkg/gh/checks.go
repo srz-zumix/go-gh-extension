@@ -284,8 +284,9 @@ func filterCheckRuns(checkRuns []*CheckRun, options *ListChecksRunFilterOptions)
 				continue
 			}
 			if options.AppID != nil {
-				appID := checkRun.GetApp().GetID()
-				if appID != *options.AppID {
+				app := checkRun.GetApp()
+				// Check for nil before dereferencing app.GetID
+				if app == nil || app.GetID() != *options.AppID {
 					continue
 				}
 			}
