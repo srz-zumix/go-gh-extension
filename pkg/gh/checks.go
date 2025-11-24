@@ -83,6 +83,7 @@ var (
 	}
 )
 
+// ListChecksRunFilterOptions holds filtering options for listing check runs
 type ListChecksRunFilterOptions struct {
 	CheckName  *string
 	Status     *string
@@ -92,6 +93,7 @@ type ListChecksRunFilterOptions struct {
 	Required   *bool
 }
 
+// ListCheckRunsForRef retrieves check runs for a specific Git reference and applies filtering options.
 func ListCheckRunsForRef(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, options *ListChecksRunFilterOptions) (*ListCheckRunsResults, error) {
 	var opt *github.ListCheckRunsOptions
 	if options != nil {
@@ -136,6 +138,7 @@ func ExtractRunIDFromCheckRun(checkRun *CheckRun) string {
 	return ""
 }
 
+// ExtractRunIDFromCheckRunAsInt64 extracts the workflow run ID as int64 from check run URLs
 func ExtractRunIDFromCheckRunAsInt64(checkRun *CheckRun) (int64, error) {
 	runIDStr := ExtractRunIDFromCheckRun(checkRun)
 	if runIDStr == "" {
@@ -176,6 +179,7 @@ func extractIDFromPath(path string) string {
 	return path
 }
 
+// ListCheckSuiteFilterOptions holds filtering options for listing check suites
 type ListCheckSuiteFilterOptions struct {
 	AppID      *int64
 	CheckName  *string
@@ -183,6 +187,7 @@ type ListCheckSuiteFilterOptions struct {
 	Conclusion *string
 }
 
+// ListCheckSuitesForRef retrieves check suites for a specific Git reference and applies filtering options.
 func ListCheckSuitesForRef(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, options *ListCheckSuiteFilterOptions) (*github.ListCheckSuiteResults, error) {
 	var opt *github.ListCheckSuiteOptions
 	if options != nil {
@@ -216,6 +221,7 @@ func ListCheckSuitesForRef(ctx context.Context, g *GitHubClient, repo repository
 	return result, nil
 }
 
+// ListCheckRunsForRefWithGraphQL retrieves check runs for a specific Git reference using GraphQL and applies filtering options.
 func ListCheckRunsForRefWithGraphQL(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, prNumber int, options *ListChecksRunFilterOptions) (*ListCheckRunsResults, error) {
 	checkRuns, err := g.ListCheckRunsForRefWithGraphQL(ctx, repo.Owner, repo.Name, ref, prNumber)
 	if err != nil {
@@ -225,22 +231,20 @@ func ListCheckRunsForRefWithGraphQL(ctx context.Context, g *GitHubClient, repo r
 	return filterCheckRuns(checkRuns, options)
 }
 
+// SortCheckRunsByName sorts check runs by their full names
 func SortCheckRunsByName(checkRuns []*CheckRun) {
 	slices.SortFunc(checkRuns, func(a, b *CheckRun) int {
 		return strings.Compare(a.GetFullName(), b.GetFullName())
 	})
 }
 
+// SortCheckRunsByRunID sorts check runs by their associated workflow run IDs
 func SortCheckRunsByRunID(checkRuns []*CheckRun) {
-	// Simple bubble sort for demonstration; consider using sort.Slice for production code
-	n := len(checkRuns)
-	for i := 0; i < n; i++ {
-		for j := 0; j < n-i-1; j++ {
-			if ExtractRunIDFromCheckRun(checkRuns[j]) > ExtractRunIDFromCheckRun(checkRuns[j+1]) {
-				checkRuns[j], checkRuns[j+1] = checkRuns[j+1], checkRuns[j]
-			}
-		}
-	}
+	slices.SortFunc(checkRuns, func(a, b *CheckRun) int {
+		aRunID := ExtractRunIDFromCheckRun(a)
+		bRunID := ExtractRunIDFromCheckRun(b)
+		return strings.Compare(aRunID, bRunID)
+	})
 }
 
 func filterCheckRuns(checkRuns []*CheckRun, options *ListChecksRunFilterOptions) (*ListCheckRunsResults, error) {
