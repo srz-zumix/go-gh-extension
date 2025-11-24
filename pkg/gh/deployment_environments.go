@@ -17,8 +17,8 @@ func GetEnvironment(ctx context.Context, g *GitHubClient, repo repository.Reposi
 	return g.GetEnvironment(ctx, repo.Owner, repo.Name, name)
 }
 
-func GetEnvironmentID(ctx context.Context, g *GitHubClient, repo repository.Repository, envrionments any) (*int64, error) {
-	switch v := envrionments.(type) {
+func GetEnvironmentID(ctx context.Context, g *GitHubClient, repo repository.Repository, environments any) (*int64, error) {
+	switch v := environments.(type) {
 	case string:
 		env, err := g.GetEnvironment(ctx, repo.Owner, repo.Name, v)
 		if err != nil {
