@@ -104,7 +104,7 @@ func (g *GitHubClient) GetWorkflowJobLogsContent(ctx context.Context, owner stri
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() // nolint
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to download logs: status code %d", resp.StatusCode)

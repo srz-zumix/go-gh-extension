@@ -153,6 +153,7 @@ func ApproveCustomDeploymentProtectionRule(ctx context.Context, g *GitHubClient,
 	return g.ReviewCustomDeploymentProtectionRule(ctx, repo.Owner, repo.Name, runID, request)
 }
 
+// RejectCustomDeploymentProtectionRule reviews and rejects a custom deployment protection rule.
 func RejectCustomDeploymentProtectionRule(ctx context.Context, g *GitHubClient, repo repository.Repository, runID int64, environmentName string, comment string) error {
 	request := &github.ReviewCustomDeploymentProtectionRuleRequest{
 		EnvironmentName: environmentName,

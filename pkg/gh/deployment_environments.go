@@ -17,6 +17,7 @@ func GetEnvironment(ctx context.Context, g *GitHubClient, repo repository.Reposi
 	return g.GetEnvironment(ctx, repo.Owner, repo.Name, name)
 }
 
+// GetEnvironmentID retrieves the ID of an environment given its name or ID.
 func GetEnvironmentID(ctx context.Context, g *GitHubClient, repo repository.Repository, environments any) (*int64, error) {
 	switch v := environments.(type) {
 	case string:

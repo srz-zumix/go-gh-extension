@@ -26,9 +26,9 @@ type RunLogUrlFetcher struct {
 
 func (r *RunLogUrlFetcher) FetchLogURL(ctx context.Context, g *GitHubClient, repo repository.Repository, maxRedirects int) (string, error) {
 	if r.Attempt != nil {
-		return GetWorkflowRunLogsURL(ctx, g, repo, r.RunID, maxRedirects)
-	} else {
 		return GetWorkflowRunAttemptLogsURL(ctx, g, repo, r.RunID, *r.Attempt, maxRedirects)
+	} else {
+		return GetWorkflowRunLogsURL(ctx, g, repo, r.RunID, maxRedirects)
 	}
 }
 
