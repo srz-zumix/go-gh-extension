@@ -6,7 +6,10 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
 
+// checkRunFieldGetter is a function type that extracts a specific field value from a gh.CheckRun.
 type checkRunFieldGetter func(checkRun *gh.CheckRun) string
+
+// checkRunFieldGetters holds a map of field names to their corresponding getter functions for gh.CheckRun.
 type checkRunFieldGetters struct {
 	Func map[string]checkRunFieldGetter
 }
