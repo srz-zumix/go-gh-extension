@@ -248,3 +248,12 @@ func (g *GitHubClient) ListCheckRunsForRefWithGraphQL(ctx context.Context, owner
 
 	return allCheckRuns, nil
 }
+
+// GetCheckRun retrieves a specific check run.
+func (g *GitHubClient) GetCheckRun(ctx context.Context, owner string, repo string, checkRunID int64) (*CheckRun, error) {
+	checkRun, _, err := g.client.Checks.GetCheckRun(ctx, owner, repo, checkRunID)
+	if err != nil {
+		return nil, err
+	}
+	return &CheckRun{CheckRun: *checkRun}, nil
+}

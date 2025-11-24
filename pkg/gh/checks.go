@@ -2,6 +2,8 @@ package gh
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
@@ -110,6 +112,14 @@ func ExtractRunIDFromCheckRun(checkRun *CheckRun) string {
 	}
 
 	return ""
+}
+
+func ExtractRunIDFromCheckRunAsInt64(checkRun *CheckRun) (int64, error) {
+	runIDStr := ExtractRunIDFromCheckRun(checkRun)
+	if runIDStr == "" {
+		return 0, fmt.Errorf("run ID not found")
+	}
+	return strconv.ParseInt(runIDStr, 10, 64)
 }
 
 // extractRunIDFromURL extracts run ID from various GitHub URL patterns
@@ -284,4 +294,24 @@ func filterCheckRuns(checkRuns []*CheckRun, options *ListChecksRunFilterOptions)
 		Total:     len(checkRuns),
 		CheckRuns: checkRuns,
 	}, nil
+}
+
+// GetCheckRun retrieves a specific check run.
+func GetCheckRun(ctx context.Context, g *GitHubClient, repo repository.Repository, checkRunID int64) (*CheckRun, error) {
+	return g.GetCheckRun(ctx, repo.Owner, repo.Name, checkRunID)
+}
+
+// GetCheckRunJobLogsURL retrieves the logs URL for a check run.
+// Note: This function attempts to retrieve logs by treating the checkRunID as a workflow job ID.
+// In GitHub Actions, check runs are associated with workflow jobs that have the same ID.
+// The maxRedirects parameter specifies the maximum number of redirects to follow.
+// Setting maxRedirects to 0 will return the redirect URL without following it.
+func GetCheckRunJobLogsURL(ctx context.Context, g *GitHubClient, repo repository.Repository, checkRunID int64, maxRedirects int) (string, error) {
+	return g.GetWorkflowJobLogs(ctx, repo.Owner, repo.Name, checkRunID, maxRedirects)
+}
+
+// GetCheckRunJobLogsContent retrieves the logs content for a check run.
+// This function downloads the logs from the URL obtained by GetCheckRunJobLogsURL.
+func GetCheckRunJobLogsContent(ctx context.Context, g *GitHubClient, repo repository.Repository, checkRunID int64, maxRedirects int) ([]byte, error) {
+	return g.GetWorkflowJobLogsContent(ctx, repo.Owner, repo.Name, checkRunID, maxRedirects)
 }
