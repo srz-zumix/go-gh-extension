@@ -12,7 +12,11 @@ import (
 // DownloadZipArchive downloads the workflow run logs archive and returns a zip.Reader for accessing the contents.
 func DownloadZipArchive(ctx context.Context, logURL string) (*zip.Reader, int64, error) {
 	// Download the zip file
-	resp, err := http.Get(logURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", logURL, nil)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to download log archive: %w", err)
 	}
