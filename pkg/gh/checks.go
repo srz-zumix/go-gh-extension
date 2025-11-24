@@ -307,7 +307,8 @@ func filterCheckRuns(checkRuns []*CheckRun, options *ListChecksRunFilterOptions)
 				}
 			}
 			if options.Required != nil {
-				if *checkRun.IsRequired != *options.Required {
+				// Check for nil before dereferencing checkRun.IsRequired
+				if checkRun.IsRequired == nil || *checkRun.IsRequired != *options.Required {
 					continue
 				}
 			}
