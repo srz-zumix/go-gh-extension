@@ -95,7 +95,12 @@ func (g *GitHubClient) GetWorkflowJobLogsContent(ctx context.Context, owner stri
 		return nil, err
 	}
 
-	resp, err := http.DefaultClient.Get(logURL.String())
+	// Create a new HTTP request with context to respect cancellation and timeouts
+	req, err := http.NewRequestWithContext(ctx, "GET", logURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
