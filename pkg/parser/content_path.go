@@ -18,7 +18,7 @@ func ParseContentPathFromUses(uses string) (*ContentPath, error) {
 	if len(uses) == 0 {
 		return nil, fmt.Errorf("uses string is empty")
 	}
-	if uses[0] == '.' && uses[1] == '/' {
+	if len(uses) >= 2 && uses[0] == '.' && uses[1] == '/' {
 		path := uses[2:]
 		return &ContentPath{
 			Repo: nil,
