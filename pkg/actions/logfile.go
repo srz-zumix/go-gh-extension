@@ -15,7 +15,15 @@ type StepLog struct {
 	StepNumber int
 	StepName   string
 	FilePath   string
-	Content    []byte
+	zipFile    *zip.File
+}
+
+// ReadContent reads and returns the log content from the zip file
+func (s *StepLog) ReadContent() ([]byte, error) {
+	if s.zipFile == nil {
+		return nil, fmt.Errorf("zip file reference is nil")
+	}
+	return readZipFile(s.zipFile)
 }
 
 // JobLog represents a job's log structure containing all step logs
@@ -114,12 +122,6 @@ func (w *WorkflowRunLogArchive) parseZipArchive(zipReader *zip.Reader) error {
 			continue
 		}
 
-		// Read the file content
-		content, err := readZipFile(file)
-		if err != nil {
-			return fmt.Errorf("failed to read file %s: %w", file.Name, err)
-		}
-
 		// Ensure the job exists in the map
 		if _, exists := w.JobLogs[jobName]; !exists {
 			w.JobLogs[jobName] = &JobLog{
@@ -128,12 +130,12 @@ func (w *WorkflowRunLogArchive) parseZipArchive(zipReader *zip.Reader) error {
 			}
 		}
 
-		// Add the step log
+		// Add the step log with zip.File reference
 		w.JobLogs[jobName].StepLogs[stepNumber] = &StepLog{
 			StepNumber: stepNumber,
 			StepName:   stepName,
 			FilePath:   file.Name,
-			Content:    content,
+			zipFile:    file,
 		}
 	}
 
@@ -171,7 +173,7 @@ func readZipFile(file *zip.File) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rc.Close()
+	defer rc.Close() // nolint
 
 	return io.ReadAll(rc)
 }
