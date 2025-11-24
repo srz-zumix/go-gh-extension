@@ -36,18 +36,39 @@ func GetLogUrlFetcher(context any) LogUrlFetcher {
 	case int64:
 		return &JobLogUrlFetcher{CheckRunID: v}
 	case *int64:
+		if v == nil {
+			return nil
+		}
 		return &JobLogUrlFetcher{CheckRunID: *v}
 	case CheckRun:
+		if v.ID == nil {
+			return nil
+		}
 		return &JobLogUrlFetcher{CheckRunID: *v.ID}
 	case *CheckRun:
+		if v == nil {
+			return nil
+		}
+		if v.ID == nil {
+			return nil
+		}
 		return &JobLogUrlFetcher{CheckRunID: *v.ID}
 	case github.WorkflowJob:
+		if v.RunID == nil {
+			return nil
+		}
 		if v.RunAttempt == nil {
 			return &RunLogUrlFetcher{RunID: *v.RunID}
 		}
 		attempt := int(*v.RunAttempt)
 		return &RunLogUrlFetcher{RunID: *v.RunID, Attempt: &attempt}
 	case *github.WorkflowJob:
+		if v == nil {
+			return nil
+		}
+		if v.RunID == nil {
+			return nil
+		}
 		if v.RunAttempt == nil {
 			return &RunLogUrlFetcher{RunID: *v.RunID}
 		}
@@ -60,6 +81,9 @@ func GetLogUrlFetcher(context any) LogUrlFetcher {
 		}
 		return &RunLogUrlFetcher{RunID: *v.ID, Attempt: v.RunAttempt}
 	case *github.WorkflowRun:
+		if v == nil {
+			return nil
+		}
 		// Check for nil ID to avoid panic
 		if v.ID == nil {
 			return nil
@@ -75,6 +99,9 @@ func GetWorkflowRunLogUrlFetcher(context any) LogUrlFetcher {
 	case int64:
 		return &RunLogUrlFetcher{RunID: v}
 	case *int64:
+		if v == nil {
+			return nil
+		}
 		return &RunLogUrlFetcher{RunID: *v}
 	case CheckRun:
 		id, err := ExtractRunIDFromCheckRunAsInt64(&v)
