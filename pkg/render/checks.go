@@ -73,8 +73,14 @@ func NewCheckRunFieldGetters(enableColor bool) *checkRunFieldGetters {
 				return ToString(checkRun.URL)
 			},
 			"ELAPSED": func(checkRun *gh.CheckRun) string {
-				elapsed := checkRun.GetCompletedAt().Sub(checkRun.GetStartedAt().Time)
-				return ToString(elapsed)
+				completedAt := checkRun.GetCompletedAt()
+				startedAt := checkRun.GetStartedAt()
+				// Avoid nil pointer dereference if either timestamp is nil
+				if completedAt != nil && startedAt != nil {
+					elapsed := completedAt.Sub(startedAt.Time)
+					return ToString(elapsed)
+				}
+				return ""
 			},
 			"REQUIRED": func(checkRun *gh.CheckRun) string {
 				return ToString(checkRun.IsRequired)
