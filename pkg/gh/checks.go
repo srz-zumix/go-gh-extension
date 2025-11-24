@@ -46,14 +46,22 @@ var (
 	ChecksRunConclusionCancelled      = "cancelled"
 	// ChecksRunConclusionFailure indicates that the check run concluded with a failure.
 	ChecksRunConclusionFailure        = "failure"
-	// ChecksRunConclusionNeutral indicates that the check run concluded with a neutral result.
+var (
+	// ChecksRunConclusionActionRequired indicates that further action is required before the check run can be considered complete.
+	ChecksRunConclusionActionRequired = "action_required"
+	// ChecksRunConclusionCancelled indicates that the check run was cancelled before completion.
+	ChecksRunConclusionCancelled      = "cancelled"
+	// ChecksRunConclusionFailure indicates that the check run has failed.
+	ChecksRunConclusionFailure        = "failure"
+	// ChecksRunConclusionNeutral indicates that the check run completed with a neutral result.
 	ChecksRunConclusionNeutral        = "neutral"
 	// ChecksRunConclusionSkipped indicates that the check run was skipped.
 	ChecksRunConclusionSkipped        = "skipped"
-	// ChecksRunConclusionStale indicates that the check run is stale and no longer relevant.
+	// ChecksRunConclusionStale indicates that the check run is stale and may need to be re-run.
 	ChecksRunConclusionStale          = "stale"
-	// ChecksRunConclusionSuccess indicates that the check run concluded successfully.
+	// ChecksRunConclusionSuccess indicates that the check run completed successfully.
 	ChecksRunConclusionSuccess        = "success"
+	// ChecksRunConclusionTimedOut indicates that the check run timed out before completion.
 	// ChecksRunConclusionTimedOut indicates that the check run timed out.
 	ChecksRunConclusionTimedOut       = "timed_out"
 )
