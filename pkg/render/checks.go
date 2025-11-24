@@ -141,6 +141,7 @@ func (r *Renderer) RenderCheckRunsDefault(checkRuns []*gh.CheckRun) {
 	r.RenderCheckRuns(checkRuns, headers)
 }
 
+// RenderCheckRunsDetails renders check runs with detailed columns
 func (r *Renderer) RenderCheckRunsDetails(checkRuns []*gh.CheckRun) {
 	headers := []string{"_", "WORKFLOW_NAME", "NAME", "STATUS", "RUN_ID", "JOB_ID", "ELAPSED", "DETAILS_URL"}
 	r.RenderCheckRuns(checkRuns, headers)

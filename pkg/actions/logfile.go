@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode/utf16"
 )
@@ -34,20 +36,8 @@ type JobLog struct {
 
 // ListSteps returns a list of all steps in the job, sorted by step number
 func (j *JobLog) ListSteps() []*StepLog {
-	// Collect step numbers
-	stepNumbers := make([]int, 0, len(j.StepLogs))
-	for stepNumber := range j.StepLogs {
-		stepNumbers = append(stepNumbers, stepNumber)
-	}
-
-	// Sort step numbers
-	for i := 0; i < len(stepNumbers); i++ {
-		for k := i + 1; k < len(stepNumbers); k++ {
-			if stepNumbers[i] > stepNumbers[k] {
-				stepNumbers[i], stepNumbers[k] = stepNumbers[k], stepNumbers[i]
-			}
-		}
-	}
+	stepNumbers := slices.Collect(maps.Keys(j.StepLogs))
+	slices.Sort(stepNumbers)
 
 	// Build sorted StepLog array
 	steps := make([]*StepLog, 0, len(stepNumbers))

@@ -16,7 +16,7 @@ func DownloadZipArchive(ctx context.Context, logURL string) (*zip.Reader, int64,
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to download log archive: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() // nolint
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, 0, fmt.Errorf("failed to download log archive: status code %d", resp.StatusCode)

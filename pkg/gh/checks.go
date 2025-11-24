@@ -3,6 +3,7 @@ package gh
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -11,8 +12,10 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
+// CheckRun is a type alias for client.CheckRun that represents a single check run
 type CheckRun = client.CheckRun
 
+// ListCheckRunsResults holds the results of listing check runs
 type ListCheckRunsResults struct {
 	Total     int
 	CheckRuns []*CheckRun
@@ -223,15 +226,9 @@ func ListCheckRunsForRefWithGraphQL(ctx context.Context, g *GitHubClient, repo r
 }
 
 func SortCheckRunsByName(checkRuns []*CheckRun) {
-	// Simple bubble sort for demonstration; consider using sort.Slice for production code
-	n := len(checkRuns)
-	for i := 0; i < n; i++ {
-		for j := 0; j < n-i-1; j++ {
-			if checkRuns[j].GetFullName() > checkRuns[j+1].GetFullName() {
-				checkRuns[j], checkRuns[j+1] = checkRuns[j+1], checkRuns[j]
-			}
-		}
-	}
+	slices.SortFunc(checkRuns, func(a, b *CheckRun) int {
+		return strings.Compare(a.GetFullName(), b.GetFullName())
+	})
 }
 
 func SortCheckRunsByRunID(checkRuns []*CheckRun) {

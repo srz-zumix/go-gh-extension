@@ -8,6 +8,7 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// CheckRun represents a GitHub check run that is part of a check suite.
 type CheckRun struct {
 	github.CheckRun
 	WorkflowName *string `json:"workflow_name,omitempty"`
