@@ -325,7 +325,8 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-// GetStatusIcon returns a colored icon representing the check run status
+// GetStatusIcon returns an uncolored icon representing the check run status.
+// For colored icons, use GetStatusIconColored.
 func GetStatusIcon(status string) string {
 	switch status {
 	case "completed":
