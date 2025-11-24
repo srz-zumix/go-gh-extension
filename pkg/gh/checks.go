@@ -252,7 +252,13 @@ func filterCheckRuns(checkRuns []*CheckRun, options *ListChecksRunFilterOptions)
 		for _, checkRun := range checkRuns {
 			name := checkRun.GetName()
 			if existing, ok := latestMap[name]; ok {
-				if checkRun.GetCompletedAt().After(existing.GetCompletedAt().Time) {
+				// Check for nil before comparing CompletedAt timestamps
+				if checkRun.GetCompletedAt() != nil && existing.GetCompletedAt() != nil {
+					if checkRun.GetCompletedAt().After(existing.GetCompletedAt().Time) {
+						latestMap[name] = checkRun
+					}
+				} else if checkRun.GetCompletedAt() != nil {
+					// Prefer completed checkRun over incomplete existing
 					latestMap[name] = checkRun
 				}
 			} else {
