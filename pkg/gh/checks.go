@@ -19,25 +19,42 @@ type ListCheckRunsResults struct {
 
 // https://docs.github.com/ja/pull-requests/collaborating-with-pull-requests/collaborating-on-repositories-with-code-quality-features/about-status-checks#check-statuses-and-conclusions
 var (
+	// ChecksRunStatusCompleted indicates that the check run has completed.
 	ChecksRunStatusCompleted      = "completed"
+	// ChecksRunStatusExpected indicates that the check run is expected but has not started.
 	ChecksRunStatusExpected       = "expected"
+	// ChecksRunStatusFailure indicates that the check run has failed.
 	ChecksRunStatusFailure        = "failure"
+	// ChecksRunStatusInProgress indicates that the check run is currently in progress.
 	ChecksRunStatusInProgress     = "in_progress"
+	// ChecksRunStatusPending indicates that the check run is pending and has not started.
 	ChecksRunStatusPending        = "pending"
+	// ChecksRunStatusQueued indicates that the check run is queued to start.
 	ChecksRunStatusQueued         = "queued"
+	// ChecksRunStatusRequested indicates that the check run has been requested.
 	ChecksRunStatusRequested      = "requested"
+	// ChecksRunStatusStartupFailure indicates that the check run failed to start.
 	ChecksRunStatusStartupFailure = "startup_failure"
+	// ChecksRunStatusWaiting indicates that the check run is waiting for resources or dependencies.
 	ChecksRunStatusWaiting        = "waiting"
 )
 
 var (
+	// ChecksRunConclusionActionRequired indicates that further action is required for the check run.
 	ChecksRunConclusionActionRequired = "action_required"
+	// ChecksRunConclusionCancelled indicates that the check run was cancelled.
 	ChecksRunConclusionCancelled      = "cancelled"
+	// ChecksRunConclusionFailure indicates that the check run concluded with a failure.
 	ChecksRunConclusionFailure        = "failure"
+	// ChecksRunConclusionNeutral indicates that the check run concluded with a neutral result.
 	ChecksRunConclusionNeutral        = "neutral"
+	// ChecksRunConclusionSkipped indicates that the check run was skipped.
 	ChecksRunConclusionSkipped        = "skipped"
+	// ChecksRunConclusionStale indicates that the check run is stale and no longer relevant.
 	ChecksRunConclusionStale          = "stale"
+	// ChecksRunConclusionSuccess indicates that the check run concluded successfully.
 	ChecksRunConclusionSuccess        = "success"
+	// ChecksRunConclusionTimedOut indicates that the check run timed out.
 	ChecksRunConclusionTimedOut       = "timed_out"
 )
 
