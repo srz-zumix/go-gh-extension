@@ -170,7 +170,6 @@ func readZipFile(file *zip.File) ([]byte, error) {
 
 // sanitizeJobName converts a job name to the format used in log file names.
 // GitHub Actions sanitizes job names by replacing certain characters and truncates to 90 UTF-16 code units.
-// This is based on GitHub CLI's implementation.
 func sanitizeJobName(jobName string) string {
 	// Replace characters that GitHub sanitizes in log file names
 	replacer := strings.NewReplacer(
