@@ -287,6 +287,9 @@ func GetRepositoryContent(ctx context.Context, g *GitHubClient, repo repository.
 func GetRepositoryFileContent(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, ref *string) (*github.RepositoryContent, error) {
 	fileContent, _, err := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, path, ref)
 	if err != nil {
+		if ref != nil {
+			return nil, fmt.Errorf("failed to get content for repository %s/%s at path '%s' and ref '%s': %w", repo.Owner, repo.Name, path, *ref, err)
+		}
 		return nil, fmt.Errorf("failed to get content for repository %s/%s at path '%s': %w", repo.Owner, repo.Name, path, err)
 	}
 	return fileContent, nil

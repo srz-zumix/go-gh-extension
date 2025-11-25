@@ -96,6 +96,12 @@ func ListPullRequestsOptionDirectionDescending() *ListPullRequestsOptionDirectio
 	return &ListPullRequestsOptionDirection{Direction: "desc"}
 }
 
+var PullRequestReviewStateApproved = "APPROVED"
+var PullRequestReviewStateChangesRequested = "CHANGES_REQUESTED"
+var PullRequestReviewStateCommented = "COMMENTED"
+var PullRequestReviewStateDismissed = "DISMISSED"
+var PullRequestReviewStatePending = "PENDING"
+
 func ListPullRequests(ctx context.Context, g *GitHubClient, repo repository.Repository, opts ...ListPullRequestsOption) ([]*github.PullRequest, error) {
 	var ghOpts *github.PullRequestListOptions
 	if opts != nil {
@@ -138,6 +144,34 @@ func GetRequestedReviewers(reviewers []string) ReviewersRequest {
 		}
 	}
 	return reviewersRequest
+}
+
+func ExpandTeamReviewers(ctx context.Context, g *GitHubClient, repo repository.Repository, reviewersRequest ReviewersRequest) (ReviewersRequest, error) {
+	expanded := ReviewersRequest{
+		Reviewers: reviewersRequest.Reviewers,
+	}
+
+	for _, teamSlug := range reviewersRequest.TeamReviewers {
+		// Extract team slug from org/team format
+		parts := strings.Split(teamSlug, "/")
+		var slug string
+		if len(parts) == 2 {
+			slug = parts[1]
+		} else {
+			slug = teamSlug
+		}
+
+		members, err := ListTeamMembers(ctx, g, repo, slug, nil, false)
+		if err != nil {
+			return ReviewersRequest{}, fmt.Errorf("failed to get members for team '%s': %w", teamSlug, err)
+		}
+
+		for _, member := range members {
+			expanded.Reviewers = append(expanded.Reviewers, member.GetLogin())
+		}
+	}
+
+	return expanded, nil
 }
 
 func GetPullRequestNumberFromString(pr string) (int, error) {
@@ -273,6 +307,21 @@ func GetPullRequestLatestReviews(ctx context.Context, g *GitHubClient, repo repo
 		latestReviews[review.User.GetLogin()] = review
 	}
 	return slices.Collect(maps.Values(latestReviews)), nil
+}
+
+func GetApprovedReviewers(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) ([]string, error) {
+	reviews, err := GetPullRequestLatestReviews(ctx, g, repo, pull_request)
+	if err != nil {
+		return nil, err
+	}
+
+	approvedReviewers := []string{}
+	for _, review := range reviews {
+		if review.GetState() == PullRequestReviewStateApproved {
+			approvedReviewers = append(approvedReviewers, review.User.GetLogin())
+		}
+	}
+	return approvedReviewers, nil
 }
 
 func ListPullRequestReviewComments(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) ([]*github.PullRequestComment, error) {

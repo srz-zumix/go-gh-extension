@@ -8,6 +8,7 @@ import (
 
 	"github.com/cli/cli/v2/pkg/cmdutil"
 	"github.com/cli/cli/v2/pkg/iostreams"
+	"github.com/fatih/color"
 	"github.com/google/go-github/v79/github"
 	"github.com/olekukonko/tablewriter"
 	"github.com/shurcooL/githubv4"
@@ -322,4 +323,101 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// GetStatusIcon returns an uncolored icon representing the check run status.
+// For colored icons, use GetStatusIconColored.
+func GetStatusIcon(status string) string {
+	switch status {
+	case "completed":
+		return "✓"
+	case "in_progress":
+		return "●"
+	case "queued":
+		return "○"
+	case "pending":
+		return "⊙"
+	case "requested":
+		return "◌"
+	case "waiting":
+		return "⏸"
+	case "expected":
+		return "⋯"
+	case "startup_failure", "failure":
+		return "✗"
+	default:
+		return "?"
+	}
+}
+
+// GetStatusIconColored returns a colored icon representing the check run status
+func GetStatusIconColored(status string, enableColor bool) string {
+	icon := GetStatusIcon(status)
+	if !enableColor {
+		return icon
+	}
+
+	// Apply color based on status
+	switch status {
+	case "completed":
+		return color.GreenString(icon)
+	case "in_progress":
+		return color.YellowString(icon)
+	case "queued", "pending", "requested", "waiting", "expected":
+		return color.New(color.FgHiBlack).Sprint(icon)
+	case "startup_failure", "failure":
+		return color.RedString(icon)
+	default:
+		return icon
+	}
+}
+
+// GetConclusionIcon returns an icon representing the check run conclusion
+func GetConclusionIcon(conclusion string) string {
+	switch conclusion {
+	case "success":
+		return "✓"
+	case "failure":
+		return "✗"
+	case "neutral":
+		return "○"
+	case "cancelled":
+		return "⊘"
+	case "skipped":
+		return "⊝"
+	case "timed_out":
+		return "⏱"
+	case "action_required":
+		return "⚠"
+	case "stale":
+		return "⊗"
+	default:
+		return "-"
+	}
+}
+
+// GetConclusionIconColored returns a colored icon representing the check run conclusion
+func GetConclusionIconColored(conclusion string, enableColor bool) string {
+	icon := GetConclusionIcon(conclusion)
+	if !enableColor {
+		return icon
+	}
+
+	// Apply color based on conclusion
+	switch conclusion {
+	case "success":
+		return color.GreenString(icon)
+	case "failure":
+		return color.RedString(icon)
+	case "neutral", "skipped":
+		return color.New(color.FgHiBlack).Sprint(icon)
+	case "cancelled":
+		return color.YellowString(icon)
+	case "timed_out", "stale":
+		return color.MagentaString(icon)
+	case "action_required":
+		return color.YellowString(icon)
+	default:
+		return icon
+	}
 }

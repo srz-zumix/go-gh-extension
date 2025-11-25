@@ -28,13 +28,19 @@ func TestParseContentPathFromUses(t *testing.T) {
 	}{
 		{
 			name: "local path",
-			uses: "./path/to/action",
+			uses: "./path/to/.github/labeler.yml",
 			want: &ContentPath{
 				Repo: nil,
-				Path: strPtr("path/to/action"),
+				Path: strPtr("path/to/.github/labeler.yml"),
 				Ref:  nil,
 			},
 			wantErr: false,
+		},
+		{
+			name:    "local path without dot",
+			uses:    ".github/labeler.yml",
+			want:    nil,
+			wantErr: true,
 		},
 		{
 			name: "owner/repo@ref format",
@@ -81,6 +87,12 @@ func TestParseContentPathFromUses(t *testing.T) {
 		{
 			name:    "invalid format - only slash",
 			uses:    "/",
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "empty string",
+			uses:    "",
 			want:    nil,
 			wantErr: true,
 		},

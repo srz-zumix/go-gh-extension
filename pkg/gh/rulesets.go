@@ -29,7 +29,7 @@ type RepositoryRulesetConfig struct {
 type RepositoryRulesetMigrateConfig struct {
 	Ruleset      *github.RepositoryRuleset
 	Teams        map[int64]*github.Team
-	CheckRuns    map[int64]*github.CheckRun
+	CheckRuns    map[int64]*CheckRun
 	Repositories map[int64]*github.Repository
 }
 
@@ -271,7 +271,7 @@ func ExportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 
 	teams := GetRulesetActorsTeams(ctx, g, repo, ruleset)
 
-	checkRuns := make(map[int64]*github.CheckRun)
+	checkRuns := make(map[int64]*CheckRun)
 	if ruleset.Rules.RequiredStatusChecks != nil {
 		ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, repo, ruleset)
 		if err != nil {
@@ -570,14 +570,14 @@ func GetRulesetActorsTeams(ctx context.Context, g *GitHubClient, repo repository
 	return teams
 }
 
-func findIntegrationID(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, name string, appID *int64, app *github.App) (*github.CheckRun, error) {
+func findIntegrationID(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, name string, appID *int64, app *github.App) (*CheckRun, error) {
 	checkRuns, err := ListCheckRunsForRef(ctx, g, repo, ref, &ListChecksRunFilterOptions{
 		AppID: appID,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if checkRuns.Total == nil || *checkRuns.Total == 0 {
+	if checkRuns.Total == 0 {
 		return nil, nil
 	}
 	for i, checkRun := range checkRuns.CheckRuns {
