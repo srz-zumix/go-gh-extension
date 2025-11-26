@@ -3,7 +3,6 @@ package gh
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/google/go-github/v79/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/srz-zumix/go-gh-extension/pkg/gitutil"
+	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
 // PRIdentifier represents different ways to identify a pull request.
@@ -67,30 +67,16 @@ func ParsePRIdentifier(input string) (*PRIdentifier, error) {
 	}
 
 	// Try to parse as URL
-	if strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
-		parsedURL, err := url.Parse(input)
-		if err != nil {
-			return nil, fmt.Errorf("invalid URL: %w", err)
-		}
-
-		// Extract PR number and repository from URL path
-		// Expected format: /owner/repo/pull/123
-		pathParts := strings.Split(strings.Trim(parsedURL.Path, "/"), "/")
-		if len(pathParts) >= 4 && pathParts[2] == "pull" {
-			if num, err := strconv.Atoi(pathParts[3]); err == nil && num > 0 {
-				repo := repository.Repository{
-					Host:  parsedURL.Host,
-					Owner: pathParts[0],
-					Name:  pathParts[1],
-				}
-				return &PRIdentifier{
-					Number: &num,
-					URL:    &input,
-					Repo:   &repo,
-				}, nil
-			}
-		}
-		return nil, fmt.Errorf("unable to extract PR number from URL: %s", input)
+	prURL, err := parser.ParsePullRequestURL(input)
+	if err != nil {
+		return nil, err
+	}
+	if prURL != nil {
+		return &PRIdentifier{
+			Number: prURL.Number,
+			URL:    &input,
+			Repo:   prURL.Repo,
+		}, nil
 	}
 
 	// Assume it's a branch name
