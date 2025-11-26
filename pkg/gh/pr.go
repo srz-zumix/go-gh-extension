@@ -398,6 +398,7 @@ type AssociatedPullRequestsOption interface {
 	apply(*client.AssociatedPullRequestsOption)
 }
 
+// AssociatedPullRequestsOptionOrderBy configures the ordering of associated pull requests when querying.
 type AssociatedPullRequestsOptionOrderBy struct {
 	OrderBy client.GraphQLOrderByOption
 }
