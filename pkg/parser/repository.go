@@ -41,6 +41,13 @@ func RepositoryInput(input string) RepositoryOption {
 	}
 }
 
+func RepositoryInputOptional(input string) RepositoryOption {
+	return func(r *repository.Repository) error {
+		RepositoryInput(input)(r) // nolint
+		return nil
+	}
+}
+
 func RepositoryOwner(input string) RepositoryOption {
 	return func(r *repository.Repository) error {
 		if input == "" {
