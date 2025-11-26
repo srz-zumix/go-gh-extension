@@ -3,19 +3,21 @@ package git
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/cli/cli/v2/git"
 	"github.com/cli/go-gh/v2/pkg/repository"
 )
 
 var client *git.Client
+var clientOnce sync.Once
 
 // NewClient creates a new git client
 func NewClient() *git.Client {
-	if client == nil {
+	clientOnce.Do(func() {
 		c := git.Client{}
 		client = &c
-	}
+	})
 	return client
 }
 
