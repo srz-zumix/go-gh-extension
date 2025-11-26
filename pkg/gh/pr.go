@@ -393,6 +393,7 @@ func GetPullRequestCommentThreadID(ctx context.Context, g *GitHubClient, repo re
 	return g.GetPullRequestCommentThreadID(ctx, repo.Owner, repo.Name, number, commentID)
 }
 
+// AssociatedPullRequestsOption is an interface for specifying options when querying associated pull requests.
 type AssociatedPullRequestsOption interface {
 	apply(*client.AssociatedPullRequestsOption)
 }
