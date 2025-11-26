@@ -90,32 +90,32 @@ func ParsePRIdentifier(input string) (*PRIdentifier, error) {
 
 // FindPRByIdentifier finds a pull request by identifier (number, URL, or branch name)
 func FindPRByIdentifier(ctx context.Context, g *GitHubClient, repo repository.Repository, identifier string) (*github.PullRequest, error) {
-	prId, err := ParsePRIdentifier(identifier)
+	prID, err := ParsePRIdentifier(identifier)
 	if err != nil {
 		return nil, err
 	}
-	if prId.Repo == nil {
-		prId.Repo = &repo
+	if prID.Repo == nil {
+		prID.Repo = &repo
 	}
 
 	// If we have a PR number, fetch it directly
-	if prId.Number != nil {
-		return GetPullRequest(ctx, g, repo, *prId.Number)
+	if prID.Number != nil {
+		return GetPullRequest(ctx, g, repo, *prID.Number)
 	}
 
-	if prId.Head == nil {
-		currentBranch, err := git.GetCurrentBranchIfRepoMatches(ctx, *prId.Repo)
+	if prID.Head == nil {
+		currentBranch, err := git.GetCurrentBranchIfRepoMatches(ctx, *prID.Repo)
 		if err == nil {
-			prId.Head = &currentBranch
+			prID.Head = &currentBranch
 		}
 	}
 
 	// If we have a head branch, search for PRs with that head
-	if prId.Head != nil {
-		return FindPRByHead(ctx, g, repo, *prId.Head)
+	if prID.Head != nil {
+		return FindPRByHead(ctx, g, repo, *prID.Head)
 	}
 
-	return nil, fmt.Errorf("unable to identify PR from: %s", prId.String())
+	return nil, fmt.Errorf("unable to identify PR from: %s", prID.String())
 }
 
 // FindPRByHead finds a pull request by head branch name using GraphQL
