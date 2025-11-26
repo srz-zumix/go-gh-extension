@@ -321,17 +321,11 @@ func (g *GitHubClient) GetAssociatedPullRequestsForRef(ctx context.Context, owne
 		return nil, fmt.Errorf("failed to create GraphQL client: %w", err)
 	}
 
-	states := []githubv4.PullRequestState{}
-	for _, s := range opts.States {
-		switch strings.ToLower(s) {
-		case "open":
-			states = append(states, githubv4.PullRequestStateOpen)
-		case "closed":
-			states = append(states, githubv4.PullRequestStateClosed)
-		case "merged":
-			states = append(states, githubv4.PullRequestStateMerged)
-		}
+	if opts == nil {
+		opts = &AssociatedPullRequestsOption{}
 	}
+
+	states := ParsePullRequestStates(opts.States)
 
 	// Ensure ref has refs/heads/ prefix for branch names
 	qualifiedRef := ref

@@ -73,14 +73,15 @@ func ParsePRIdentifier(input string) (*PRIdentifier, error) {
 			return nil, fmt.Errorf("invalid URL: %w", err)
 		}
 
-		// Extract PR number from URL path
+		// Extract PR number and repository from URL path
 		// Expected format: /owner/repo/pull/123
 		pathParts := strings.Split(strings.Trim(parsedURL.Path, "/"), "/")
 		if len(pathParts) >= 4 && pathParts[2] == "pull" {
 			if num, err := strconv.Atoi(pathParts[3]); err == nil && num > 0 {
-				repo, err := repository.Parse(input)
-				if err != nil {
-					return nil, fmt.Errorf("unable to parse repository from URL: %w", err)
+				repo := repository.Repository{
+					Host:  parsedURL.Host,
+					Owner: pathParts[0],
+					Name:  pathParts[1],
 				}
 				return &PRIdentifier{
 					Number: &num,

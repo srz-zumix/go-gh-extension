@@ -94,3 +94,25 @@ func (opt *GraphQLOrderByOption) ToIssueOrder() *githubv4.IssueOrder {
 	}
 	return order
 }
+
+// parsePullRequestStates converts a slice of string states to a slice of githubv4.PullRequestState.
+func ParsePullRequestStates(states []string) []githubv4.PullRequestState {
+	result := []githubv4.PullRequestState{}
+	for _, s := range states {
+		result = append(result, ParsePullRequestState(s))
+	}
+	return result
+}
+
+// ParsePullRequestState converts a string state to githubv4.PullRequestState.
+func ParsePullRequestState(state string) githubv4.PullRequestState {
+	switch strings.ToLower(state) {
+	case "open":
+		return githubv4.PullRequestStateOpen
+	case "closed":
+		return githubv4.PullRequestStateClosed
+	case "merged":
+		return githubv4.PullRequestStateMerged
+	}
+	return githubv4.PullRequestStateOpen
+}

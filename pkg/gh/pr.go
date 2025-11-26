@@ -407,6 +407,7 @@ func (o *AssociatedPullRequestsOptionOrderBy) apply(opts *client.AssociatedPullR
 	opts.OrderBy = &o.OrderBy
 }
 
+// AssociatedPullRequestsOptionStates configures the states of associated pull requests when querying.
 type AssociatedPullRequestsOptionStates struct {
 	State string
 }
@@ -415,24 +416,26 @@ func (o *AssociatedPullRequestsOptionStates) apply(opts *client.AssociatedPullRe
 	opts.States = append(opts.States, o.State)
 }
 
+// AssociatedPullRequestsOptionStateOpen configures the query to include only open pull requests.
 func AssociatedPullRequestsOptionStateOpen() *AssociatedPullRequestsOptionStates {
 	return &AssociatedPullRequestsOptionStates{State: "OPEN"}
 }
 
+// AssociatedPullRequestsOptionStateClosed configures the query to include only closed pull requests.
 func AssociatedPullRequestsOptionStateClosed() *AssociatedPullRequestsOptionStates {
 	return &AssociatedPullRequestsOptionStates{State: "CLOSED"}
 }
 
+// AssociatedPullRequestsOptionStateMerged configures the query to include only merged pull requests.
 func AssociatedPullRequestsOptionStateMerged() *AssociatedPullRequestsOptionStates {
 	return &AssociatedPullRequestsOptionStates{State: "MERGED"}
 }
 
+// GetAssociatedPullRequestsForRef retrieves pull requests associated with a specific ref.
 func GetAssociatedPullRequestsForRef(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, opts ...AssociatedPullRequestsOption) ([]*github.PullRequest, error) {
 	option := &client.AssociatedPullRequestsOption{}
-	if opts != nil {
-		for _, opt := range opts {
-			opt.apply(option)
-		}
+	for _, opt := range opts {
+		opt.apply(option)
 	}
 	return g.GetAssociatedPullRequestsForRef(ctx, repo.Owner, repo.Name, ref, option)
 }
