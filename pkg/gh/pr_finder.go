@@ -35,13 +35,13 @@ func (pri *PRIdentifier) String() string {
 		repo = fmt.Sprintf("%s/%s ", pri.Repo.Owner, pri.Repo.Name)
 	}
 	if pri.Number != nil {
-		return fmt.Sprintf("%s #%d", repo, *pri.Number)
+		return fmt.Sprintf("%s#%d", repo, *pri.Number)
 	}
 	if pri.URL != nil {
 		return *pri.URL
 	}
 	if pri.Head != nil {
-		return fmt.Sprintf("%s/%s", repo, *pri.Head)
+		return fmt.Sprintf("%s%s", repo, *pri.Head)
 	}
 	return "<empty>"
 }

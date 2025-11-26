@@ -198,7 +198,7 @@ func TestPRIdentifierString(t *testing.T) {
 			pri: &PRIdentifier{
 				Number: intPtr(123),
 			},
-			want: " #123",
+			want: "#123",
 		},
 		{
 			name: "number with repo",
@@ -209,7 +209,7 @@ func TestPRIdentifierString(t *testing.T) {
 					Name:  "repo",
 				},
 			},
-			want: "owner/repo  #123",
+			want: "owner/repo #123",
 		},
 		{
 			name: "URL only",
@@ -223,7 +223,7 @@ func TestPRIdentifierString(t *testing.T) {
 			pri: &PRIdentifier{
 				Head: stringPtr("feature-branch"),
 			},
-			want: "/feature-branch",
+			want: "feature-branch",
 		},
 		{
 			name: "head with repo",
@@ -234,7 +234,7 @@ func TestPRIdentifierString(t *testing.T) {
 					Name:  "repo",
 				},
 			},
-			want: "owner/repo /feature-branch",
+			want: "owner/repo feature-branch",
 		},
 	}
 
