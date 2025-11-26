@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
@@ -80,6 +81,9 @@ func RepositoryOwner(input string) RepositoryOption {
 	return func(r *repository.Repository) error {
 		if input == "" {
 			return nil
+		}
+		if strings.Contains(input, "/") {
+			return fmt.Errorf(`expected owner name without '/', got %q`, input)
 		}
 		if r.Owner != "" && r.Owner != input {
 			return errors.New("conflicting owner")
