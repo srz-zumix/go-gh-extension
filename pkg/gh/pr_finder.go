@@ -126,7 +126,9 @@ func FindPRByIdentifier(ctx context.Context, g *GitHubClient, repo repository.Re
 	return nil, fmt.Errorf("unable to identify PR from: %s", prID.String())
 }
 
-// FindPRByHead finds a pull request by head branch name using GraphQL
+// FindPRByHead finds a pull request by head branch name.
+// It first tries to find the pull request using the REST API (ListPullRequests with head filter).
+// If not found, it falls back to using GraphQL to find a pull request associated with the ref.
 func FindPRByHead(ctx context.Context, g *GitHubClient, repo repository.Repository, head string) (*github.PullRequest, error) {
 	// Try ListPullRequests with head filter first (faster and works even if ref doesn't exist)
 	pr, err := findPRByHeadWithListAPI(ctx, g, repo, head)
