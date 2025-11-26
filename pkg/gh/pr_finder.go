@@ -13,12 +13,20 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/git"
 )
 
-// PRIdentifier represents different ways to identify a pull request
+// PRIdentifier represents different ways to identify a pull request.
+//
+// It can identify a pull request by:
+//   - Number: The pull request number (set when identified by number or URL).
+//   - Head: The branch name (set when identified by branch name).
+//   - URL: The pull request URL (set when identified by URL).
+//   - Repo: The repository containing the pull request (set when identified by URL).
+//
+// Only one or a subset of these fields may be set depending on how the pull request is identified.
 type PRIdentifier struct {
-	Number *int
-	Head   *string
-	URL    *string
-	Repo   *repository.Repository
+	Number *int    // Pull request number, set when identified by number or URL
+	Head   *string // Branch name, set when identified by branch name
+	URL    *string // Pull request URL, set when identified by URL
+	Repo   *repository.Repository // Repository, set when identified by URL
 }
 
 func (pri *PRIdentifier) String() string {
