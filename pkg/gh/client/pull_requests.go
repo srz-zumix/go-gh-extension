@@ -374,7 +374,7 @@ func (g *GitHubClient) GetAssociatedPullRequestsForRef(ctx context.Context, owne
 	return result, nil
 }
 
-// ConvertAssociatedPRToGitHubPR converts associatedPullRequestNode to github.PullRequest
+// convertAssociatedPRToGitHubPR converts associatedPullRequestNode to github.PullRequest
 func convertAssociatedPRToGitHubPR(node *associatedPullRequestNode) *github.PullRequest {
 	number := int(node.Number)
 	title := string(node.Title)

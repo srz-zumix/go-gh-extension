@@ -6,6 +6,7 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// GraphQLOrderByOption represents ordering options for GraphQL queries.
 type GraphQLOrderByOption struct {
 	Field     *string
 	Direction *string
@@ -36,6 +37,7 @@ func (opt *GraphQLOrderByOption) Comments() {
 	opt.Field = &comments
 }
 
+// ToPullRequestOrder converts GraphQLOrderByOption to githubv4.PullRequestOrder.
 func (opt *GraphQLOrderByOption) ToPullRequestOrder() *githubv4.PullRequestOrder {
 	order := &githubv4.PullRequestOrder{
 		Field:     githubv4.PullRequestOrderFieldCreatedAt,
@@ -63,6 +65,7 @@ func (opt *GraphQLOrderByOption) ToPullRequestOrder() *githubv4.PullRequestOrder
 	return order
 }
 
+// ToIssueOrder converts GraphQLOrderByOption to githubv4.IssueOrder.
 func (opt *GraphQLOrderByOption) ToIssueOrder() *githubv4.IssueOrder {
 	order := &githubv4.IssueOrder{
 		Field:     githubv4.IssueOrderFieldCreatedAt,

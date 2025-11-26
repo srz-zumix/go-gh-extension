@@ -10,7 +10,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
-	"github.com/srz-zumix/go-gh-extension/pkg/git"
+	"github.com/srz-zumix/go-gh-extension/pkg/gitutil"
 )
 
 // PRIdentifier represents different ways to identify a pull request.
@@ -23,9 +23,9 @@ import (
 //
 // Only one or a subset of these fields may be set depending on how the pull request is identified.
 type PRIdentifier struct {
-	Number *int    // Pull request number, set when identified by number or URL
-	Head   *string // Branch name, set when identified by branch name
-	URL    *string // Pull request URL, set when identified by URL
+	Number *int                   // Pull request number, set when identified by number or URL
+	Head   *string                // Branch name, set when identified by branch name
+	URL    *string                // Pull request URL, set when identified by URL
 	Repo   *repository.Repository // Repository, set when identified by URL
 }
 
@@ -112,7 +112,7 @@ func FindPRByIdentifier(ctx context.Context, g *GitHubClient, repo repository.Re
 	}
 
 	if prID.Head == nil {
-		currentBranch, err := git.GetCurrentBranchIfRepoMatches(ctx, *prID.Repo)
+		currentBranch, err := gitutil.GetCurrentBranchIfRepoMatches(ctx, *prID.Repo)
 		if err == nil {
 			prID.Head = &currentBranch
 		}
