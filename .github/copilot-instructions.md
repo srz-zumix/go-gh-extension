@@ -17,6 +17,7 @@
   * cmdflag/: コマンドライン引数の定義・パース
   * gh/: GitHub APIラッパー・ビジネスロジック層。API呼び出しはgh/client/配下で行い、gh/直下はラッパー・ユーティリティ関数のみ
   * gh/client/: go-github等の外部APIクライアント呼び出し、GraphQL 呼び出し専用。API と GraphQL のレスポンス型統一以外の理由でAPIレスポンスの整形は行わない。エラーはそのまま返す
+  * gitutil/: Git 操作関連のユーティリティ関数
   * ioutil/: 入出力関連のユーティリティ関数（ファイル操作、アーカイブ展開等）
   * parser/: 入力値のパース・バリデーション等
   * render/: 表示用の整形・出力処理（テーブル/JSON/hovercard等）

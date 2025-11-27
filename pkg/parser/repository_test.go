@@ -81,6 +81,12 @@ func TestRepositoryOwner(t *testing.T) {
 			expectErr: false,
 			expected:  repository.Repository{Host: "github.com", Owner: "owner"},
 		},
+		{
+			name:      "Owner with slash",
+			input:     "owner/repo",
+			initial:   repository.Repository{},
+			expectErr: true,
+		},
 	}
 
 	for _, tt := range tests {

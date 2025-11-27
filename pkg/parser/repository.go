@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
@@ -41,10 +42,48 @@ func RepositoryInput(input string) RepositoryOption {
 	}
 }
 
+func RepositoryInputOptional(input string) RepositoryOption {
+	return func(r *repository.Repository) error {
+		_ = RepositoryInput(input)(r)
+		return nil
+	}
+}
+
+func RepositoryFromURL(input string) RepositoryOption {
+	return func(r *repository.Repository) error {
+		if input == "" {
+			return nil
+		}
+
+		prURL, err := ParsePullRequestURL(input)
+		if err != nil {
+			return fmt.Errorf(`failed to parse repository from URL %q: %w`, input, err)
+		}
+		if prURL != nil && prURL.Repo != nil {
+			if r.Host != "" && r.Host != prURL.Repo.Host {
+				return errors.New("conflicting host")
+			}
+			if r.Name != "" && r.Name != prURL.Repo.Name {
+				return errors.New("conflicting name")
+			}
+			if r.Owner != "" && r.Owner != prURL.Repo.Owner {
+				return errors.New("conflicting owner")
+			}
+			r.Host = prURL.Repo.Host
+			r.Name = prURL.Repo.Name
+			r.Owner = prURL.Repo.Owner
+		}
+		return nil
+	}
+}
+
 func RepositoryOwner(input string) RepositoryOption {
 	return func(r *repository.Repository) error {
 		if input == "" {
 			return nil
+		}
+		if strings.Contains(input, "/") {
+			return fmt.Errorf(`expected owner name without '/', got %q`, input)
 		}
 		if r.Owner != "" && r.Owner != input {
 			return errors.New("conflicting owner")

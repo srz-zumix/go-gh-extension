@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
@@ -272,4 +273,179 @@ func (g *GitHubClient) ListPullRequests(ctx context.Context, owner string, repo 
 	}
 
 	return allPullRequests, nil
+}
+
+// associatedPullRequestNode represents a pull request from GraphQL
+type associatedPullRequestNode struct {
+	Number           githubv4.Int
+	Title            githubv4.String
+	State            githubv4.String
+	URL              githubv4.URI
+	Body             githubv4.String
+	CreatedAt        githubv4.DateTime
+	UpdatedAt        githubv4.DateTime
+	ClosedAt         githubv4.DateTime
+	MergedAt         githubv4.DateTime
+	Mergeable        githubv4.String
+	IsDraft          githubv4.Boolean
+	Locked           githubv4.Boolean
+	ActiveLockReason githubv4.String
+	Author           struct {
+		Login githubv4.String
+	}
+	HeadRef struct {
+		Name githubv4.String
+	}
+	HeadRefOid githubv4.String
+	BaseRef    struct {
+		Name githubv4.String
+	}
+	BaseRefOid githubv4.String
+	Repository struct {
+		Name  githubv4.String
+		Owner struct {
+			Login githubv4.String
+		}
+	}
+}
+
+type AssociatedPullRequestsOption struct {
+	States  []string
+	OrderBy *GraphQLOrderByOption
+}
+
+// GetAssociatedPullRequestsForRef retrieves pull requests associated with a ref using GraphQL
+func (g *GitHubClient) GetAssociatedPullRequestsForRef(ctx context.Context, owner string, repo string, ref string, opts *AssociatedPullRequestsOption) ([]*github.PullRequest, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GraphQL client: %w", err)
+	}
+
+	if opts == nil {
+		opts = &AssociatedPullRequestsOption{}
+	}
+
+	states := ParsePullRequestStates(opts.States)
+
+	// Ensure ref has refs/heads/ prefix for branch names
+	qualifiedRef := ref
+	if !strings.HasPrefix(ref, "refs/") {
+		qualifiedRef = "refs/heads/" + ref
+	}
+
+	var query struct {
+		Repository struct {
+			Ref struct {
+				AssociatedPullRequests struct {
+					Nodes    []associatedPullRequestNode
+					PageInfo struct {
+						HasNextPage githubv4.Boolean
+						EndCursor   githubv4.String
+					}
+				} `graphql:"associatedPullRequests(first: 100, states: $states, orderBy: $orderBy)"`
+			} `graphql:"ref(qualifiedName: $ref)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+
+	variables := map[string]interface{}{
+		"owner":   githubv4.String(owner),
+		"name":    githubv4.String(repo),
+		"ref":     githubv4.String(qualifiedRef),
+		"states":  states,
+		"orderBy": opts.OrderBy.ToIssueOrder(),
+	}
+
+	err = graphql.Query(ctx, &query, variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query GraphQL: %w", err)
+	}
+
+	var result []*github.PullRequest
+	for i := range query.Repository.Ref.AssociatedPullRequests.Nodes {
+		result = append(result, convertAssociatedPRToGitHubPR(&query.Repository.Ref.AssociatedPullRequests.Nodes[i]))
+	}
+
+	return result, nil
+}
+
+// convertAssociatedPRToGitHubPR converts associatedPullRequestNode to github.PullRequest
+func convertAssociatedPRToGitHubPR(node *associatedPullRequestNode) *github.PullRequest {
+	number := int(node.Number)
+	title := string(node.Title)
+	state := strings.ToLower(string(node.State))
+	htmlURL := node.URL.String()
+	body := string(node.Body)
+	draft := bool(node.IsDraft)
+	locked := bool(node.Locked)
+	authorLogin := string(node.Author.Login)
+	headRef := string(node.HeadRef.Name)
+	headSHA := string(node.HeadRefOid)
+	baseRef := string(node.BaseRef.Name)
+	baseSHA := string(node.BaseRefOid)
+	repoName := string(node.Repository.Name)
+	repoOwner := string(node.Repository.Owner.Login)
+
+	createdAt := node.CreatedAt.Time
+	updatedAt := node.UpdatedAt.Time
+
+	pr := &github.PullRequest{
+		Number:    &number,
+		Title:     &title,
+		State:     &state,
+		HTMLURL:   &htmlURL,
+		Body:      &body,
+		Draft:     &draft,
+		Locked:    &locked,
+		CreatedAt: &github.Timestamp{Time: createdAt},
+		UpdatedAt: &github.Timestamp{Time: updatedAt},
+		User: &github.User{
+			Login: &authorLogin,
+		},
+		Head: &github.PullRequestBranch{
+			Ref: &headRef,
+			SHA: &headSHA,
+			Repo: &github.Repository{
+				Name: &repoName,
+				Owner: &github.User{
+					Login: &repoOwner,
+				},
+			},
+		},
+		Base: &github.PullRequestBranch{
+			Ref: &baseRef,
+			SHA: &baseSHA,
+			Repo: &github.Repository{
+				Name: &repoName,
+				Owner: &github.User{
+					Login: &repoOwner,
+				},
+			},
+		},
+	}
+
+	if !node.ClosedAt.IsZero() {
+		closedAt := node.ClosedAt.Time
+		pr.ClosedAt = &github.Timestamp{Time: closedAt}
+	}
+
+	if !node.MergedAt.IsZero() {
+		mergedAt := node.MergedAt.Time
+		pr.MergedAt = &github.Timestamp{Time: mergedAt}
+		merged := true
+		pr.Merged = &merged
+	}
+
+	if node.Mergeable != "" {
+		mergeableState := string(node.Mergeable)
+		pr.MergeableState = &mergeableState
+		mergeable := mergeableState == "MERGEABLE"
+		pr.Mergeable = &mergeable
+	}
+
+	if node.ActiveLockReason != "" {
+		lockReason := string(node.ActiveLockReason)
+		pr.ActiveLockReason = &lockReason
+	}
+
+	return pr
 }

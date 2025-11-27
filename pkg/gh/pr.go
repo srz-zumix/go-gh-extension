@@ -9,6 +9,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
 type ReviewersRequest struct {
@@ -390,4 +391,51 @@ func GetPullRequestCommentThreadID(ctx context.Context, g *GitHubClient, repo re
 		return "", fmt.Errorf("failed to parse comment ID from '%s': %w", comment, err)
 	}
 	return g.GetPullRequestCommentThreadID(ctx, repo.Owner, repo.Name, number, commentID)
+}
+
+// AssociatedPullRequestsOption is an interface for specifying options when querying associated pull requests.
+type AssociatedPullRequestsOption interface {
+	apply(*client.AssociatedPullRequestsOption)
+}
+
+// AssociatedPullRequestsOptionOrderBy configures the ordering of associated pull requests when querying.
+type AssociatedPullRequestsOptionOrderBy struct {
+	OrderBy client.GraphQLOrderByOption
+}
+
+func (o *AssociatedPullRequestsOptionOrderBy) apply(opts *client.AssociatedPullRequestsOption) {
+	opts.OrderBy = &o.OrderBy
+}
+
+// AssociatedPullRequestsOptionStates configures the states of associated pull requests when querying.
+type AssociatedPullRequestsOptionStates struct {
+	State string
+}
+
+func (o *AssociatedPullRequestsOptionStates) apply(opts *client.AssociatedPullRequestsOption) {
+	opts.States = append(opts.States, o.State)
+}
+
+// AssociatedPullRequestsOptionStateOpen configures the query to include only open pull requests.
+func AssociatedPullRequestsOptionStateOpen() *AssociatedPullRequestsOptionStates {
+	return &AssociatedPullRequestsOptionStates{State: "OPEN"}
+}
+
+// AssociatedPullRequestsOptionStateClosed configures the query to include only closed pull requests.
+func AssociatedPullRequestsOptionStateClosed() *AssociatedPullRequestsOptionStates {
+	return &AssociatedPullRequestsOptionStates{State: "CLOSED"}
+}
+
+// AssociatedPullRequestsOptionStateMerged configures the query to include only merged pull requests.
+func AssociatedPullRequestsOptionStateMerged() *AssociatedPullRequestsOptionStates {
+	return &AssociatedPullRequestsOptionStates{State: "MERGED"}
+}
+
+// GetAssociatedPullRequestsForRef retrieves pull requests associated with a specific ref.
+func GetAssociatedPullRequestsForRef(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, opts ...AssociatedPullRequestsOption) ([]*github.PullRequest, error) {
+	option := &client.AssociatedPullRequestsOption{}
+	for _, opt := range opts {
+		opt.apply(option)
+	}
+	return g.GetAssociatedPullRequestsForRef(ctx, repo.Owner, repo.Name, ref, option)
 }
