@@ -9,9 +9,28 @@ type Grardrail struct {
 var gardrail *Grardrail
 var gardrailOnce sync.Once
 
-func NewGardrail(readonly bool) *Grardrail {
+type GradrailOption interface {
+	Apply(*Grardrail)
+}
+
+type readOnlyOption struct {
+	readonly bool
+}
+
+func ReadOnlyOption(readonly bool) *readOnlyOption {
+	return &readOnlyOption{readonly: readonly}
+}
+
+func (o *readOnlyOption) Apply(g *Grardrail) {
+	g.readonly = o.readonly
+}
+
+func NewGardrail(options ...GradrailOption) *Grardrail {
 	gardrailOnce.Do(func() {
-		gardrail = &Grardrail{readonly: readonly}
+		gardrail = &Grardrail{readonly: false}
+		for _, opt := range options {
+			opt.Apply(gardrail)
+		}
 	})
 	return gardrail
 }
