@@ -31,8 +31,8 @@ func (r *RunLogUrlFetcher) FetchLogURL(ctx context.Context, g *GitHubClient, rep
 	return GetWorkflowRunLogsURL(ctx, g, repo, r.RunID, maxRedirects)
 }
 
-func GetLogUrlFetcher(context any) LogUrlFetcher {
-	switch v := context.(type) {
+func GetLogUrlFetcher(object any) LogUrlFetcher {
+	switch v := object.(type) {
 	case int64:
 		return &JobLogUrlFetcher{CheckRunID: v}
 	case *int64:
@@ -94,8 +94,8 @@ func GetLogUrlFetcher(context any) LogUrlFetcher {
 	}
 }
 
-func GetWorkflowRunLogUrlFetcher(context any) LogUrlFetcher {
-	switch v := context.(type) {
+func GetWorkflowRunLogUrlFetcher(object any) LogUrlFetcher {
+	switch v := object.(type) {
 	case int64:
 		return &RunLogUrlFetcher{RunID: v}
 	case *int64:
@@ -116,6 +116,6 @@ func GetWorkflowRunLogUrlFetcher(context any) LogUrlFetcher {
 		}
 		return &RunLogUrlFetcher{RunID: id}
 	default:
-		return GetLogUrlFetcher(context)
+		return GetLogUrlFetcher(object)
 	}
 }

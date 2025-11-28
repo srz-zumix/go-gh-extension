@@ -54,6 +54,7 @@ type Config struct {
 	Timeout             time.Duration
 	HTTPClient          *http.Client
 	SkipAuth            bool
+	ReadOnly            bool
 }
 
 type Option func(*Config) error
@@ -115,6 +116,13 @@ func HTTPClient(httpClient *http.Client) Option {
 func SkipAuth(enable bool) Option {
 	return func(c *Config) error {
 		c.SkipAuth = enable
+		return nil
+	}
+}
+
+func ReadOnly(enable bool) Option {
+	return func(c *Config) error {
+		c.ReadOnly = enable
 		return nil
 	}
 }
@@ -255,6 +263,22 @@ func (rt roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	return rt.transport.RoundTrip(r)
 }
 
+type getOnlyRoundTripper struct {
+	transport http.RoundTripper
+}
+
+func (rt *getOnlyRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return &http.Response{
+			StatusCode: http.StatusMethodNotAllowed,
+			Status:     "405 Method Not Allowed",
+			Body:       http.NoBody,
+			Request:    r,
+		}, fmt.Errorf("only GET and HEAD methods are allowed, got %s", r.Method)
+	}
+	return rt.transport.RoundTrip(r)
+}
+
 func newHTTPClientUsingGitHubApp(c *Config, ep string) (*http.Client, error) {
 	envAppID := os.Getenv("GITHUB_APP_ID")
 	envInstallaitonID := os.Getenv("GITHUB_APP_INSTALLATION_ID")
@@ -367,6 +391,14 @@ func detectOwnerRepo(c *Config) (string, string, error) {
 
 func httpClient(c *Config) *http.Client {
 	if c.HTTPClient != nil {
+		if c.ReadOnly {
+			return &http.Client{
+				Timeout: c.HTTPClient.Timeout,
+				Transport: &getOnlyRoundTripper{
+					transport: c.HTTPClient.Transport,
+				},
+			}
+		}
 		return c.HTTPClient
 	}
 	t := &http.Transport{
@@ -379,9 +411,15 @@ func httpClient(c *Config) *http.Client {
 		transport:   t,
 		accessToken: c.Token,
 	}
+	var transport http.RoundTripper = rt
+	if c.ReadOnly {
+		transport = &getOnlyRoundTripper{
+			transport: rt,
+		}
+	}
 	return &http.Client{
 		Timeout:   c.Timeout,
-		Transport: rt,
+		Transport: transport,
 	}
 }
 

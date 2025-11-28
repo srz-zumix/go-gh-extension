@@ -8,7 +8,7 @@
 ## コーディング規約
 
 * fmt.Errorf: error strings should not end with punctuation or newlines (ST1005) go-staticcheck
-* ローカルパッケージは github.com/srz-zumix/gh-team-kit/<path/to/dir> で import
+* gh extension 用開発の共通パッケージは github.com/srz-zumix/go-gh-extension/pkg/<path/to/dir> で import
 
 ### ソースコード全般
 
