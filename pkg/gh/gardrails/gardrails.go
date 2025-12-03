@@ -40,6 +40,7 @@ func GetGardrail() *Grardrail {
 	return gardrail
 }
 
+// IsReadonly returns whether the guardrail is in read-only mode.
 func (g *Grardrail) IsReadonly() bool {
 	if g == nil {
 		return false
