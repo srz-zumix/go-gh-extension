@@ -5,7 +5,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/factory"
-	"github.com/srz-zumix/go-gh-extension/pkg/gh/gardrails"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/guardrails"
 )
 
 type GitHubClient = client.GitHubClient
@@ -51,7 +51,7 @@ func NewGitHubClientWithRepo(repo repository.Repository) (*GitHubClient, error) 
 		}
 	}
 
-	c, err := factory.NewGithubClient(RepositoryOption(repo), factory.ReadOnly(gardrails.IsReadonly()))
+	c, err := factory.NewGithubClient(RepositoryOption(repo), factory.ReadOnly(guardrails.IsReadonly()))
 	if err != nil {
 		return nil, err
 	}
