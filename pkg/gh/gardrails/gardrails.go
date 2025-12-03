@@ -17,6 +17,7 @@ type readOnlyOption struct {
 	readonly bool
 }
 
+// ReadOnlyOption creates an option to configure read-only mode.
 func ReadOnlyOption(readonly bool) *readOnlyOption {
 	return &readOnlyOption{readonly: readonly}
 }
