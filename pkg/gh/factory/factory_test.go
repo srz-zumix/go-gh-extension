@@ -196,7 +196,10 @@ func TestReadOnlyClient(t *testing.T) {
 
 			// Close response body if not nil
 			if resp != nil && resp.Body != nil {
-				resp.Body.Close()
+				err = resp.Body.Close()
+				if err != nil {
+					t.Errorf("Failed to close response body: %v", err)
+				}
 			}
 		})
 	}
