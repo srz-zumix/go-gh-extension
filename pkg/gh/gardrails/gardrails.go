@@ -2,15 +2,15 @@ package gardrails
 
 import "sync"
 
-type Grardrail struct {
+type Gardrail struct {
 	readonly bool
 }
 
-var gardrail *Grardrail
+var gardrail *Gardrail
 var gardrailOnce sync.Once
 
-type GradrailOption interface {
-	Apply(*Grardrail)
+type GardrailOption interface {
+	Apply(*Gardrail)
 }
 
 type readOnlyOption struct {
@@ -22,13 +22,13 @@ func ReadOnlyOption(readonly bool) *readOnlyOption {
 	return &readOnlyOption{readonly: readonly}
 }
 
-func (o *readOnlyOption) Apply(g *Grardrail) {
+func (o *readOnlyOption) Apply(g *Gardrail) {
 	g.readonly = o.readonly
 }
 
-func NewGardrail(options ...GradrailOption) *Grardrail {
+func NewGardrail(options ...GardrailOption) *Gardrail {
 	gardrailOnce.Do(func() {
-		gardrail = &Grardrail{readonly: false}
+		gardrail = &Gardrail{readonly: false}
 		for _, opt := range options {
 			opt.Apply(gardrail)
 		}
@@ -36,12 +36,12 @@ func NewGardrail(options ...GradrailOption) *Grardrail {
 	return gardrail
 }
 
-func GetGardrail() *Grardrail {
+func GetGardrail() *Gardrail {
 	return gardrail
 }
 
 // IsReadonly returns whether the guardrail is in read-only mode.
-func (g *Grardrail) IsReadonly() bool {
+func (g *Gardrail) IsReadonly() bool {
 	if g == nil {
 		return false
 	}
