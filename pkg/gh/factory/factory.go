@@ -59,6 +59,7 @@ type Config struct {
 
 type Option func(*Config) error
 
+// Token sets the access token.
 func Token(t string) Option {
 	return func(c *Config) error {
 		if t != "" {
@@ -68,6 +69,7 @@ func Token(t string) Option {
 	}
 }
 
+// Endpoint sets the API endpoint.
 func Endpoint(t string) Option {
 	return func(c *Config) error {
 		if t != "" {
@@ -77,6 +79,7 @@ func Endpoint(t string) Option {
 	}
 }
 
+// DialTimeout sets the dial timeout duration.
 func DialTimeout(to time.Duration) Option {
 	return func(c *Config) error {
 		if to > 0 {
@@ -86,6 +89,7 @@ func DialTimeout(to time.Duration) Option {
 	}
 }
 
+// TLSHandshakeTimeout sets the TLS handshake timeout duration.
 func TLSHandshakeTimeout(to time.Duration) Option {
 	return func(c *Config) error {
 		if to > 0 {
@@ -95,6 +99,7 @@ func TLSHandshakeTimeout(to time.Duration) Option {
 	}
 }
 
+// Timeout sets the overall timeout duration.
 func Timeout(to time.Duration) Option {
 	return func(c *Config) error {
 		if to > 0 {
@@ -104,6 +109,7 @@ func Timeout(to time.Duration) Option {
 	}
 }
 
+// HTTPClient sets the custom HTTP client.
 func HTTPClient(httpClient *http.Client) Option {
 	return func(c *Config) error {
 		if httpClient != nil {
@@ -113,6 +119,7 @@ func HTTPClient(httpClient *http.Client) Option {
 	}
 }
 
+// SkipAuth sets whether to skip authentication.
 func SkipAuth(enable bool) Option {
 	return func(c *Config) error {
 		c.SkipAuth = enable
@@ -120,6 +127,7 @@ func SkipAuth(enable bool) Option {
 	}
 }
 
+// ReadOnly sets whether the client should be read-only.
 func ReadOnly(enable bool) Option {
 	return func(c *Config) error {
 		c.ReadOnly = enable
@@ -127,6 +135,7 @@ func ReadOnly(enable bool) Option {
 	}
 }
 
+// Owner sets the repository owner.
 func Owner(owner string) Option {
 	return func(c *Config) error {
 		c.Owner = owner
@@ -134,6 +143,7 @@ func Owner(owner string) Option {
 	}
 }
 
+// OwnerRepo sets the repository owner and name from "owner/repo" format.
 func OwnerRepo(ownerrepo string) Option {
 	return func(c *Config) error {
 		splitted := strings.Split(ownerrepo, "/")
@@ -269,12 +279,7 @@ type getOnlyRoundTripper struct {
 
 func (rt *getOnlyRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		return &http.Response{
-			StatusCode: http.StatusMethodNotAllowed,
-			Status:     "405 Method Not Allowed",
-			Body:       http.NoBody,
-			Request:    r,
-		}, fmt.Errorf("only GET and HEAD methods are allowed, got %s", r.Method)
+		return nil, fmt.Errorf("only GET and HEAD methods are allowed, got %s", r.Method)
 	}
 	return rt.transport.RoundTrip(r)
 }
