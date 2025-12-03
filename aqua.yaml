@@ -9,12 +9,12 @@
 #   - all
 registries:
 - type: standard
-  ref: v4.439.0 # renovate: depName=aquaproj/aqua-registry
+  ref: v4.441.0 # renovate: depName=aquaproj/aqua-registry
 packages:
-- name: suzuki-shunsuke/pinact@v3.4.4
+- name: suzuki-shunsuke/pinact@v3.4.5
   tags:
     - dev
-- name: crates.io/zizmor@1.16.3
+- name: crates.io/zizmor@1.17.0
   tags:
     - dev
     - ci

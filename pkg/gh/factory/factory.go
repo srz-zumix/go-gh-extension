@@ -54,10 +54,12 @@ type Config struct {
 	Timeout             time.Duration
 	HTTPClient          *http.Client
 	SkipAuth            bool
+	ReadOnly            bool
 }
 
 type Option func(*Config) error
 
+// Token sets the access token.
 func Token(t string) Option {
 	return func(c *Config) error {
 		if t != "" {
@@ -67,6 +69,7 @@ func Token(t string) Option {
 	}
 }
 
+// Endpoint sets the API endpoint.
 func Endpoint(t string) Option {
 	return func(c *Config) error {
 		if t != "" {
@@ -76,6 +79,7 @@ func Endpoint(t string) Option {
 	}
 }
 
+// DialTimeout sets the dial timeout duration.
 func DialTimeout(to time.Duration) Option {
 	return func(c *Config) error {
 		if to > 0 {
@@ -85,6 +89,7 @@ func DialTimeout(to time.Duration) Option {
 	}
 }
 
+// TLSHandshakeTimeout sets the TLS handshake timeout duration.
 func TLSHandshakeTimeout(to time.Duration) Option {
 	return func(c *Config) error {
 		if to > 0 {
@@ -94,6 +99,7 @@ func TLSHandshakeTimeout(to time.Duration) Option {
 	}
 }
 
+// Timeout sets the overall timeout duration.
 func Timeout(to time.Duration) Option {
 	return func(c *Config) error {
 		if to > 0 {
@@ -103,6 +109,7 @@ func Timeout(to time.Duration) Option {
 	}
 }
 
+// HTTPClient sets the custom HTTP client.
 func HTTPClient(httpClient *http.Client) Option {
 	return func(c *Config) error {
 		if httpClient != nil {
@@ -112,6 +119,7 @@ func HTTPClient(httpClient *http.Client) Option {
 	}
 }
 
+// SkipAuth sets whether to skip authentication.
 func SkipAuth(enable bool) Option {
 	return func(c *Config) error {
 		c.SkipAuth = enable
@@ -119,6 +127,15 @@ func SkipAuth(enable bool) Option {
 	}
 }
 
+// ReadOnly sets whether the client should be read-only.
+func ReadOnly(enable bool) Option {
+	return func(c *Config) error {
+		c.ReadOnly = enable
+		return nil
+	}
+}
+
+// Owner sets the repository owner.
 func Owner(owner string) Option {
 	return func(c *Config) error {
 		c.Owner = owner
@@ -126,6 +143,7 @@ func Owner(owner string) Option {
 	}
 }
 
+// OwnerRepo sets the repository owner and name from "owner/repo" format.
 func OwnerRepo(ownerrepo string) Option {
 	return func(c *Config) error {
 		splitted := strings.Split(ownerrepo, "/")
@@ -255,6 +273,17 @@ func (rt roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	return rt.transport.RoundTrip(r)
 }
 
+type getOnlyRoundTripper struct {
+	transport http.RoundTripper
+}
+
+func (rt *getOnlyRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return nil, fmt.Errorf("only GET and HEAD methods are allowed, got %s", r.Method)
+	}
+	return rt.transport.RoundTrip(r)
+}
+
 func newHTTPClientUsingGitHubApp(c *Config, ep string) (*http.Client, error) {
 	envAppID := os.Getenv("GITHUB_APP_ID")
 	envInstallaitonID := os.Getenv("GITHUB_APP_INSTALLATION_ID")
@@ -367,6 +396,14 @@ func detectOwnerRepo(c *Config) (string, string, error) {
 
 func httpClient(c *Config) *http.Client {
 	if c.HTTPClient != nil {
+		if c.ReadOnly {
+			return &http.Client{
+				Timeout: c.HTTPClient.Timeout,
+				Transport: &getOnlyRoundTripper{
+					transport: c.HTTPClient.Transport,
+				},
+			}
+		}
 		return c.HTTPClient
 	}
 	t := &http.Transport{
@@ -379,9 +416,15 @@ func httpClient(c *Config) *http.Client {
 		transport:   t,
 		accessToken: c.Token,
 	}
+	var transport http.RoundTripper = rt
+	if c.ReadOnly {
+		transport = &getOnlyRoundTripper{
+			transport: rt,
+		}
+	}
 	return &http.Client{
 		Timeout:   c.Timeout,
-		Transport: rt,
+		Transport: transport,
 	}
 }
 
