@@ -102,7 +102,10 @@ func TestGetOnlyRoundTripper(t *testing.T) {
 
 			// Close response body if not nil
 			if resp != nil && resp.Body != nil {
-				resp.Body.Close()
+				err = resp.Body.Close()
+				if err != nil {
+					t.Errorf("Failed to close response body: %v", err)
+				}
 			}
 		})
 	}
@@ -112,7 +115,7 @@ func TestReadOnlyClient(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		w.Write([]byte("OK")) // nolint
 	}))
 	defer server.Close()
 
