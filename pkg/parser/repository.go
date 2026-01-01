@@ -55,7 +55,7 @@ func RepositoryFromURL(input string) RepositoryOption {
 			return nil
 		}
 
-		prURL, err := ParsePullRequestURL(input)
+		prURL, err := ParseIssueURL(input)
 		if err != nil {
 			return fmt.Errorf(`failed to parse repository from URL %q: %w`, input, err)
 		}

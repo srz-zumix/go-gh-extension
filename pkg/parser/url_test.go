@@ -173,6 +173,45 @@ func TestParsePullRequestURL(t *testing.T) {
 			},
 		},
 		{
+			name:  "PR URL from actions run with pr query parameter",
+			input: "https://github.com/srz-zumix/go-gh-extension/actions/runs/20018947899/job/57401849098?pr=69",
+			want: &PullRequestURL{
+				Url:    mustParseURL("https://github.com/srz-zumix/go-gh-extension/actions/runs/20018947899/job/57401849098?pr=69"),
+				Number: intPtr(69),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "srz-zumix",
+					Name:  "go-gh-extension",
+				},
+			},
+		},
+		{
+			name:  "PR URL from workflow run with pr query parameter",
+			input: "https://github.com/owner/repo/actions/runs/123456?pr=999",
+			want: &PullRequestURL{
+				Url:    mustParseURL("https://github.com/owner/repo/actions/runs/123456?pr=999"),
+				Number: intPtr(999),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "PR URL with pr query parameter and other parameters",
+			input: "https://github.com/owner/repo/actions/runs/123?tab=artifacts&pr=42",
+			want: &PullRequestURL{
+				Url:    mustParseURL("https://github.com/owner/repo/actions/runs/123?tab=artifacts&pr=42"),
+				Number: intPtr(42),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
 			name:    "invalid URL format",
 			input:   "https://github.com/owner/repo/issues/123",
 			wantErr: true,
@@ -195,6 +234,21 @@ func TestParsePullRequestURL(t *testing.T) {
 		{
 			name:    "URL with non-numeric PR number",
 			input:   "https://github.com/owner/repo/pull/abc",
+			wantErr: true,
+		},
+		{
+			name:    "URL with invalid pr query parameter (zero)",
+			input:   "https://github.com/owner/repo/actions/runs/123?pr=0",
+			wantErr: true,
+		},
+		{
+			name:    "URL with invalid pr query parameter (negative)",
+			input:   "https://github.com/owner/repo/actions/runs/123?pr=-1",
+			wantErr: true,
+		},
+		{
+			name:    "URL with non-numeric pr query parameter",
+			input:   "https://github.com/owner/repo/actions/runs/123?pr=abc",
 			wantErr: true,
 		},
 		{
