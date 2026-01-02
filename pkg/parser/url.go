@@ -16,7 +16,7 @@ type PullRequestURL struct {
 	Repo   *repository.Repository
 }
 
-// ParsePRURL parses a GitHub pull request URL and extracts the PR number and repository information.
+// ParsePullRequestURL parses a GitHub pull request URL and extracts the PR number and repository information.
 // Expected URL formats:
 //   - https://github.com/owner/repo/pull/123
 //   - https://github.com/owner/repo/actions/runs/123/job/456?pr=789 (from query parameter)
