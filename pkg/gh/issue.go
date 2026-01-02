@@ -4,10 +4,95 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
+
+// IssueIdentifier represents different ways to identify an issue.
+//
+// It can identify an issue by:
+//   - Number: The issue number (set when identified by number or URL).
+//   - URL: The issue URL (set when identified by URL).
+//   - Repo: The repository containing the issue (set when identified by URL).
+//
+// Only one or a subset of these fields may be set depending on how the issue is identified.
+type IssueIdentifier struct {
+	Number *int                   // Issue number, set when identified by number or URL
+	URL    *string                // Issue URL, set when identified by URL
+	Repo   *repository.Repository // Repository, set when identified by URL
+}
+
+func (ii *IssueIdentifier) String() string {
+	repo := ""
+	if ii.Repo != nil {
+		repo = fmt.Sprintf("%s/%s ", ii.Repo.Owner, ii.Repo.Name)
+	}
+	if ii.Number != nil {
+		return fmt.Sprintf("%s#%d", repo, *ii.Number)
+	}
+	if ii.URL != nil {
+		return *ii.URL
+	}
+	return "<empty>"
+}
+
+// ParseIssueIdentifier parses a string that could be an issue number or URL
+func ParseIssueIdentifier(input string) (*IssueIdentifier, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return &IssueIdentifier{}, nil
+	}
+
+	// Try to parse as issue number with # prefix (e.g., #123)
+	if strings.HasPrefix(input, "#") {
+		numStr := strings.TrimPrefix(input, "#")
+		if num, err := strconv.Atoi(numStr); err == nil && num > 0 {
+			return &IssueIdentifier{Number: &num}, nil
+		}
+	}
+
+	// Try to parse as issue number
+	if num, err := strconv.Atoi(input); err == nil && num > 0 {
+		return &IssueIdentifier{Number: &num}, nil
+	}
+
+	// Try to parse as URL
+	issueURL, err := parser.ParseIssueURL(input)
+	if err != nil {
+		return nil, err
+	}
+	if issueURL != nil {
+		return &IssueIdentifier{
+			Number: issueURL.Number,
+			URL:    &input,
+			Repo:   issueURL.Repo,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("unable to parse issue identifier: %s", input)
+}
+
+// FindIssueByIdentifier finds an issue by identifier (number or URL)
+func FindIssueByIdentifier(ctx context.Context, g *GitHubClient, repo repository.Repository, identifier string) (*github.Issue, error) {
+	issueID, err := ParseIssueIdentifier(identifier)
+	if err != nil {
+		return nil, err
+	}
+	if issueID.Repo == nil {
+		issueID.Repo = &repo
+	}
+
+	// If we have an issue number, fetch it directly
+	if issueID.Number != nil {
+		return GetIssue(ctx, g, *issueID.Repo, *issueID.Number)
+	}
+
+	return nil, fmt.Errorf("unable to identify issue from: %s", issueID.String())
+}
 
 func GetIssue(ctx context.Context, g *GitHubClient, repo repository.Repository, issue any) (*github.Issue, error) {
 	number, err := GetIssueNumber(issue)
