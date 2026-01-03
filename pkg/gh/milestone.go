@@ -11,10 +11,10 @@ import (
 
 // MilestoneParameter represents parameters for creating or editing a milestone
 type MilestoneParameter struct {
-	Title 	 *string
-	State	 *string
+	Title 	 	*string
+	State	 	*string
 	Description *string
-	DueOn    *github.Timestamp
+	DueOn    	*github.Timestamp
 }
 
 // ToGitHubMilestone converts MilestoneParameter to github.Milestone
@@ -34,15 +34,15 @@ func (mp *MilestoneParameter) ToGitHubMilestone() *github.Milestone {
 type MilestoneListOptions struct {
 	// State filters milestones based on their state. Possible values are:
 	// open, closed, all. Default is "open".
-	State string
+	State		string
 
 	// Sort specifies how to sort milestones. Possible values are: due_on, completeness.
 	// Default value is "due_on".
-	Sort string
+	Sort		string
 
 	// Direction in which to sort milestones. Possible values are: asc, desc.
 	// Default is "asc".
-	Direction string
+	Direction	string
 }
 
 func (opts *MilestoneListOptions) ToGitHubOptions() *github.MilestoneListOptions {
