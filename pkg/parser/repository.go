@@ -55,23 +55,23 @@ func RepositoryFromURL(input string) RepositoryOption {
 			return nil
 		}
 
-		issueURL, err := ParseIssueURL(input)
+		githubURL, err := ParseGitHubURL(input)
 		if err != nil {
 			return fmt.Errorf(`failed to parse repository from URL %q: %w`, input, err)
 		}
-		if issueURL != nil && issueURL.Repo != nil {
-			if r.Host != "" && r.Host != issueURL.Repo.Host {
+		if githubURL != nil && githubURL.Repo != nil {
+			if r.Host != "" && r.Host != githubURL.Repo.Host {
 				return errors.New("conflicting host")
 			}
-			if r.Name != "" && r.Name != issueURL.Repo.Name {
+			if r.Name != "" && r.Name != githubURL.Repo.Name {
 				return errors.New("conflicting name")
 			}
-			if r.Owner != "" && r.Owner != issueURL.Repo.Owner {
+			if r.Owner != "" && r.Owner != githubURL.Repo.Owner {
 				return errors.New("conflicting owner")
 			}
-			r.Host = issueURL.Repo.Host
-			r.Name = issueURL.Repo.Name
-			r.Owner = issueURL.Repo.Owner
+			r.Host = githubURL.Repo.Host
+			r.Name = githubURL.Repo.Name
+			r.Owner = githubURL.Repo.Owner
 		}
 		return nil
 	}

@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/google/go-github/v79/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
 func FindRepository(target *github.Repository, repos []*github.Repository) *github.Repository {
@@ -59,8 +60,13 @@ func GetNumberFromString(s string) (int, error) {
 		return number, nil
 	}
 	_, err = fmt.Sscanf(s, "#%d", &number)
-	if err != nil {
-		return 0, fmt.Errorf("invalid number format: %s", s)
+	if err == nil {
+		return number, nil
 	}
-	return number, nil
+
+	issue, err := parser.ParseIssueURL(s)
+	if err == nil && issue != nil && issue.Number != nil {
+		return *issue.Number, nil
+	}
+	return 0, fmt.Errorf("invalid number format: %s", s)
 }
