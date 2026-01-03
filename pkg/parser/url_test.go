@@ -1225,3 +1225,232 @@ func TestParseNumberFromPath(t *testing.T) {
 		})
 	}
 }
+
+func TestParseMilestoneURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    *MilestoneURL
+		wantErr bool
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "whitespace only",
+			input: "   ",
+			want:  nil,
+		},
+		{
+			name:  "not a URL",
+			input: "feature-branch",
+			want:  nil,
+		},
+		{
+			name:  "valid HTTPS milestone URL",
+			input: "https://github.com/owner/repo/milestone/123",
+			want: &MilestoneURL{
+				Url:    mustParseURL("https://github.com/owner/repo/milestone/123"),
+				Number: intPtr(123),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "valid HTTP milestone URL",
+			input: "http://github.com/owner/repo/milestone/456",
+			want: &MilestoneURL{
+				Url:    mustParseURL("http://github.com/owner/repo/milestone/456"),
+				Number: intPtr(456),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "milestone URL with trailing slash",
+			input: "https://github.com/owner/repo/milestone/789/",
+			want: &MilestoneURL{
+				Url:    mustParseURL("https://github.com/owner/repo/milestone/789/"),
+				Number: intPtr(789),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "milestone URL with query parameters",
+			input: "https://github.com/owner/repo/milestone/300?state=open",
+			want: &MilestoneURL{
+				Url:    mustParseURL("https://github.com/owner/repo/milestone/300?state=open"),
+				Number: intPtr(300),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "milestone URL with fragment",
+			input: "https://github.com/owner/repo/milestone/400#milestone-details",
+			want: &MilestoneURL{
+				Url:    mustParseURL("https://github.com/owner/repo/milestone/400#milestone-details"),
+				Number: intPtr(400),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "milestone URL with whitespace",
+			input: "  https://github.com/owner/repo/milestone/500  ",
+			want: &MilestoneURL{
+				Url:    mustParseURL("https://github.com/owner/repo/milestone/500"),
+				Number: intPtr(500),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "GitHub Enterprise milestone URL",
+			input: "https://github.example.com/owner/repo/milestone/600",
+			want: &MilestoneURL{
+				Url:    mustParseURL("https://github.example.com/owner/repo/milestone/600"),
+				Number: intPtr(600),
+				Repo: &repository.Repository{
+					Host:  "github.example.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "owner name with hyphen",
+			input: "https://github.com/my-org/repo/milestone/700",
+			want: &MilestoneURL{
+				Url:    mustParseURL("https://github.com/my-org/repo/milestone/700"),
+				Number: intPtr(700),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "my-org",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "repo name with dots",
+			input: "https://github.com/owner/repo.name/milestone/800",
+			want: &MilestoneURL{
+				Url:    mustParseURL("https://github.com/owner/repo.name/milestone/800"),
+				Number: intPtr(800),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo.name",
+				},
+			},
+		},
+		{
+			name:    "URL with invalid milestone number (zero)",
+			input:   "https://github.com/owner/repo/milestone/0",
+			wantErr: true,
+		},
+		{
+			name:    "URL with invalid milestone number (negative)",
+			input:   "https://github.com/owner/repo/milestone/-1",
+			wantErr: true,
+		},
+		{
+			name:    "URL with non-numeric milestone number",
+			input:   "https://github.com/owner/repo/milestone/abc",
+			wantErr: true,
+		},
+		{
+			name:    "URL without milestone number",
+			input:   "https://github.com/owner/repo/milestone/",
+			wantErr: true,
+		},
+		{
+			name:    "URL with too short path",
+			input:   "https://github.com/owner/repo",
+			wantErr: true,
+		},
+		{
+			name:    "URL with only owner",
+			input:   "https://github.com/owner",
+			wantErr: true,
+		},
+		{
+			name:    "not a milestone URL (issues)",
+			input:   "https://github.com/owner/repo/issues/123",
+			wantErr: true,
+		},
+		{
+			name:    "not a milestone URL (pull)",
+			input:   "https://github.com/owner/repo/pull/123",
+			wantErr: true,
+		},
+		{
+			name:    "not a milestone URL (discussions)",
+			input:   "https://github.com/owner/repo/discussions/123",
+			wantErr: true,
+		},
+		{
+			name:    "malformed URL",
+			input:   "https://not a valid url",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseMilestoneURL(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseMilestoneURL() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil {
+				return
+			}
+
+			if (got == nil) != (tt.want == nil) {
+				t.Errorf("ParseMilestoneURL() = %v, want %v", got, tt.want)
+				return
+			}
+
+			if got == nil {
+				return
+			}
+
+			// Compare URL
+			if got.Url.String() != tt.want.Url.String() {
+				t.Errorf("ParseMilestoneURL() Url = %v, want %v", got.Url, tt.want.Url)
+			}
+
+			// Compare Number
+			if !compareIntPtr(got.Number, tt.want.Number) {
+				t.Errorf("ParseMilestoneURL() Number = %v, want %v", ptrValue(got.Number), ptrValue(tt.want.Number))
+			}
+
+			// Compare Repo
+			if !compareRepo(got.Repo, tt.want.Repo) {
+				t.Errorf("ParseMilestoneURL() Repo = %v, want %v", got.Repo, tt.want.Repo)
+			}
+		})
+	}
+}
