@@ -604,3 +604,227 @@ func TestParseIssueURL(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDiscussionURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    *DiscussionURL
+		wantErr bool
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "whitespace only",
+			input: "   ",
+			want:  nil,
+		},
+		{
+			name:  "not a URL",
+			input: "feature-branch",
+			want:  nil,
+		},
+		{
+			name:  "valid HTTPS discussion URL",
+			input: "https://github.com/owner/repo/discussions/123",
+			want: &DiscussionURL{
+				Url:    mustParseURL("https://github.com/owner/repo/discussions/123"),
+				Number: intPtr(123),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "valid HTTP discussion URL",
+			input: "http://github.com/owner/repo/discussions/456",
+			want: &DiscussionURL{
+				Url:    mustParseURL("http://github.com/owner/repo/discussions/456"),
+				Number: intPtr(456),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "discussion URL with trailing slash",
+			input: "https://github.com/owner/repo/discussions/789/",
+			want: &DiscussionURL{
+				Url:    mustParseURL("https://github.com/owner/repo/discussions/789/"),
+				Number: intPtr(789),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "discussion URL with query parameters",
+			input: "https://github.com/owner/repo/discussions/300?sort=top",
+			want: &DiscussionURL{
+				Url:    mustParseURL("https://github.com/owner/repo/discussions/300?sort=top"),
+				Number: intPtr(300),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "discussion URL with fragment",
+			input: "https://github.com/owner/repo/discussions/400#discussioncomment-123",
+			want: &DiscussionURL{
+				Url:    mustParseURL("https://github.com/owner/repo/discussions/400#discussioncomment-123"),
+				Number: intPtr(400),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "discussion URL with whitespace",
+			input: "  https://github.com/owner/repo/discussions/500  ",
+			want: &DiscussionURL{
+				Url:    mustParseURL("https://github.com/owner/repo/discussions/500"),
+				Number: intPtr(500),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "GitHub Enterprise discussion URL",
+			input: "https://github.example.com/owner/repo/discussions/600",
+			want: &DiscussionURL{
+				Url:    mustParseURL("https://github.example.com/owner/repo/discussions/600"),
+				Number: intPtr(600),
+				Repo: &repository.Repository{
+					Host:  "github.example.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "owner name with hyphen",
+			input: "https://github.com/my-org/repo/discussions/700",
+			want: &DiscussionURL{
+				Url:    mustParseURL("https://github.com/my-org/repo/discussions/700"),
+				Number: intPtr(700),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "my-org",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:  "repo name with dots",
+			input: "https://github.com/owner/repo.name/discussions/800",
+			want: &DiscussionURL{
+				Url:    mustParseURL("https://github.com/owner/repo.name/discussions/800"),
+				Number: intPtr(800),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo.name",
+				},
+			},
+		},
+		{
+			name:    "URL with invalid discussion number (zero)",
+			input:   "https://github.com/owner/repo/discussions/0",
+			wantErr: true,
+		},
+		{
+			name:    "URL with invalid discussion number (negative)",
+			input:   "https://github.com/owner/repo/discussions/-1",
+			wantErr: true,
+		},
+		{
+			name:    "URL with non-numeric discussion number",
+			input:   "https://github.com/owner/repo/discussions/abc",
+			wantErr: true,
+		},
+		{
+			name:    "URL without discussion number",
+			input:   "https://github.com/owner/repo/discussions/",
+			wantErr: true,
+		},
+		{
+			name:    "URL with too short path",
+			input:   "https://github.com/owner/repo",
+			wantErr: true,
+		},
+		{
+			name:    "URL with only owner",
+			input:   "https://github.com/owner",
+			wantErr: true,
+		},
+		{
+			name:    "not a discussion URL (issues)",
+			input:   "https://github.com/owner/repo/issues/123",
+			wantErr: true,
+		},
+		{
+			name:    "not a discussion URL (pull)",
+			input:   "https://github.com/owner/repo/pull/123",
+			wantErr: true,
+		},
+		{
+			name:    "malformed URL",
+			input:   "https://not a valid url",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseDiscussionURL(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseDiscussionURL() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil {
+				return
+			}
+
+			if (got == nil) != (tt.want == nil) {
+				t.Errorf("ParseDiscussionURL() = %v, want %v", got, tt.want)
+				return
+			}
+
+			if got == nil {
+				return
+			}
+
+			// Compare URL
+			if got.Url.String() != tt.want.Url.String() {
+				t.Errorf("ParseDiscussionURL() Url = %v, want %v", got.Url, tt.want.Url)
+			}
+
+			// Compare Number
+			if !compareIntPtr(got.Number, tt.want.Number) {
+				t.Errorf("ParseDiscussionURL() Number = %v, want %v", ptrValue(got.Number), ptrValue(tt.want.Number))
+			}
+
+			// Compare Repo
+			if !compareRepo(got.Repo, tt.want.Repo) {
+				t.Errorf("ParseDiscussionURL() Repo = %v, want %v", got.Repo, tt.want.Repo)
+			}
+		})
+	}
+}
