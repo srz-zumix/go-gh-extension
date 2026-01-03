@@ -828,3 +828,279 @@ func TestParseDiscussionURL(t *testing.T) {
 		})
 	}
 }
+
+func TestParseGitHubURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    *GitHubURL
+		wantErr bool
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "whitespace only",
+			input: "   ",
+			want:  nil,
+		},
+		{
+			name:  "not a URL",
+			input: "feature-branch",
+			want:  nil,
+		},
+		{
+			name:  "owner/repo format (not a URL)",
+			input: "owner/repo",
+			want:  nil,
+		},
+		{
+			name:  "valid HTTPS repository URL",
+			input: "https://github.com/owner/repo",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.com/owner/repo"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				PathParts: []string{"owner", "repo"},
+			},
+		},
+		{
+			name:  "valid HTTP repository URL",
+			input: "http://github.com/owner/repo",
+			want: &GitHubURL{
+				Url: mustParseURL("http://github.com/owner/repo"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				PathParts: []string{"owner", "repo"},
+			},
+		},
+		{
+			name:  "repository URL with trailing slash",
+			input: "https://github.com/owner/repo/",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.com/owner/repo/"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				PathParts: []string{"owner", "repo"},
+			},
+		},
+		{
+			name:  "pull request URL",
+			input: "https://github.com/owner/repo/pull/123",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.com/owner/repo/pull/123"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				PathParts: []string{"owner", "repo", "pull", "123"},
+			},
+		},
+		{
+			name:  "issue URL",
+			input: "https://github.com/owner/repo/issues/456",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.com/owner/repo/issues/456"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				PathParts: []string{"owner", "repo", "issues", "456"},
+			},
+		},
+		{
+			name:  "discussion URL",
+			input: "https://github.com/owner/repo/discussions/789",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.com/owner/repo/discussions/789"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				PathParts: []string{"owner", "repo", "discussions", "789"},
+			},
+		},
+		{
+			name:  "blob URL with file path",
+			input: "https://github.com/owner/repo/blob/main/src/file.go",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.com/owner/repo/blob/main/src/file.go"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				PathParts: []string{"owner", "repo", "blob", "main", "src", "file.go"},
+			},
+		},
+		{
+			name:  "actions run URL",
+			input: "https://github.com/owner/repo/actions/runs/123456",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.com/owner/repo/actions/runs/123456"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				PathParts: []string{"owner", "repo", "actions", "runs", "123456"},
+			},
+		},
+		{
+			name:  "URL with query parameters",
+			input: "https://github.com/owner/repo/pull/100?tab=files",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.com/owner/repo/pull/100?tab=files"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				PathParts: []string{"owner", "repo", "pull", "100"},
+			},
+		},
+		{
+			name:  "URL with fragment",
+			input: "https://github.com/owner/repo/issues/200#issuecomment-123",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.com/owner/repo/issues/200#issuecomment-123"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				PathParts: []string{"owner", "repo", "issues", "200"},
+			},
+		},
+		{
+			name:  "URL with whitespace",
+			input: "  https://github.com/owner/repo  ",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.com/owner/repo"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				PathParts: []string{"owner", "repo"},
+			},
+		},
+		{
+			name:  "GitHub Enterprise URL",
+			input: "https://github.example.com/owner/repo",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.example.com/owner/repo"),
+				Repo: &repository.Repository{
+					Host:  "github.example.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				PathParts: []string{"owner", "repo"},
+			},
+		},
+		{
+			name:  "owner name with hyphen",
+			input: "https://github.com/my-org/repo",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.com/my-org/repo"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "my-org",
+					Name:  "repo",
+				},
+				PathParts: []string{"my-org", "repo"},
+			},
+		},
+		{
+			name:  "repo name with dots",
+			input: "https://github.com/owner/repo.name",
+			want: &GitHubURL{
+				Url: mustParseURL("https://github.com/owner/repo.name"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo.name",
+				},
+				PathParts: []string{"owner", "repo.name"},
+			},
+		},
+		{
+			name:    "URL with only owner",
+			input:   "https://github.com/owner",
+			wantErr: true,
+		},
+		{
+			name:    "URL with empty path",
+			input:   "https://github.com/",
+			wantErr: true,
+		},
+		{
+			name:    "malformed URL",
+			input:   "https://not a valid url",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseGitHubURL(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseGitHubURL() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil {
+				return
+			}
+
+			if (got == nil) != (tt.want == nil) {
+				t.Errorf("ParseGitHubURL() = %v, want %v", got, tt.want)
+				return
+			}
+
+			if got == nil {
+				return
+			}
+
+			// Compare URL
+			if got.Url.String() != tt.want.Url.String() {
+				t.Errorf("ParseGitHubURL() Url = %v, want %v", got.Url, tt.want.Url)
+			}
+
+			// Compare Repo
+			if !compareRepo(got.Repo, tt.want.Repo) {
+				t.Errorf("ParseGitHubURL() Repo = %v, want %v", got.Repo, tt.want.Repo)
+			}
+
+			// Compare PathParts
+			if !compareStringSlice(got.PathParts, tt.want.PathParts) {
+				t.Errorf("ParseGitHubURL() PathParts = %v, want %v", got.PathParts, tt.want.PathParts)
+			}
+		})
+	}
+}
+
+func compareStringSlice(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
