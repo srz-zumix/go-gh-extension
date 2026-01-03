@@ -1104,3 +1104,124 @@ func compareStringSlice(a, b []string) bool {
 	}
 	return true
 }
+
+func TestParseNumberFromPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		pathParts []string
+		index     int
+		wantNum   int
+		wantOk    bool
+	}{
+		{
+			name:      "valid positive number",
+			pathParts: []string{"owner", "repo", "pull", "123"},
+			index:     3,
+			wantNum:   123,
+			wantOk:    true,
+		},
+		{
+			name:      "valid single digit number",
+			pathParts: []string{"owner", "repo", "issues", "1"},
+			index:     3,
+			wantNum:   1,
+			wantOk:    true,
+		},
+		{
+			name:      "valid large number",
+			pathParts: []string{"owner", "repo", "discussions", "999999"},
+			index:     3,
+			wantNum:   999999,
+			wantOk:    true,
+		},
+		{
+			name:      "index out of bounds",
+			pathParts: []string{"owner", "repo"},
+			index:     3,
+			wantNum:   0,
+			wantOk:    false,
+		},
+		{
+			name:      "index at boundary (equal to length)",
+			pathParts: []string{"owner", "repo", "pull"},
+			index:     3,
+			wantNum:   0,
+			wantOk:    false,
+		},
+		{
+			name:      "zero number",
+			pathParts: []string{"owner", "repo", "pull", "0"},
+			index:     3,
+			wantNum:   0,
+			wantOk:    false,
+		},
+		{
+			name:      "negative number",
+			pathParts: []string{"owner", "repo", "pull", "-1"},
+			index:     3,
+			wantNum:   0,
+			wantOk:    false,
+		},
+		{
+			name:      "non-numeric string",
+			pathParts: []string{"owner", "repo", "pull", "abc"},
+			index:     3,
+			wantNum:   0,
+			wantOk:    false,
+		},
+		{
+			name:      "empty string at index",
+			pathParts: []string{"owner", "repo", "pull", ""},
+			index:     3,
+			wantNum:   0,
+			wantOk:    false,
+		},
+		{
+			name:      "mixed alphanumeric string",
+			pathParts: []string{"owner", "repo", "pull", "123abc"},
+			index:     3,
+			wantNum:   0,
+			wantOk:    false,
+		},
+		{
+			name:      "number with leading zeros",
+			pathParts: []string{"owner", "repo", "pull", "000123"},
+			index:     3,
+			wantNum:   123,
+			wantOk:    true,
+		},
+		{
+			name:      "number with plus sign",
+			pathParts: []string{"owner", "repo", "pull", "+123"},
+			index:     3,
+			wantNum:   123,
+			wantOk:    true,
+		},
+		{
+			name:      "empty pathParts slice",
+			pathParts: []string{},
+			index:     0,
+			wantNum:   0,
+			wantOk:    false,
+		},
+		{
+			name:      "negative index",
+			pathParts: []string{"owner", "repo", "pull", "456"},
+			index:     -1,
+			wantNum:   0,
+			wantOk:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotNum, gotOk := parseNumberFromPath(tt.pathParts, tt.index)
+			if gotNum != tt.wantNum {
+				t.Errorf("parseNumberFromPath() gotNum = %v, want %v", gotNum, tt.wantNum)
+			}
+			if gotOk != tt.wantOk {
+				t.Errorf("parseNumberFromPath() gotOk = %v, want %v", gotOk, tt.wantOk)
+			}
+		})
+	}
+}

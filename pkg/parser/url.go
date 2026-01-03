@@ -56,7 +56,7 @@ func ParseGitHubURL(input string) (*GitHubURL, error) {
 // Returns the number and true if successful, or 0 and false if the index is out of bounds
 // or the value is not a valid positive integer.
 func parseNumberFromPath(pathParts []string, index int) (int, bool) {
-	if len(pathParts) <= index {
+	if index < 0 || len(pathParts) <= index {
 		return 0, false
 	}
 	num, err := strconv.Atoi(pathParts[index])
