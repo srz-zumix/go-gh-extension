@@ -1,14 +1,11 @@
 package gh
 
 import (
-	"fmt"
-	"strconv"
 	"strings"
 
 	"slices"
 
 	"github.com/google/go-github/v79/github"
-	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
 func FindRepository(target *github.Repository, repos []*github.Repository) *github.Repository {
@@ -52,21 +49,4 @@ func FilterTeamByNames(teams []*github.Team, slugs []string) []*github.Team {
 		}
 	}
 	return filteredTeams
-}
-
-func GetNumberFromString(s string) (int, error) {
-	number, err := strconv.Atoi(s)
-	if err == nil {
-		return number, nil
-	}
-	_, err = fmt.Sscanf(s, "#%d", &number)
-	if err == nil {
-		return number, nil
-	}
-
-	issue, err := parser.ParseIssueURL(s)
-	if err == nil && issue != nil && issue.Number != nil {
-		return *issue.Number, nil
-	}
-	return 0, fmt.Errorf("invalid number format: %s", s)
 }

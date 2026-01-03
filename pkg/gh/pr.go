@@ -10,6 +10,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
+	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
 type ReviewersRequest struct {
@@ -175,12 +176,17 @@ func ExpandTeamReviewers(ctx context.Context, g *GitHubClient, repo repository.R
 	return expanded, nil
 }
 
-func GetPullRequestNumberFromString(pr string) (int, error) {
-	return GetIssueNumberFromString(pr)
-}
-
 func GetPullRequestNumber(pull_request any) (int, error) {
-	return GetIssueNumber(pull_request)
+	switch t := pull_request.(type) {
+	case string:
+		return parser.GetPullRequestNumberFromString(t)
+	case int:
+		return t, nil
+	case *github.PullRequest:
+		return t.GetNumber(), nil
+	default:
+		return 0, fmt.Errorf("unsupported pull request type: %T", pull_request)
+	}
 }
 
 func GetPullRequest(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) (*github.PullRequest, error) {

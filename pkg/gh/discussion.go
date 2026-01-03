@@ -7,6 +7,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
+	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
 type Discussion = client.Discussion
@@ -233,11 +234,13 @@ func SetDiscussionLabels(ctx context.Context, g *GitHubClient, repo repository.R
 func GetDiscussionNumber(number any) (int, error) {
 	switch t := number.(type) {
 	case string:
-		return GetNumberFromString(t)
+		return parser.GetDiscussionNumberFromString(t)
 	case int:
 		return t, nil
 	case *Discussion:
 		return int(t.Number), nil
+	case *github.Discussion:
+		return t.GetNumber(), nil
 	default:
 		return 0, fmt.Errorf("unsupported number type: %T", number)
 	}

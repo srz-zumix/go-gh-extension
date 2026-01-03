@@ -195,3 +195,41 @@ func ParseDiscussionURL(input string) (*DiscussionURL, error) {
 
 	return nil, fmt.Errorf("not a discussion URL: %s", input)
 }
+
+// MilestoneURL represents a milestone parsed from a URL
+type MilestoneURL struct {
+	Url    *url.URL
+	Number *int
+	Repo   *repository.Repository
+}
+
+// ParseMilestoneURL parses a GitHub milestone URL and extracts the milestone number and repository information.
+// Expected URL formats:
+//   - https://github.com/owner/repo/milestone/123
+//
+// Returns MilestoneURL containing the milestone number and repository, or an error if parsing fails.
+func ParseMilestoneURL(input string) (*MilestoneURL, error) {
+	githubURL, err := ParseGitHubURL(input)
+	if err != nil {
+		return nil, err
+	}
+	if githubURL == nil {
+		return nil, nil
+	}
+
+	// Check if this is a direct milestone URL (/owner/repo/milestone/123)
+	if len(githubURL.PathParts) >= 4 && githubURL.PathParts[2] == "milestone" {
+		num, ok := parseNumberFromPath(githubURL.PathParts, 3)
+		if !ok {
+			return nil, fmt.Errorf("invalid milestone number in URL: %s", input)
+		}
+
+		return &MilestoneURL{
+			Url:    githubURL.Url,
+			Number: &num,
+			Repo:   githubURL.Repo,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("not a milestone URL: %s", input)
+}

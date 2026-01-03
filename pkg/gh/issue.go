@@ -102,18 +102,10 @@ func GetIssue(ctx context.Context, g *GitHubClient, repo repository.Repository, 
 	return g.GetIssueByNumber(ctx, repo.Owner, repo.Name, number)
 }
 
-func GetIssueNumberFromString(issue string) (int, error) {
-	number, err := GetNumberFromString(issue)
-	if err != nil {
-		return 0, err
-	}
-	return number, nil
-}
-
 func GetIssueNumber(issue any) (int, error) {
 	switch t := issue.(type) {
 	case string:
-		return GetIssueNumberFromString(t)
+		return parser.GetIssueNumberFromString(t)
 	case int:
 		return t, nil
 	case *github.Issue:
