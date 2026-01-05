@@ -5,7 +5,7 @@ go 1.25.4
 require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.17.0
 	github.com/cli/go-gh/v2 v2.13.0
-	github.com/ddddddO/gtree v1.13.1
+	github.com/ddddddO/gtree v1.13.2
 	github.com/fatih/color v1.18.0
 	github.com/google/go-github/v79 v79.0.0
 	github.com/google/go-querystring v1.1.0
@@ -40,7 +40,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
-	github.com/goccy/go-yaml v1.18.0 // indirect
+	github.com/goccy/go-yaml v1.19.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/google/go-github/v75 v75.0.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
@@ -74,7 +74,7 @@ require (
 	github.com/thlib/go-timezone-local v0.0.6 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/crypto v0.45.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
