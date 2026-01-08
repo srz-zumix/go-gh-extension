@@ -160,8 +160,8 @@ func OwnerRepo(ownerrepo string) Option {
 func NewGithubClient(opts ...Option) (*github.Client, error) {
 	c := &Config{
 		Token:               "",
-		DialTimeout:         5 * time.Second,
-		TLSHandshakeTimeout: 5 * time.Second,
+		DialTimeout:         10 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
 		Timeout:             30 * time.Second,
 	}
 	for _, o := range opts {
