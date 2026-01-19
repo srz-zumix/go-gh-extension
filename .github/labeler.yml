@@ -4,7 +4,8 @@ ci:
       - any-glob-to-all-files: '.github/**'
   - all-files-to-any-glob:
     - '.github/**'
-    - 'zizmor.yml'
+    - '*.yml'
+    - '*.yaml'
   - color: '#7c0bb2'
 
 documentation:
