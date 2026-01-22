@@ -2,10 +2,10 @@ ci:
   - any:
     - changed-files:
       - any-glob-to-all-files: '.github/**'
-  - all-files-to-any-glob:
-    - '.github/**'
-    - '*.yml'
-    - '*.yaml'
+    - all-files-to-any-glob:
+      - '.github/**'
+      - '*.yml'
+      - '*.yaml'
   - color: '#7c0bb2'
 
 documentation:
