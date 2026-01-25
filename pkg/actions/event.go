@@ -40,7 +40,7 @@ type EventPayload struct {
 	Forced            bool                       `json:"forced,omitempty"`
 	BaseRef           string                     `json:"base_ref,omitempty"`
 	Pusher            *github.CommitAuthor       `json:"pusher,omitempty"`
-	Inputs            map[string]any     		 `json:"inputs,omitempty"`
+	Inputs            map[string]any             `json:"inputs,omitempty"`
 	Workflow          *github.Workflow           `json:"workflow,omitempty"`
 	WorkflowRun       *github.WorkflowRun        `json:"workflow_run,omitempty"`
 	Release           *github.RepositoryRelease  `json:"release,omitempty"`
@@ -56,8 +56,8 @@ type EventPayload struct {
 	CheckRun          *github.CheckRun           `json:"check_run,omitempty"`
 	CheckSuite        *github.CheckSuite         `json:"check_suite,omitempty"`
 	Package           *github.Package            `json:"package,omitempty"`
-	Discussion        any                		 `json:"discussion,omitempty"`
-	DiscussionComment any                		 `json:"discussion_comment,omitempty"`
+	Discussion        any                        `json:"discussion,omitempty"`
+	DiscussionComment any                        `json:"discussion_comment,omitempty"`
 }
 
 // GetEventPayload reads and parses the complete GitHub Actions event payload
