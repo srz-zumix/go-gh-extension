@@ -340,7 +340,7 @@ func compareRepo(a, b *repository.Repository) bool {
 	return a.Host == b.Host && a.Owner == b.Owner && a.Name == b.Name
 }
 
-func ptrValue(v interface{}) interface{} {
+func ptrValue(v any) any {
 	if v == nil {
 		return "<nil>"
 	}
