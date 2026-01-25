@@ -288,7 +288,7 @@ func compareRepo(a, b *repository.Repository) bool {
 	return a.Host == b.Host && a.Owner == b.Owner && a.Name == b.Name
 }
 
-func ptrToString(v interface{}) string {
+func ptrToString(v any) string {
 	if v == nil {
 		return "<nil>"
 	}

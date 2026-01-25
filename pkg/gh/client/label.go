@@ -72,7 +72,7 @@ func (g *GitHubClient) GetRepositoryLabelID(ctx context.Context, owner string, r
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"owner":     githubv4.String(owner),
 		"repo":      githubv4.String(repo),
 		"labelName": githubv4.String(labelName),
@@ -107,7 +107,7 @@ func (g *GitHubClient) GetRepositoryLabelIDs(ctx context.Context, owner string, 
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"owner": githubv4.String(owner),
 		"repo":  githubv4.String(repo),
 	}

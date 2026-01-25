@@ -48,7 +48,7 @@ func (g *GitHubClient) GetDiscussion(ctx context.Context, owner string, repo str
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"owner":  githubv4.String(owner),
 		"repo":   githubv4.String(repo),
 		"number": githubv4.Int(number),
@@ -80,7 +80,7 @@ func (g *GitHubClient) ListDiscussions(ctx context.Context, owner string, repo s
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"owner":  githubv4.String(owner),
 		"repo":   githubv4.String(repo),
 		"first":  githubv4.Int(first),
@@ -183,7 +183,7 @@ func (g *GitHubClient) SearchDiscussions(ctx context.Context, query string, firs
 		} `graphql:"search(query: $query, type: DISCUSSION, first: $first, after: $cursor)"`
 	}
 
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"query":  githubv4.String(query),
 		"first":  githubv4.Int(first),
 		"cursor": (*githubv4.String)(nil),

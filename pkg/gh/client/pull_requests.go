@@ -222,7 +222,7 @@ func (g *GitHubClient) GetPullRequestCommentThreadID(ctx context.Context, owner 
 			} `graphql:"pullRequest(number: $pr)"`
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"owner": githubv4.String(owner),
 		"repo":  githubv4.String(repo),
 		"pr":    githubv4.Int(number),
@@ -347,7 +347,7 @@ func (g *GitHubClient) GetAssociatedPullRequestsForRef(ctx context.Context, owne
 		} `graphql:"repository(owner: $owner, name: $name)"`
 	}
 
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"owner":   githubv4.String(owner),
 		"name":    githubv4.String(repo),
 		"ref":     githubv4.String(qualifiedRef),

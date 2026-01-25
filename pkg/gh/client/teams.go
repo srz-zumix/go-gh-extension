@@ -239,7 +239,7 @@ func (g *GitHubClient) GetTeamCodeReviewSettings(ctx context.Context, org string
 		} `graphql:"organization(login: $org)"`
 	}
 
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"org":      githubv4.String(org),
 		"teamSlug": githubv4.String(teamSlug),
 	}

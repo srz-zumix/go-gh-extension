@@ -142,7 +142,7 @@ func (g *GitHubClient) ListCheckRunsForRefWithGraphQL(ctx context.Context, owner
 		} `graphql:"repository(owner: $owner, name: $name)"`
 	}
 
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"owner":    githubv4.String(owner),
 		"name":     githubv4.String(repo),
 		"ref":      githubv4.String(ref),
