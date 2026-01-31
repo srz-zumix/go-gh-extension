@@ -1,5 +1,4 @@
 package cmdflags
-package cmdflags
 
 import (
 	"testing"
