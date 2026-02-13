@@ -3,6 +3,8 @@ package render
 import (
 	"github.com/fatih/color"
 	"github.com/google/go-github/v79/github"
+	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
 
@@ -125,7 +127,9 @@ func (r *Renderer) RenderCheckRuns(checkRuns []*gh.CheckRun, headers []string) {
 
 	getter := NewCheckRunFieldGetters(r.Color)
 	table := r.newTableWriter(headers)
-	table.SetAutoWrapText(false)
+	table.Configure(func(cfg *tablewriter.Config) {
+		cfg.Row.Formatting.AutoWrap = tw.WrapNone
+	})
 
 	for _, checkRun := range checkRuns {
 		row := make([]string, len(headers))
@@ -246,7 +250,9 @@ func (r *Renderer) RenderCheckSuites(checkSuites []*github.CheckSuite, headers [
 
 	getter := NewCheckSuiteFieldGetters(r.Color)
 	table := r.newTableWriter(headers)
-	table.SetAutoWrapText(false)
+	table.Configure(func(cfg *tablewriter.Config) {
+		cfg.Row.Formatting.AutoWrap = tw.WrapNone
+	})
 
 	for _, checkSuite := range checkSuites {
 		row := make([]string, len(headers))
