@@ -19,17 +19,18 @@ func NewSBOMPackageFieldGetters() *SBOMPackageFieldGetters {
 		Func: map[string]SBOMPackageFieldGetter{
 			"PACKAGE": func(pkg *github.RepoDependencies) string {
 				names := strings.Split(ToString(pkg.Name), ":")
-				if len(names) > 0 {
+				if len(names) > 1 {
 					return names[0]
 				}
 				return ""
 			},
 			"NAME": func(pkg *github.RepoDependencies) string {
-				names := strings.Split(ToString(pkg.Name), ":")
+				name := ToString(pkg.Name)
+				names := strings.Split(name, ":")
 				if len(names) > 1 {
 					return names[1]
 				}
-				return ""
+				return name
 			},
 			"VERSION": func(pkg *github.RepoDependencies) string {
 				return ToString(pkg.VersionInfo)
