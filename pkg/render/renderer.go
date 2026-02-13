@@ -11,6 +11,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/google/go-github/v79/github"
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -311,9 +312,17 @@ func ToRGB(c string) (int, int, int, error) {
 }
 
 func (r *Renderer) newTableWriter(header []string) *tablewriter.Table {
-	table := tablewriter.NewWriter(r.IO.Out)
-	table.SetHeader(header)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table := tablewriter.NewTable(r.IO.Out)
+	table.Configure(func(config *tablewriter.Config) {
+		config.Row.Alignment.Global = tw.AlignLeft
+	})
+
+	anyHeader := make([]any, len(header))
+	for i, h := range header {
+		anyHeader[i] = h
+	}
+	table.Header(anyHeader...)
+
 	return table
 }
 

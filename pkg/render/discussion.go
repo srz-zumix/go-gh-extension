@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
@@ -89,7 +91,9 @@ func (r *Renderer) RenderDiscussions(discussions []client.Discussion, headers []
 
 	getter := NewDiscussionFieldGetters(r.Color)
 	table := r.newTableWriter(headers)
-	table.SetAutoWrapText(false)
+	table.Configure(func(cfg *tablewriter.Config) {
+		cfg.Row.Formatting.AutoWrap = tw.WrapNone
+	})
 
 	for _, disc := range discussions {
 		row := make([]string, len(headers))

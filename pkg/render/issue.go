@@ -5,6 +5,8 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/google/go-github/v79/github"
+	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 )
 
 type issueFieldGetter func(issue *github.Issue) string
@@ -98,7 +100,9 @@ func (r *Renderer) RenderIssues(issues []*github.Issue, headers []string) {
 
 	getter := NewIssueFieldGetters(r.Color)
 	table := r.newTableWriter(headers)
-	table.SetAutoWrapText(false)
+	table.Configure(func(cfg *tablewriter.Config) {
+		cfg.Row.Formatting.AutoWrap = tw.WrapNone
+	})
 
 	for _, issue := range issues {
 		row := make([]string, len(headers))
