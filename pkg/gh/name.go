@@ -71,7 +71,11 @@ func GetObjectNames(items any) []string {
 		names := make([]string, len(v))
 		for i, item := range v {
 			s := strings.Split(*item.Name, ":")
-			names[i] = s[1]
+			if len(s) < 2 {
+				names[i] = *item.Name
+			} else {
+				names[i] = s[1]
+			}
 		}
 		return names
 	default:
