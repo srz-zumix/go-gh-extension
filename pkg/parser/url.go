@@ -233,3 +233,52 @@ func ParseMilestoneURL(input string) (*MilestoneURL, error) {
 
 	return nil, fmt.Errorf("not a milestone URL: %s", input)
 }
+
+// TeamURL represents a team parsed from a URL
+type TeamURL struct {
+	Url      *url.URL
+	Host     string
+	Org      string
+	TeamSlug string
+}
+
+// ParseTeamURL parses a GitHub team URL and extracts the organization and team slug.
+// Expected URL formats:
+//   - https://github.com/orgs/{org}/teams/{team_slug}
+//
+// Returns TeamURL containing the organization and team slug, or an error if parsing fails.
+func ParseTeamURL(input string) (*TeamURL, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return nil, nil
+	}
+
+	if !strings.HasPrefix(input, "http://") && !strings.HasPrefix(input, "https://") {
+		return nil, nil
+	}
+
+	parsedURL, err := url.Parse(input)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	pathParts := strings.Split(strings.Trim(parsedURL.Path, "/"), "/")
+	// Expected format: orgs/{org}/teams/{team_slug}
+	if len(pathParts) < 4 || pathParts[0] != "orgs" || pathParts[2] != "teams" {
+		return nil, fmt.Errorf("not a team URL: %s", input)
+	}
+
+	org := pathParts[1]
+	teamSlug := pathParts[3]
+
+	if org == "" || teamSlug == "" {
+		return nil, fmt.Errorf("invalid team URL: %s", input)
+	}
+
+	return &TeamURL{
+		Url:      parsedURL,
+		Host:     parsedURL.Host,
+		Org:      org,
+		TeamSlug: teamSlug,
+	}, nil
+}

@@ -7,6 +7,10 @@ import (
 )
 
 func TeamSlugWithHostOwner(teamSlug string) (repository.Repository, string) {
+	teamURL, err := ParseTeamURL(teamSlug)
+	if err == nil && teamURL != nil {
+		return repository.Repository{Host: teamURL.Host, Owner: teamURL.Org}, teamURL.TeamSlug
+	}
 	parts := strings.SplitN(teamSlug, "/", 3)
 	if len(parts) == 2 {
 		return repository.Repository{Owner: parts[0]}, parts[1]
