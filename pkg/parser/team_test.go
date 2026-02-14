@@ -110,6 +110,51 @@ func TestTeamSlugWithHostOwner(t *testing.T) {
 			},
 			wantTeamSlug: "",
 		},
+		{
+			name:     "GitHub.com team URL",
+			teamSlug: "https://github.com/orgs/my-org/teams/my-team",
+			wantRepo: repository.Repository{
+				Host:  "github.com",
+				Owner: "my-org",
+			},
+			wantTeamSlug: "my-team",
+		},
+		{
+			name:     "GitHub Enterprise team URL",
+			teamSlug: "https://github.example.com/orgs/enterprise-org/teams/enterprise-team",
+			wantRepo: repository.Repository{
+				Host:  "github.example.com",
+				Owner: "enterprise-org",
+			},
+			wantTeamSlug: "enterprise-team",
+		},
+		{
+			name:     "GitHub.com team URL with trailing slash",
+			teamSlug: "https://github.com/orgs/my-org/teams/my-team/",
+			wantRepo: repository.Repository{
+				Host:  "github.com",
+				Owner: "my-org",
+			},
+			wantTeamSlug: "my-team",
+		},
+		{
+			name:     "GitHub.com team URL with additional path",
+			teamSlug: "https://github.com/orgs/my-org/teams/my-team/members",
+			wantRepo: repository.Repository{
+				Host:  "github.com",
+				Owner: "my-org",
+			},
+			wantTeamSlug: "my-team",
+		},
+		{
+			name:     "GitHub.com team URL with query parameters",
+			teamSlug: "https://github.com/orgs/my-org/teams/my-team?tab=members",
+			wantRepo: repository.Repository{
+				Host:  "github.com",
+				Owner: "my-org",
+			},
+			wantTeamSlug: "my-team",
+		},
 	}
 
 	for _, tt := range tests {
