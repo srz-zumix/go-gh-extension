@@ -1454,3 +1454,160 @@ func TestParseMilestoneURL(t *testing.T) {
 		})
 	}
 }
+
+func TestParseTeamURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    *TeamURL
+		wantErr bool
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "whitespace only",
+			input: "   ",
+			want:  nil,
+		},
+		{
+			name:  "not a URL",
+			input: "my-team",
+			want:  nil,
+		},
+		{
+			name:  "valid team URL",
+			input: "https://github.com/orgs/my-org/teams/my-team",
+			want: &TeamURL{
+				Url:      mustParseURL("https://github.com/orgs/my-org/teams/my-team"),
+				Host:     "github.com",
+				Org:      "my-org",
+				TeamSlug: "my-team",
+			},
+		},
+		{
+			name:  "valid HTTP team URL",
+			input: "http://github.com/orgs/my-org/teams/my-team",
+			want: &TeamURL{
+				Url:      mustParseURL("http://github.com/orgs/my-org/teams/my-team"),
+				Host:     "github.com",
+				Org:      "my-org",
+				TeamSlug: "my-team",
+			},
+		},
+		{
+			name:  "team URL with trailing slash",
+			input: "https://github.com/orgs/my-org/teams/my-team/",
+			want: &TeamURL{
+				Url:      mustParseURL("https://github.com/orgs/my-org/teams/my-team/"),
+				Host:     "github.com",
+				Org:      "my-org",
+				TeamSlug: "my-team",
+			},
+		},
+		{
+			name:  "team URL with additional path",
+			input: "https://github.com/orgs/my-org/teams/my-team/members",
+			want: &TeamURL{
+				Url:      mustParseURL("https://github.com/orgs/my-org/teams/my-team/members"),
+				Host:     "github.com",
+				Org:      "my-org",
+				TeamSlug: "my-team",
+			},
+		},
+		{
+			name:  "team URL with query parameters",
+			input: "https://github.com/orgs/my-org/teams/my-team?tab=members",
+			want: &TeamURL{
+				Url:      mustParseURL("https://github.com/orgs/my-org/teams/my-team?tab=members"),
+				Host:     "github.com",
+				Org:      "my-org",
+				TeamSlug: "my-team",
+			},
+		},
+		{
+			name:  "team URL with whitespace",
+			input: "  https://github.com/orgs/my-org/teams/my-team  ",
+			want: &TeamURL{
+				Url:      mustParseURL("https://github.com/orgs/my-org/teams/my-team"),
+				Host:     "github.com",
+				Org:      "my-org",
+				TeamSlug: "my-team",
+			},
+		},
+		{
+			name:  "GitHub Enterprise URL",
+			input: "https://github.example.com/orgs/enterprise-org/teams/enterprise-team",
+			want: &TeamURL{
+				Url:      mustParseURL("https://github.example.com/orgs/enterprise-org/teams/enterprise-team"),
+				Host:     "github.example.com",
+				Org:      "enterprise-org",
+				TeamSlug: "enterprise-team",
+			},
+		},
+		{
+			name:    "not a team URL (repo URL)",
+			input:   "https://github.com/owner/repo",
+			wantErr: true,
+		},
+		{
+			name:    "not a team URL (pull request)",
+			input:   "https://github.com/owner/repo/pull/123",
+			wantErr: true,
+		},
+		{
+			name:    "not a team URL (missing teams path)",
+			input:   "https://github.com/orgs/my-org",
+			wantErr: true,
+		},
+		{
+			name:    "malformed URL",
+			input:   "https://not a valid url",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseTeamURL(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseTeamURL() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil {
+				return
+			}
+
+			if (got == nil) != (tt.want == nil) {
+				t.Errorf("ParseTeamURL() = %v, want %v", got, tt.want)
+				return
+			}
+
+			if got == nil {
+				return
+			}
+
+			// Compare URL
+			if got.Url.String() != tt.want.Url.String() {
+				t.Errorf("ParseTeamURL() Url = %v, want %v", got.Url, tt.want.Url)
+			}
+
+			// Compare Host
+			if got.Host != tt.want.Host {
+				t.Errorf("ParseTeamURL() Host = %v, want %v", got.Host, tt.want.Host)
+			}
+
+			// Compare Org
+			if got.Org != tt.want.Org {
+				t.Errorf("ParseTeamURL() Org = %v, want %v", got.Org, tt.want.Org)
+			}
+
+			// Compare TeamSlug
+			if got.TeamSlug != tt.want.TeamSlug {
+				t.Errorf("ParseTeamURL() TeamSlug = %v, want %v", got.TeamSlug, tt.want.TeamSlug)
+			}
+		})
+	}
+}
