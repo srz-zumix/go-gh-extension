@@ -136,6 +136,10 @@ func FlattenSBOMPackages(sboms []*github.SBOM) []*github.RepoDependencies {
 func SelectSBOMPackage(deps []*github.RepoDependencies, packageName string) []*github.RepoDependencies {
 	var selected []*github.RepoDependencies
 	for _, dep := range deps {
+		if dep.Name == nil {
+			// Skip dependencies without a name to avoid nil pointer dereference
+			continue
+		}
 		parts := strings.Split(*dep.Name, ":")
 		if parts[0] == packageName {
 			selected = append(selected, dep)
