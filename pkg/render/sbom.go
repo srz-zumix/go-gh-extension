@@ -79,7 +79,7 @@ func (r *Renderer) RenderRepositoryDependencies(deps []*github.RepoDependencies,
 	table.Render()
 }
 
-// RenderSBOMPackagesWithHeaders renders SBOM packages with custom headers
+// RenderSBOMPackages renders SBOM packages with custom headers
 func (r *Renderer) RenderSBOMPackages(sbom *github.SBOM, headers []string) {
 	if r.exporter != nil {
 		r.RenderExportedData(sbom)
