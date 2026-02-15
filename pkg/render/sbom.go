@@ -166,7 +166,7 @@ func (r *Renderer) RenderSBOMInfo(sbomInfo *github.SBOMInfo, headers []string) {
 	table.Render()
 }
 
-// RenderMultipleSBOMPackages merges packages from multiple SBOMs and renders them as a single table
+// RenderMultipleSBOMPackages renders packages from multiple SBOMs, displaying each SBOM's name followed by its packages
 func (r *Renderer) RenderMultipleSBOMPackages(sboms []*github.SBOM, headers []string) {
 	if r.exporter != nil {
 		r.RenderExportedData(sboms)
