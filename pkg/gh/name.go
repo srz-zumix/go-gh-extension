@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
 func GetObjectName(item any) string {
 	switch v := item.(type) {
 	case *github.Repository:
 		return *v.FullName
+	case repository.Repository:
+		return parser.GetRepositoryFullName(v)
 	case *github.Team:
 		return *v.Slug
 	case *github.User:
@@ -25,6 +29,9 @@ func GetObjectName(item any) string {
 		return *v.Name
 	case *github.RepoDependencies:
 		s := strings.Split(*v.Name, ":")
+		if len(s) < 2 {
+			return *v.Name
+		}
 		return s[1]
 	case *github.SBOM:
 		return *v.SBOM.Name

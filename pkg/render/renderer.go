@@ -3,6 +3,7 @@ package render
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -43,6 +44,7 @@ var ColorFlags = []string{
 	ColorFlagAuto,
 }
 
+// NewRenderer creates a new Renderer with the provided exporter and default IOStreams
 func NewRenderer(ex cmdutil.Exporter) *Renderer {
 	return &Renderer{
 		IO:       iostreams.System(),
@@ -50,6 +52,7 @@ func NewRenderer(ex cmdutil.Exporter) *Renderer {
 	}
 }
 
+// NewStringRenderer creates a new StringRenderer with the provided exporter and test IOStreams
 func NewStringRenderer(ex cmdutil.Exporter) *StringRenderer {
 	io, _, out, errOut := iostreams.Test()
 	return &StringRenderer{
@@ -62,6 +65,20 @@ func NewStringRenderer(ex cmdutil.Exporter) *StringRenderer {
 	}
 }
 
+// NewFileRenderer creates a Renderer that outputs to the specified file
+func NewFileRenderer(file *os.File, ex cmdutil.Exporter) *Renderer {
+	io := iostreams.System()
+	io.SetStdoutTTY(false)
+	io.SetStderrTTY(false)
+	io.Out = file
+	io.SetColorEnabled(false)
+	return &Renderer{
+		IO:       io,
+		exporter: ex,
+	}
+}
+
+// SetColor sets the Color field based on the provided color flag
 func (r *Renderer) SetColor(colorFlag string) {
 	switch colorFlag {
 	case ColorFlagAlways:
@@ -73,6 +90,7 @@ func (r *Renderer) SetColor(colorFlag string) {
 	}
 }
 
+// WriteLine writes a line to the output stream, respecting the exporter if set
 func (r *Renderer) WriteLine(line string) {
 	if r.exporter != nil {
 		return
@@ -87,10 +105,12 @@ func (r *Renderer) writeLine(line string) {
 	}
 }
 
+// WriteError writes an error message to the error output stream
 func (r *Renderer) WriteError(err error) {
 	fmt.Fprintf(r.IO.ErrOut, "%v\n", err) // nolint
 }
 
+// ToString converts various types to their string representation, handling pointers and nil values gracefully
 func ToString(v any) string {
 	if str, ok := v.(*string); ok {
 		if str == nil {
@@ -292,6 +312,7 @@ func toString(v any) string {
 	return ""
 }
 
+// ToRGB converts a hex color code (without the leading '#') to its RGB components
 func ToRGB(c string) (int, int, int, error) {
 	if len(c) != 6 {
 		return 0, 0, 0, fmt.Errorf("invalid color code: %s", c)
