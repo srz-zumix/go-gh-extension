@@ -69,62 +69,59 @@ func parseActionRepository(packageName string, host string) (repository.Reposito
 	}, true
 }
 
-// GetActionsDependenciesRecursive retrieves actions dependencies by traversing referenced action repositories recursively using BFS
-func GetActionsDependenciesRecursive(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool) ([]*github.SBOM, error) {
+// GetActionsDependencyGraph retrieves actions dependency graph with SBOMs and edges by traversing referenced action repositories recursively
+func GetActionsDependencyGraph(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool) ([]*github.SBOM, []GraphEdge, error) {
 	visited := make(map[string]bool)
+	return getActionsDependencyGraphInternal(ctx, g, repo, recursive, visited)
+}
+
+// getActionsDependencyGraphInternal is an internal helper that tracks visited repositories to avoid cycles
+func getActionsDependencyGraphInternal(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool, visited map[string]bool) ([]*github.SBOM, []GraphEdge, error) {
 	repoKey := fmt.Sprintf("%s/%s", repo.Owner, repo.Name)
+	if visited[repoKey] {
+		return nil, nil, nil
+	}
 	visited[repoKey] = true
 
 	sbom, err := GetRepositoryDependencyGraphSBOM(ctx, g, repo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get SBOM for repository %s/%s: %w", repo.Owner, repo.Name, err)
+		return nil, nil, fmt.Errorf("failed to get SBOM for repository %s/%s: %w", repo.Owner, repo.Name, err)
 	}
 
 	actionsSBOM := FilterSBOMPackage(sbom, "actions")
 	var sboms []*github.SBOM
 	sboms = append(sboms, actionsSBOM)
 
-	if !recursive {
-		return sboms, nil
-	}
+	var edges []GraphEdge
 
-	// BFS through action dependencies
-	var queue []repository.Repository
 	for _, pkg := range actionsSBOM.SBOM.Packages {
 		if actionRepo, ok := parseActionRepository(*pkg.Name, repo.Host); ok {
-			queue = append(queue, actionRepo)
-		}
-	}
-
-	for len(queue) > 0 {
-		actionRepo := queue[0]
-		queue = queue[1:]
-
-		key := fmt.Sprintf("%s/%s", actionRepo.Owner, actionRepo.Name)
-		if visited[key] {
-			continue
-		}
-		visited[key] = true
-
-		depSBOM, err := GetRepositoryDependencyGraphSBOM(ctx, g, actionRepo)
-		if err != nil {
-			// skip repos that are not accessible
-			continue
-		}
-
-		depActionsSBOM := FilterSBOMPackage(depSBOM, "actions")
-		sboms = append(sboms, depActionsSBOM)
-
-		for _, pkg := range depActionsSBOM.SBOM.Packages {
-			if nextRepo, ok := parseActionRepository(*pkg.Name, repo.Host); ok {
-				queue = append(queue, nextRepo)
+			edges = append(edges, GraphEdge{
+				From: repo,
+				To:   pkg,
+			})
+			if GetObjectName(pkg) != GetObjectName(actionRepo) {
+				edges = append(edges, GraphEdge{
+					From: pkg,
+					To:   actionRepo,
+				})
+			}
+			if recursive {
+				subSBOMs, subEdges, err := getActionsDependencyGraphInternal(ctx, g, actionRepo, recursive, visited)
+				if err != nil {
+					// skip repos that are not accessible
+					continue
+				}
+				sboms = append(sboms, subSBOMs...)
+				edges = append(edges, subEdges...)
 			}
 		}
 	}
 
-	return sboms, nil
+	return sboms, edges, nil
 }
 
+// FilterDependencyGraphEdges filters the dependency graph edges based on the provided package name
 func FlattenSBOMPackages(sboms []*github.SBOM) []*github.RepoDependencies {
 	var allPackages []*github.RepoDependencies
 	for _, sbom := range sboms {
@@ -133,6 +130,7 @@ func FlattenSBOMPackages(sboms []*github.SBOM) []*github.RepoDependencies {
 	return allPackages
 }
 
+// SelectDependencyGraphEdges filters the dependency graph edges based on the provided package name
 func SelectSBOMPackage(deps []*github.RepoDependencies, packageName string) []*github.RepoDependencies {
 	var selected []*github.RepoDependencies
 	for _, dep := range deps {
@@ -161,6 +159,7 @@ func SelectSBOMPackage(deps []*github.RepoDependencies, packageName string) []*g
 	return selected
 }
 
+// FilterSBOMPackage filters the SBOM to include only packages that match the specified package name
 func FilterSBOMPackage(sbom *github.SBOM, packageName string) *github.SBOM {
 	packages := SelectSBOMPackage(sbom.SBOM.Packages, packageName)
 	filteredSBOM := &github.SBOM{
@@ -179,6 +178,7 @@ func FilterSBOMPackage(sbom *github.SBOM, packageName string) *github.SBOM {
 	return filteredSBOM
 }
 
+// FilterSBOMsPackage filters multiple SBOMs to include only packages that match the specified package name
 func FilterSBOMsPackage(sboms []*github.SBOM, packageName string) []*github.SBOM {
 	var filteredSBOMs []*github.SBOM
 	for _, sbom := range sboms {
