@@ -173,7 +173,11 @@ func (r *Renderer) RenderMultipleSBOMPackages(sboms []*github.SBOM, headers []st
 		return
 	}
 	for _, sbom := range sboms {
-		r.writeLine(*sbom.SBOM.Name)
+		if sbom == nil || sbom.SBOM == nil {
+			// skip SBOM entries that do not contain valid SBOM metadata
+			continue
+		}
+		r.writeLine(ToString(sbom.SBOM.Name))
 		r.RenderSBOMPackages(sbom, headers)
 	}
 }
