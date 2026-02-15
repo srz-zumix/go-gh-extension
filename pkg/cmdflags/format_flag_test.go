@@ -231,7 +231,9 @@ func TestSetupFormatFlagWithNonJSONFormats(t *testing.T) {
 		SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"})
 
 		// Set --jq flag
-		cmd.Flags().Set("jq", ".test")
+		if err := cmd.Flags().Set("jq", ".test"); err != nil {
+			t.Fatalf("failed to set jq flag: %v", err)
+		}
 
 		// Execute PreRunE should fail
 		err := cmd.PreRunE(cmd, []string{})
@@ -258,7 +260,9 @@ func TestSetupFormatFlagWithNonJSONFormats(t *testing.T) {
 		SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"})
 
 		// Set --template flag
-		cmd.Flags().Set("template", "{{.}}")
+		if err := cmd.Flags().Set("template", "{{.}}"); err != nil {
+			t.Fatalf("failed to set template flag: %v", err)
+		}
 
 		// Execute PreRunE should fail
 		err := cmd.PreRunE(cmd, []string{})
@@ -285,8 +289,12 @@ func TestSetupFormatFlagWithNonJSONFormats(t *testing.T) {
 		SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"})
 
 		// Set format to json and jq
-		cmd.Flags().Set("format", "json")
-		cmd.Flags().Set("jq", ".test")
+		if err := cmd.Flags().Set("format", "json"); err != nil {
+			t.Fatalf("failed to set format flag: %v", err)
+		}
+		if err := cmd.Flags().Set("jq", ".test"); err != nil {
+			t.Fatalf("failed to set jq flag: %v", err)
+		}
 
 		// Execute PreRunE should succeed
 		if err := cmd.PreRunE(cmd, []string{}); err != nil {
