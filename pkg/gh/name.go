@@ -37,6 +37,8 @@ func GetObjectName(item any) string {
 		return *v.SBOM.Name
 	case *github.SBOMInfo:
 		return *v.Name
+	case RepositorySubmodule:
+		return fmt.Sprintf("%s/%s", v.Repository.Owner, v.Repository.Name)
 	default:
 		return ""
 	}
@@ -47,42 +49,73 @@ func GetObjectNames(items any) []string {
 	case []*github.Repository:
 		names := make([]string, len(v))
 		for i, item := range v {
-			names[i] = *item.FullName
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []repository.Repository:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
 		}
 		return names
 	case []*github.Team:
 		names := make([]string, len(v))
 		for i, item := range v {
-			names[i] = *item.Slug
+			names[i] = GetObjectName(item)
 		}
 		return names
 	case []*github.User:
 		names := make([]string, len(v))
 		for i, item := range v {
-			names[i] = *item.Login
+			names[i] = GetObjectName(item)
 		}
 		return names
 	case []*github.CustomOrgRoles:
 		names := make([]string, len(v))
 		for i, item := range v {
-			names[i] = *item.Name
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*github.RepositoryPermissionLevel:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*RepositoryPermissionLevel:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
 		}
 		return names
 	case []*github.Label:
 		names := make([]string, len(v))
 		for i, item := range v {
-			names[i] = *item.Name
+			names[i] = GetObjectName(item)
 		}
 		return names
 	case []*github.RepoDependencies:
 		names := make([]string, len(v))
 		for i, item := range v {
-			s := strings.Split(*item.Name, ":")
-			if len(s) < 2 {
-				names[i] = *item.Name
-			} else {
-				names[i] = s[1]
-			}
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*github.SBOM:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*github.SBOMInfo:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []RepositorySubmodule:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
 		}
 		return names
 	default:
