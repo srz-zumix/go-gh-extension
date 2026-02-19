@@ -103,7 +103,10 @@ Automatically detects the calling context and generates the appropriate completi
 	}
 
 	cmdutil.StringEnumFlag(cmd, &shell, "shell", "s", "", ShellTypes, "Shell type")
-	cmd.MarkFlagRequired("shell")
+	err := cmd.MarkFlagRequired("shell")
+	if err != nil {
+		return nil
+	}
 
 	return cmd
 }
@@ -113,7 +116,7 @@ func GenerateExtensionCompletionPatch(shell string) error {
 	var script string
 	extName := GetExtensionName()                      // e.g., "team-kit"
 	execName := GetExecutableName()                    // e.g., "gh-team-kit"
-	funcName := strings.ReplaceAll(extName, "-", "_") // e.g., "team_kit"
+	funcName := strings.ReplaceAll(extName, "-", "_")  // e.g., "team_kit"
 
 	switch shell {
 	case "bash":
