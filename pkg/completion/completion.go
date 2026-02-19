@@ -117,13 +117,13 @@ func GenerateExtensionCompletionPatch(shell string) error {
 
 	switch shell {
 	case "bash":
-		script = generateBashPatch(execName, extName)
+		script = generateBashPatch(execName, extName, funcName)
 	case "zsh":
 		script = generateZshPatch(execName, extName, funcName)
 	case "fish":
 		script = generateFishPatch(execName, extName)
 	case "powershell":
-		script = generatePowerShellPatch(execName, extName)
+		script = generatePowerShellPatch(execName, extName, funcName)
 	default:
 		return nil
 	}
@@ -132,13 +132,16 @@ func GenerateExtensionCompletionPatch(shell string) error {
 	return err
 }
 
-func generateBashPatch(execName, extName string) string {
+func generateBashPatch(execName, extName, funcName string) string {
 	return fmt.Sprintf(`# %s extension completion patch for bash
 # Source this file after gh completion to enable 'gh %s' completion
 
 # Override __gh_get_completion_results to handle %s
 if declare -f __gh_get_completion_results >/dev/null 2>&1; then
-    eval "$(declare -f __gh_get_completion_results | sed '1s/.*/__gh_get_completion_results_original()/')"
+    # Skip if this extension's patch is already applied (idempotency)
+    if ! declare -f __gh_get_completion_results_before_%s >/dev/null 2>&1; then
+    # Save current function with a unique name (allows chaining with other extensions)
+    eval "$(declare -f __gh_get_completion_results | sed '1s/.*/__gh_get_completion_results_before_%s()/')"
 
     __gh_get_completion_results() {
         local requestComp lastParam lastChar args
@@ -148,36 +151,32 @@ if declare -f __gh_get_completion_results >/dev/null 2>&1; then
         for (( i=0; i<${#words[@]}; i++ )); do
             case "${words[i]}" in
                 ">"| ">>" | "<" | "|" | "2>" | "2>>" | "&>" | "&>>")
-                    # Redirection or pipe detected, return without setting COMPREPLY
-                    # This allows bash to use default file completion
                     return 1
                     ;;
             esac
         done
 
-        # Prepare the command to request completions for the program.
         args=("${words[@]:1}")
 
-        # Check if this is a %s completion
-        if [[ "${args[0]}" == "%s" ]]; then
-            # Route directly to the extension
-            # Remove empty trailing arguments to avoid extra spaces
-            local comp_args=()
-            local i
-            for (( i=1; i<${#args[@]}; i++ )); do
-                comp_args+=("${args[i]}")
-            done
-
-            requestComp="gh %s __complete"
-            for arg in "${comp_args[@]}"; do
-                if [[ -n "$arg" ]]; then
-                    requestComp="${requestComp} $arg"
-                fi
-            done
-        else
-            # Use the original logic
-            requestComp="${words[0]} __complete ${args[*]}"
+        # Not our extension, delegate to previous completion function
+        if [[ "${args[0]}" != "%s" ]]; then
+            __gh_get_completion_results_before_%s
+            return
         fi
+
+        # Route directly to the extension
+        local comp_args=()
+        local i
+        for (( i=1; i<${#args[@]}; i++ )); do
+            comp_args+=("${args[i]}")
+        done
+
+        requestComp="gh %s __complete"
+        for arg in "${comp_args[@]}"; do
+            if [[ -n "$arg" ]]; then
+                requestComp="${requestComp} $arg"
+            fi
+        done
 
         lastParam=${words[$((${#words[@]}-1))]}
         lastChar=${lastParam:$((${#lastParam}-1)):1}
@@ -203,32 +202,32 @@ if declare -f __gh_get_completion_results >/dev/null 2>&1; then
         __gh_debug "The completion directive is: ${directive}"
         __gh_debug "The completions are: ${out}"
     }
+    fi
 else
     echo "Warning: gh completion not loaded. Please source gh completion first." >&2
     echo "Run: gh completion -s bash | source" >&2
 fi
-`, execName, extName, extName, extName, extName, extName)
+`, execName, extName, extName, funcName, funcName, extName, funcName, extName)
 }
 
 func generateZshPatch(execName, extName, funcName string) string {
 	return fmt.Sprintf(`# %s extension completion patch for zsh
 # Source this file after gh completion to enable 'gh %s' completion
 
-# Save the original _gh function and redefine it
 if (( $+functions[_gh] )); then
-    # Rename original function
-    functions[__gh_original_completion]=$functions[_gh]
+    # Skip if this extension's patch is already applied (idempotency)
+    if (( ! $+functions[__gh_completion_before_%s] )); then
+    # Save current function with unique name (allows chaining with other extensions)
+    functions[__gh_completion_before_%s]=$functions[_gh]
 
-    # Redefine _gh to intercept team-kit completion
     _gh() {
-        # Check if this is a team-kit completion request
         if [[ ${#words[@]} -ge 2 && "${words[2]}" == "%s" ]]; then
             _gh_%s
             return
         fi
 
-        # Otherwise, call the original function (zsh completion functions don't take arguments)
-        __gh_original_completion
+        # Delegate to previous completion function
+        __gh_completion_before_%s
     }
 
     _gh_%s() {
@@ -236,7 +235,6 @@ if (( $+functions[_gh] )); then
         local -a completions_with_descriptions
         local -a response
 
-        # Build the command - skip 'gh' and 'team-kit', take the rest
         local requestComp="gh %s __complete"
         local i
         for (( i=3; i<=${#words[@]}; i++ )); do
@@ -245,15 +243,12 @@ if (( $+functions[_gh] )); then
             fi
         done
 
-        # Add empty parameter if the cursor is at the end
         if [[ -z "${words[CURRENT]}" ]] || [[ "${words[CURRENT]}" == "" ]]; then
             requestComp="${requestComp} ''"
         fi
 
-        # Execute completion
         response=(${(f)"$(eval ${requestComp} 2>/dev/null)"})
 
-        # Parse response
         for line in $response; do
             if [[ "$line" == :* ]]; then
                 break
@@ -275,11 +270,12 @@ if (( $+functions[_gh] )); then
             compadd -a completions
         fi
     }
+    fi
 else
     echo "Warning: gh completion not loaded. Please install gh completion first." >&2
     echo "Run: gh completion -s zsh > \"\${fpath[1]}/_gh\" && compinit" >&2
 fi
-`, execName, extName, extName, funcName, funcName, extName, extName)
+`, execName, extName, funcName, funcName, extName, funcName, funcName, funcName, extName, extName)
 }
 
 func generateFishPatch(execName, extName string) string {
@@ -329,30 +325,31 @@ complete -c gh -f -n "__%s_is_completing" -a "(__%s_complete)"
 `, execName, extName, extName, extName, extName, extName, extName, extName, extName, extName, extName, extName, extName, extName, extName, extName)
 }
 
-func generatePowerShellPatch(execName, extName string) string {
+func generatePowerShellPatch(execName, extName, funcName string) string {
 	return fmt.Sprintf(`# %s extension completion patch for PowerShell
 # Source this file after gh completion to enable 'gh %s' completion
 
-# Save original gh completer if it exists
-$__original_gh_completer = $null
-if (Get-Variable -Name __ghCompleterBlock -ErrorAction SilentlyContinue) {
-    $__original_gh_completer = ${__ghCompleterBlock}
+# Skip if this extension's patch is already applied (idempotency)
+if (-not (Get-Variable -Name __gh_completer_before_%s -ErrorAction SilentlyContinue)) {
+
+# Save previous completer with unique name (allows chaining with other extensions)
+$__gh_completer_before_%s = $null
+if (Get-Variable -Name __gh_extension_completer -ErrorAction SilentlyContinue) {
+    $__gh_completer_before_%s = ${__gh_extension_completer}
+} elseif (Get-Variable -Name __ghCompleterBlock -ErrorAction SilentlyContinue) {
+    $__gh_completer_before_%s = ${__ghCompleterBlock}
 }
 
-# Override gh completion to handle %s
-Register-ArgumentCompleter -CommandName gh -ScriptBlock {
+${__gh_extension_completer} = {
     param($wordToComplete, $commandAst, $cursorPosition)
 
-    # Get the command line as tokens
     $tokens = $commandAst.CommandElements
     $words = @()
     foreach ($token in $tokens) {
         $words += $token.ToString()
     }
 
-    # Check if this is a %s completion
     if ($words.Count -gt 1 -and $words[1] -eq '%s') {
-        # Build args for __complete
         $completeArgs = @()
         if ($words.Count -gt 2) {
             $completeArgs = $words[2..($words.Count - 1)]
@@ -361,10 +358,8 @@ Register-ArgumentCompleter -CommandName gh -ScriptBlock {
             $completeArgs += ""
         }
 
-        # Call gh %s __complete
         $output = & gh %s __complete @completeArgs 2>$null
 
-        # Parse output into completion results
         $results = @()
         foreach ($line in $output) {
             if ($line -match '^([^\t]+)\t(.+)$') {
@@ -374,13 +369,14 @@ Register-ArgumentCompleter -CommandName gh -ScriptBlock {
             }
         }
         return $results
-    } elseif ($__original_gh_completer) {
-        # Use original gh completer
-        return & $__original_gh_completer $wordToComplete $commandAst $cursorPosition
+    } elseif ($__gh_completer_before_%s) {
+        return & $__gh_completer_before_%s $wordToComplete $commandAst $cursorPosition
     } else {
-        # Fallback: return nothing to let default completion work
         return @()
     }
 }
-`, execName, extName, extName, extName, extName, extName, extName)
+Register-ArgumentCompleter -CommandName gh -ScriptBlock ${__gh_extension_completer}
+
+}
+`, execName, extName, funcName, funcName, funcName, funcName, extName, extName, funcName, funcName)
 }
