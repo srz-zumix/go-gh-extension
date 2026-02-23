@@ -1,11 +1,11 @@
 module github.com/srz-zumix/go-gh-extension
 
-go 1.25.4
+go 1.26
 
 require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.17.0
 	github.com/cli/go-gh/v2 v2.13.0
-	github.com/ddddddO/gtree v1.13.3
+	github.com/ddddddO/gtree v1.13.5
 	github.com/fatih/color v1.18.0
 	github.com/google/go-github/v79 v79.0.0
 	github.com/google/go-querystring v1.2.0
@@ -82,7 +82,7 @@ require (
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/term v0.38.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
