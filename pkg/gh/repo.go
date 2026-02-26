@@ -294,3 +294,18 @@ func GetRepositoryFileContent(ctx context.Context, g *GitHubClient, repo reposit
 	}
 	return fileContent, nil
 }
+
+// CreateRepositoryFile creates a new file in a repository (wrapper).
+func CreateRepositoryFile(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, opts *github.RepositoryContentFileOptions) (*github.RepositoryContentResponse, error) {
+	return g.CreateFile(ctx, repo.Owner, repo.Name, path, opts)
+}
+
+// UpdateRepositoryFile updates an existing file in a repository (wrapper).
+func UpdateRepositoryFile(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, opts *github.RepositoryContentFileOptions) (*github.RepositoryContentResponse, error) {
+	return g.UpdateFile(ctx, repo.Owner, repo.Name, path, opts)
+}
+
+// DeleteRepositoryFile deletes a file in a repository (wrapper).
+func DeleteRepositoryFile(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, opts *github.RepositoryContentFileOptions) error {
+	return g.DeleteFile(ctx, repo.Owner, repo.Name, path, opts)
+}

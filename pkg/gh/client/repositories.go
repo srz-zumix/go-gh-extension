@@ -250,3 +250,27 @@ func (g *GitHubClient) ListTags(ctx context.Context, owner string, repo string) 
 
 	return allTags, nil
 }
+
+// CreateFile creates a new file in a repository.
+func (g *GitHubClient) CreateFile(ctx context.Context, owner, repo, path string, opts *github.RepositoryContentFileOptions) (*github.RepositoryContentResponse, error) {
+	response, _, err := g.client.Repositories.CreateFile(ctx, owner, repo, path, opts)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+// UpdateFile updates an existing file in a repository.
+func (g *GitHubClient) UpdateFile(ctx context.Context, owner, repo, path string, opts *github.RepositoryContentFileOptions) (*github.RepositoryContentResponse, error) {
+	response, _, err := g.client.Repositories.UpdateFile(ctx, owner, repo, path, opts)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+// DeleteFile deletes a file in a repository.
+func (g *GitHubClient) DeleteFile(ctx context.Context, owner, repo, path string, opts *github.RepositoryContentFileOptions) error {
+	_, _, err := g.client.Repositories.DeleteFile(ctx, owner, repo, path, opts)
+	return err
+}
