@@ -79,6 +79,12 @@ func (r *Renderer) RenderWorkflowDependencies(deps []parser.WorkflowDependency, 
 		r.RenderExportedData(deps)
 		return
 	}
+
+	if len(deps) == 0 {
+		r.writeLine("No workflow dependencies.")
+		return
+	}
+
 	for _, dep := range deps {
 		r.writeLine(dep.Source)
 		r.RenderActionReferences(dep.Actions, headers)
