@@ -75,7 +75,69 @@ type workflowJob struct {
 }
 
 type workflowStep struct {
-	Uses string `yaml:"uses"`
+	Uses string         `yaml:"uses"`
+	With map[string]any `yaml:"with"`
+}
+
+// CheckoutPath represents a mapping of a checkout destination path to a repository.
+// This is used to resolve local action references (e.g. "./my-tool") that depend on
+// a repository checked out to a specific path via actions/checkout.
+type CheckoutPath struct {
+	Repository string `json:"repository" yaml:"repository"`             // e.g. "owner/repo"
+	Path       string `json:"path" yaml:"path"`                         // checkout destination path relative to workspace root
+	Ref        string `json:"ref,omitempty" yaml:"ref,omitempty"` // git ref for checkout
+}
+
+// isCheckoutAction returns true if the uses string refers to actions/checkout
+func isCheckoutAction(uses string) bool {
+	ref := ParseActionReference(uses)
+	return ref.Owner == "actions" && ref.Repo == "checkout"
+}
+
+// getWithString extracts a string value from a step's "with" map
+func getWithString(with map[string]any, key string) string {
+	if with == nil {
+		return ""
+	}
+	v, ok := with[key]
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+// resolveLocalActionByCheckout resolves a local action reference using checkout path mappings.
+// If the local action path matches a checkout path prefix, it sets the Owner, Repo, Path, and Ref
+// fields on the ActionReference based on the checkout mapping.
+func resolveLocalActionByCheckout(ref *ActionReference, checkouts []CheckoutPath) {
+	if !ref.IsLocal || ref.IsReusableWorkflow() {
+		return
+	}
+	localPath := ref.LocalPath()
+	var bestMatch *CheckoutPath
+	for i := range checkouts {
+		cp := &checkouts[i]
+		if localPath == cp.Path || strings.HasPrefix(localPath, cp.Path+"/") {
+			if bestMatch == nil || len(cp.Path) > len(bestMatch.Path) {
+				bestMatch = cp
+			}
+		}
+	}
+	if bestMatch == nil {
+		return
+	}
+	parts := strings.SplitN(bestMatch.Repository, "/", 2)
+	if len(parts) != 2 {
+		return
+	}
+	ref.Owner = parts[0]
+	ref.Repo = parts[1]
+	if localPath != bestMatch.Path {
+		ref.Path = strings.TrimPrefix(localPath, bestMatch.Path+"/")
+	}
+	if bestMatch.Ref != "" {
+		ref.Ref = bestMatch.Ref
+	}
 }
 
 // actionYAML represents the structure of an action.yml/action.yaml file
@@ -158,13 +220,33 @@ func ParseWorkflowYAML(content []byte) (string, []ActionReference, error) {
 				refs = append(refs, ref)
 			}
 		}
-		// Step-level action references (jobs.<job_id>.steps[*].uses)
+		// Collect checkout path mappings and step-level action references per job.
+		// Checkout mappings are built incrementally so that only checkouts preceding
+		// a local action step are considered for resolution.
+		var checkouts []CheckoutPath
 		for _, step := range job.Steps {
-			if step.Uses != "" {
-				ref := ParseActionReference(step.Uses)
-				if ref.Raw != "" {
-					refs = append(refs, ref)
+			if step.Uses == "" {
+				continue
+			}
+			// Track checkout steps with both repository and path specified
+			if isCheckoutAction(step.Uses) {
+				repo := getWithString(step.With, "repository")
+				path := getWithString(step.With, "path")
+				if repo != "" && path != "" {
+					checkouts = append(checkouts, CheckoutPath{
+						Repository: repo,
+						Path:       path,
+						Ref:        getWithString(step.With, "ref"),
+					})
 				}
+			}
+			ref := ParseActionReference(step.Uses)
+			if ref.Raw != "" {
+				// Resolve local non-reusable-workflow action references using checkout mappings
+				if ref.IsLocal && !ref.IsReusableWorkflow() {
+					resolveLocalActionByCheckout(&ref, checkouts)
+				}
+				refs = append(refs, ref)
 			}
 		}
 	}

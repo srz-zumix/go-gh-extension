@@ -216,3 +216,249 @@ func TestActionReferenceVersionedName(t *testing.T) {
 	}
 	assert.Equal(t, "actions/checkout@v4", ref.VersionedName())
 }
+
+func TestIsCheckoutAction(t *testing.T) {
+	tests := []struct {
+		uses     string
+		expected bool
+	}{
+		{"actions/checkout@v4", true},
+		{"actions/checkout@v3", true},
+		{"actions/checkout@abc123", true},
+		{"actions/setup-node@v4", false},
+		{"owner/repo@v1", false},
+		{"./local-action", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.uses, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isCheckoutAction(tt.uses))
+		})
+	}
+}
+
+func TestResolveLocalActionByCheckout_MatchesExactPath(t *testing.T) {
+	ref := ActionReference{
+		Raw:     "./my-tool",
+		IsLocal: true,
+	}
+	checkouts := []CheckoutPath{
+		{Repository: "owner/tool", Path: "my-tool", Ref: "v1"},
+	}
+	resolveLocalActionByCheckout(&ref, checkouts)
+
+	assert.Equal(t, "owner", ref.Owner)
+	assert.Equal(t, "tool", ref.Repo)
+	assert.Equal(t, "v1", ref.Ref)
+	assert.Equal(t, "", ref.Path)
+}
+
+func TestResolveLocalActionByCheckout_MatchesSubpath(t *testing.T) {
+	ref := ActionReference{
+		Raw:     "./tools/lint",
+		IsLocal: true,
+	}
+	checkouts := []CheckoutPath{
+		{Repository: "owner/lint-tool", Path: "tools"},
+	}
+	resolveLocalActionByCheckout(&ref, checkouts)
+
+	assert.Equal(t, "owner", ref.Owner)
+	assert.Equal(t, "lint-tool", ref.Repo)
+	assert.Equal(t, "lint", ref.Path)
+}
+
+func TestResolveLocalActionByCheckout_LongestPrefixWins(t *testing.T) {
+	ref := ActionReference{
+		Raw:     "./tools/lint/custom",
+		IsLocal: true,
+	}
+	checkouts := []CheckoutPath{
+		{Repository: "owner/tools-repo", Path: "tools"},
+		{Repository: "owner/lint-repo", Path: "tools/lint"},
+	}
+	resolveLocalActionByCheckout(&ref, checkouts)
+
+	assert.Equal(t, "owner", ref.Owner)
+	assert.Equal(t, "lint-repo", ref.Repo)
+	assert.Equal(t, "custom", ref.Path)
+}
+
+func TestResolveLocalActionByCheckout_NoMatch(t *testing.T) {
+	ref := ActionReference{
+		Raw:     "./unrelated-path",
+		IsLocal: true,
+	}
+	checkouts := []CheckoutPath{
+		{Repository: "owner/tool", Path: "my-tool"},
+	}
+	resolveLocalActionByCheckout(&ref, checkouts)
+
+	assert.Equal(t, "", ref.Owner)
+	assert.Equal(t, "", ref.Repo)
+}
+
+func TestResolveLocalActionByCheckout_SkipsReusableWorkflow(t *testing.T) {
+	ref := ActionReference{
+		Raw:     "./.github/workflows/reusable.yml",
+		IsLocal: true,
+	}
+	checkouts := []CheckoutPath{
+		{Repository: "owner/repo", Path: ".github"},
+	}
+	resolveLocalActionByCheckout(&ref, checkouts)
+
+	assert.Equal(t, "", ref.Owner, "should not resolve reusable workflows")
+}
+
+func TestResolveLocalActionByCheckout_SkipsNonLocal(t *testing.T) {
+	ref := ActionReference{
+		Raw:   "actions/checkout@v4",
+		Owner: "actions",
+		Repo:  "checkout",
+		Ref:   "v4",
+	}
+	checkouts := []CheckoutPath{
+		{Repository: "owner/repo", Path: "actions"},
+	}
+	resolveLocalActionByCheckout(&ref, checkouts)
+
+	assert.Equal(t, "actions", ref.Owner, "should not modify non-local references")
+	assert.Equal(t, "checkout", ref.Repo)
+}
+
+func TestResolveLocalActionByCheckout_NoRefInCheckout(t *testing.T) {
+	ref := ActionReference{
+		Raw:     "./my-tool",
+		IsLocal: true,
+	}
+	checkouts := []CheckoutPath{
+		{Repository: "owner/tool", Path: "my-tool"},
+	}
+	resolveLocalActionByCheckout(&ref, checkouts)
+
+	assert.Equal(t, "owner", ref.Owner)
+	assert.Equal(t, "tool", ref.Repo)
+	assert.Equal(t, "", ref.Ref)
+}
+
+func TestParseWorkflowYAML_ResolvesCheckoutLocalAction(t *testing.T) {
+	yamlContent := `
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: owner/my-tool
+          path: my-tool
+          ref: main
+      - uses: ./my-tool
+`
+	_, refs, err := ParseWorkflowYAML([]byte(yamlContent))
+	assert.NoError(t, err)
+
+	var localRef *ActionReference
+	for i := range refs {
+		if refs[i].Raw == "./my-tool" {
+			localRef = &refs[i]
+			break
+		}
+	}
+	if assert.NotNil(t, localRef, "should find local action reference ./my-tool") {
+		assert.Equal(t, "owner", localRef.Owner)
+		assert.Equal(t, "my-tool", localRef.Repo)
+		assert.Equal(t, "main", localRef.Ref)
+		assert.True(t, localRef.IsLocal)
+	}
+}
+
+func TestParseWorkflowYAML_NoResolutionWithoutCheckout(t *testing.T) {
+	yamlContent := `
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./my-local-action
+`
+	_, refs, err := ParseWorkflowYAML([]byte(yamlContent))
+	assert.NoError(t, err)
+
+	var localRef *ActionReference
+	for i := range refs {
+		if refs[i].Raw == "./my-local-action" {
+			localRef = &refs[i]
+			break
+		}
+	}
+	if assert.NotNil(t, localRef) {
+		assert.Equal(t, "", localRef.Owner)
+		assert.Equal(t, "", localRef.Repo)
+	}
+}
+
+func TestParseWorkflowYAML_CheckoutWithoutRepositoryNotResolved(t *testing.T) {
+	yamlContent := `
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: subdir
+      - uses: ./subdir
+`
+	_, refs, err := ParseWorkflowYAML([]byte(yamlContent))
+	assert.NoError(t, err)
+
+	var localRef *ActionReference
+	for i := range refs {
+		if refs[i].Raw == "./subdir" {
+			localRef = &refs[i]
+			break
+		}
+	}
+	if assert.NotNil(t, localRef) {
+		assert.Equal(t, "", localRef.Owner, "should not resolve: checkout has path but no repository")
+	}
+}
+
+func TestParseWorkflowYAML_CheckoutScopePerJob(t *testing.T) {
+	yamlContent := `
+name: CI
+on: push
+jobs:
+  job1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: owner/tool
+          path: my-tool
+  job2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./my-tool
+`
+	_, refs, err := ParseWorkflowYAML([]byte(yamlContent))
+	assert.NoError(t, err)
+
+	var localRef *ActionReference
+	for i := range refs {
+		if refs[i].Raw == "./my-tool" {
+			localRef = &refs[i]
+			break
+		}
+	}
+	if assert.NotNil(t, localRef) {
+		assert.Equal(t, "", localRef.Owner, "checkout in different job should not resolve")
+	}
+}

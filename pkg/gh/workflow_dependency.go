@@ -176,6 +176,27 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, repo reposi
 				continue
 			}
 
+			// Handle local actions resolved via checkout path mapping.
+			// If Owner/Repo were set by resolveLocalActionByCheckout in the parser,
+			// treat them as external repo actions.
+			if action.IsLocal && !action.IsReusableWorkflow() {
+				if action.Owner != "" && action.Repo != "" {
+					childRepo := repository.Repository{
+						Host:  repo.Host,
+						Owner: action.Owner,
+						Name:  action.Repo,
+					}
+					childKey := parser.GetRepositoryFullName(childRepo)
+					if !visited[childKey] {
+						childDeps, childErr := getChildRepositoryDependencies(ctx, g, childRepo, visited)
+						if childErr == nil {
+							deps = append(deps, childDeps...)
+						}
+					}
+				}
+				continue
+			}
+
 			if action.Owner == "" || action.Repo == "" {
 				continue
 			}
