@@ -277,7 +277,7 @@ func getWorkflowFileDependencies(ctx context.Context, g *GitHubClient, repo repo
 			continue // skip files that cannot be read
 		}
 
-		name, refs, err := parser.ParseWorkflowYAML(content)
+		workflowName, refs, err := parser.ParseWorkflowYAML(content)
 		if err != nil {
 			continue // skip files that cannot be parsed
 		}
@@ -285,7 +285,7 @@ func getWorkflowFileDependencies(ctx context.Context, g *GitHubClient, repo repo
 		if len(refs) > 0 {
 			deps = append(deps, parser.WorkflowDependency{
 				Source:  filePath,
-				Name:    name,
+				Name:    workflowName,
 				Actions: refs,
 			})
 		}

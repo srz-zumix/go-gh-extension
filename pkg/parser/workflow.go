@@ -96,7 +96,7 @@ func ParseActionReference(uses string) ActionReference {
 	}
 
 	// Local action reference (e.g. "./path/to/action")
-	if strings.HasPrefix(uses, "./") || strings.HasPrefix(uses, "../") {
+	if strings.HasPrefix(uses, "./") {
 		return ActionReference{
 			Raw:     uses,
 			IsLocal: true,
