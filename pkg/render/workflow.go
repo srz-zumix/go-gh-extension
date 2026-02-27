@@ -53,7 +53,8 @@ func (r *Renderer) RenderActionReferences(refs []parser.ActionReference, headers
 		r.RenderExportedData(refs)
 		return
 	}
-	if refs == nil {
+	if len(refs) == 0 {
+		r.writeLine("No action references.")
 		return
 	}
 
