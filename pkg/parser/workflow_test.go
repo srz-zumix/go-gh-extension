@@ -427,7 +427,7 @@ jobs:
 		}
 	}
 	if assert.NotNil(t, localRef) {
-		assert.Equal(t, "", localRef.Owner, "should not resolve: checkout has path but no repository")
+		assert.Equal(t, "", localRef.Owner, "should not resolve: checkout without repository means self repo")
 	}
 }
 
@@ -460,5 +460,135 @@ jobs:
 	}
 	if assert.NotNil(t, localRef) {
 		assert.Equal(t, "", localRef.Owner, "checkout in different job should not resolve")
+	}
+}
+
+func TestResolveLocalActionByCheckout_SelfRepoWinsLongestPrefix(t *testing.T) {
+	ref := ActionReference{
+		Raw:     "./tools/lint/action",
+		IsLocal: true,
+	}
+	checkouts := []CheckoutPath{
+		{Repository: "owner/tools-repo", Path: "tools"},
+		{Repository: "", Path: "tools/lint"}, // self repo checkout
+	}
+	resolveLocalActionByCheckout(&ref, checkouts)
+
+	assert.Equal(t, "", ref.Owner, "self-repo checkout should win by longest prefix and skip resolution")
+	assert.Equal(t, "", ref.Repo)
+}
+
+func TestParseWorkflowYAML_SelfCheckoutPreventsExternalResolution(t *testing.T) {
+	yamlContent := `
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: other-owner/other-repo
+          path: tools
+      - uses: actions/checkout@v4
+        with:
+          path: tools/local
+      - uses: ./tools/local/my-action
+`
+	_, refs, err := ParseWorkflowYAML([]byte(yamlContent))
+	assert.NoError(t, err)
+
+	var localRef *ActionReference
+	for i := range refs {
+		if refs[i].Raw == "./tools/local/my-action" {
+			localRef = &refs[i]
+			break
+		}
+	}
+	if assert.NotNil(t, localRef) {
+		assert.Equal(t, "", localRef.Owner, "self-repo checkout with longer prefix should prevent external resolution")
+		assert.Equal(t, "", localRef.Repo)
+	}
+}
+
+func TestResolveActionDepSource(t *testing.T) {
+	tests := []struct {
+		name     string
+		action   ActionReference
+		sources  map[string]bool
+		expected string
+	}{
+		{
+			name:     "local reusable workflow",
+			action:   ActionReference{Raw: "./.github/workflows/release.yml", IsLocal: true},
+			sources:  map[string]bool{".github/workflows/release.yml": true},
+			expected: ".github/workflows/release.yml",
+		},
+		{
+			name:     "local action in current repo",
+			action:   ActionReference{Raw: "./my-action", IsLocal: true},
+			sources:  map[string]bool{"my-action/action.yml": true},
+			expected: "my-action/action.yml",
+		},
+		{
+			name:     "local action yaml variant",
+			action:   ActionReference{Raw: "./my-action", IsLocal: true},
+			sources:  map[string]bool{"my-action/action.yaml": true},
+			expected: "my-action/action.yaml",
+		},
+		{
+			name:   "checkout-resolved local action",
+			action: ActionReference{Raw: "./tools/lint", IsLocal: true, Owner: "org", Repo: "tools", Path: "lint"},
+			sources: map[string]bool{
+				"org/tools:lint/action.yml": true,
+			},
+			expected: "org/tools:lint/action.yml",
+		},
+		{
+			name:   "remote action repository",
+			action: ActionReference{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"},
+			sources: map[string]bool{
+				"actions/checkout:action.yml": true,
+			},
+			expected: "actions/checkout:action.yml",
+		},
+		{
+			name:   "remote action with subdirectory",
+			action: ActionReference{Raw: "github/codeql-action/init@v3", Owner: "github", Repo: "codeql-action", Path: "init", Ref: "v3"},
+			sources: map[string]bool{
+				"github/codeql-action:init/action.yml": true,
+			},
+			expected: "github/codeql-action:init/action.yml",
+		},
+		{
+			name:   "remote reusable workflow",
+			action: ActionReference{Raw: "org/repo/.github/workflows/w.yml@main", Owner: "org", Repo: "repo", Path: ".github/workflows/w.yml", Ref: "main"},
+			sources: map[string]bool{
+				"org/repo:.github/workflows/w.yml": true,
+			},
+			expected: "org/repo:.github/workflows/w.yml",
+		},
+		{
+			name:     "no matching source",
+			action:   ActionReference{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"},
+			sources:  map[string]bool{},
+			expected: "",
+		},
+		{
+			name:     "docker action (no resolution)",
+			action:   ActionReference{Raw: "docker://alpine:3.8"},
+			sources:  map[string]bool{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hasSource := func(key string) bool {
+				return tt.sources[key]
+			}
+			got := ResolveActionDepSource(tt.action, hasSource)
+			assert.Equal(t, tt.expected, got)
+		})
 	}
 }

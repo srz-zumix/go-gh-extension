@@ -79,3 +79,9 @@ func NewGitHubClientWith2Repos(repo1, repo2 repository.Repository) (*GitHubClien
 	}
 	return c1, c1, nil
 }
+
+// NewGitHubClientForDefaultHost creates a GitHubClient for github.com.
+// This is used as a fallback client when the primary host is a GitHub Enterprise instance.
+func NewGitHubClientForDefaultHost() (*GitHubClient, error) {
+	return NewGitHubClientWithRepo(repository.Repository{Host: defaultHost})
+}

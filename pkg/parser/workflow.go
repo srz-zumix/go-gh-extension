@@ -56,6 +56,67 @@ func (a ActionReference) LocalPath() string {
 	return strings.TrimPrefix(a.Raw, "./")
 }
 
+// ResolveActionDepSource resolves an action reference to a matching dependency source key.
+// The hasSource function checks if a given source key exists in the set of known dep sources.
+// Returns the matching source key, or empty string if no match was found.
+//
+// This maps action references (e.g., "./my-action", "owner/repo@v1") to their
+// corresponding WorkflowDependency.Source (e.g., "my-action/action.yml", "owner/repo:action.yml").
+func ResolveActionDepSource(action ActionReference, hasSource func(string) bool) string {
+	if action.IsLocal && action.IsReusableWorkflow() {
+		// Local reusable workflow (e.g. "./.github/workflows/release.yml" -> ".github/workflows/release.yml")
+		localPath := action.LocalPath()
+		if hasSource(localPath) {
+			return localPath
+		}
+	} else if action.IsLocal && !action.IsReusableWorkflow() {
+		if action.Owner != "" && action.Repo != "" {
+			// Checkout-resolved local action (e.g. "./tools/lint" resolved to "owner/repo:lint/action.yml")
+			for _, fname := range []string{"action.yml", "action.yaml"} {
+				actionFile := fname
+				if action.Path != "" {
+					actionFile = action.Path + "/" + fname
+				}
+				key := fmt.Sprintf("%s/%s:%s", action.Owner, action.Repo, actionFile)
+				if hasSource(key) {
+					return key
+				}
+			}
+		} else {
+			// Local action in current repo (e.g. "./my-action" -> "my-action/action.yml")
+			localPath := action.LocalPath()
+			for _, fname := range []string{"action.yml", "action.yaml"} {
+				key := localPath + "/" + fname
+				if hasSource(key) {
+					return key
+				}
+			}
+		}
+	} else if action.Owner != "" && action.Repo != "" {
+		if action.IsReusableWorkflow() {
+			// Remote reusable workflow (e.g. "owner/repo/.github/workflows/w.yml@ref")
+			key := fmt.Sprintf("%s/%s:%s", action.Owner, action.Repo, action.Path)
+			if hasSource(key) {
+				return key
+			}
+		} else {
+			// Remote action repository (e.g. "owner/repo@v1" -> "owner/repo:action.yml")
+			// Also supports subdirectory actions (e.g. "owner/repo/path@v1" -> "owner/repo:path/action.yml")
+			for _, fname := range []string{"action.yml", "action.yaml"} {
+				actionFile := fname
+				if action.Path != "" {
+					actionFile = action.Path + "/" + fname
+				}
+				key := fmt.Sprintf("%s/%s:%s", action.Owner, action.Repo, actionFile)
+				if hasSource(key) {
+					return key
+				}
+			}
+		}
+	}
+	return ""
+}
+
 // WorkflowDependency represents dependencies found in a single workflow or action file
 type WorkflowDependency struct {
 	Source  string            `json:"source"`  // File path, e.g. ".github/workflows/ci.yml"
@@ -124,6 +185,11 @@ func resolveLocalActionByCheckout(ref *ActionReference, checkouts []CheckoutPath
 		}
 	}
 	if bestMatch == nil {
+		return
+	}
+	// Empty Repository means the checkout is for the current (self) repository.
+	// No resolution needed since the local action path already refers to the current repo.
+	if bestMatch.Repository == "" {
 		return
 	}
 	parts := strings.SplitN(bestMatch.Repository, "/", 2)
@@ -228,13 +294,13 @@ func ParseWorkflowYAML(content []byte) (string, []ActionReference, error) {
 			if step.Uses == "" {
 				continue
 			}
-			// Track checkout steps with both repository and path specified
+			// Track checkout steps with path specified
 			if isCheckoutAction(step.Uses) {
 				repo := getWithString(step.With, "repository")
 				path := getWithString(step.With, "path")
-				if repo != "" && path != "" {
+				if path != "" {
 					checkouts = append(checkouts, CheckoutPath{
-						Repository: repo,
+						Repository: repo, // empty means self repository
 						Path:       path,
 						Ref:        getWithString(step.With, "ref"),
 					})

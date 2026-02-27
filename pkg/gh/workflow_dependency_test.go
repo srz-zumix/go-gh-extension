@@ -127,6 +127,42 @@ func TestExpandFilteredDependencies_ActionRepository(t *testing.T) {
 	}
 }
 
+func TestExpandFilteredDependencies_ActionRepositorySubdirectory(t *testing.T) {
+	allDeps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Name:   "CI",
+			Actions: []parser.ActionReference{
+				{Raw: "custom-org/custom-action/path/to/action@v1", Owner: "custom-org", Repo: "custom-action", Path: "path/to/action", Ref: "v1"},
+			},
+		},
+		{
+			Source: "custom-org/custom-action:path/to/action/action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"},
+			},
+		},
+	}
+
+	filtered := []parser.WorkflowDependency{allDeps[0]}
+	expanded := ExpandFilteredDependencies(filtered, allDeps)
+
+	if len(expanded) != 2 {
+		t.Fatalf("expected 2 deps after expansion, got %d", len(expanded))
+	}
+
+	found := false
+	for _, dep := range expanded {
+		if dep.Source == "custom-org/custom-action:path/to/action/action.yml" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected child action repo subdirectory action to be included after expansion")
+	}
+}
+
 func TestExpandFilteredDependencies_TransitiveChain(t *testing.T) {
 	// A -> B (local reusable) -> C (action repo)
 	allDeps := []parser.WorkflowDependency{
@@ -184,6 +220,74 @@ func TestExpandFilteredDependencies_NoCycle(t *testing.T) {
 
 	if len(expanded) != 2 {
 		t.Fatalf("expected 2 deps after expansion (with cycle), got %d", len(expanded))
+	}
+}
+
+func TestExpandFilteredDependencies_LocalAction(t *testing.T) {
+	allDeps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Name:   "CI",
+			Actions: []parser.ActionReference{
+				{Raw: "./my-action", IsLocal: true},
+			},
+		},
+		{
+			Source: "my-action/action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"},
+			},
+		},
+	}
+
+	filtered := []parser.WorkflowDependency{allDeps[0]}
+	expanded := ExpandFilteredDependencies(filtered, allDeps)
+
+	if len(expanded) != 2 {
+		t.Fatalf("expected 2 deps after expansion, got %d", len(expanded))
+	}
+
+	found := false
+	for _, dep := range expanded {
+		if dep.Source == "my-action/action.yml" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected local action dep to be included after expansion")
+	}
+}
+
+func TestExpandFilteredDependencies_LocalActionTransitiveChain(t *testing.T) {
+	// Workflow -> local action -> external action repo
+	allDeps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Name:   "CI",
+			Actions: []parser.ActionReference{
+				{Raw: "./my-action", IsLocal: true},
+			},
+		},
+		{
+			Source: "my-action/action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/helper@v1", Owner: "org", Repo: "helper", Ref: "v1"},
+			},
+		},
+		{
+			Source: "org/helper:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"},
+			},
+		},
+	}
+
+	filtered := []parser.WorkflowDependency{allDeps[0]}
+	expanded := ExpandFilteredDependencies(filtered, allDeps)
+
+	if len(expanded) != 3 {
+		t.Fatalf("expected 3 deps after expansion (transitive chain via local action), got %d", len(expanded))
 	}
 }
 
