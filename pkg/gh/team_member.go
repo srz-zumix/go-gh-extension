@@ -3,6 +3,8 @@ package gh
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
@@ -128,6 +130,81 @@ func RemoveTeamMembersOther(ctx context.Context, g *GitHubClient, repo repositor
 		}
 	}
 	return nil
+}
+
+// ListAnyTeamMembers lists all teams in the organization or repository and returns the union of all team members.
+// Membership information is organization membership, not team membership, since a user may have different roles in different teams.
+func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, roles []string, membership bool) ([]*github.User, error) {
+	teams, err := ListTeams(ctx, g, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	userMap := make(map[int64]*github.User)
+	for _, team := range teams {
+		members, err := ListTeamMembers(ctx, g, repo, team.GetSlug(), roles, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list members of team '%s': %w", team.GetSlug(), err)
+		}
+		for _, member := range members {
+			if _, exists := userMap[member.GetID()]; !exists {
+				userMap[member.GetID()] = member
+			}
+		}
+	}
+
+	members := slices.Collect(maps.Values(userMap))
+	if membership {
+		for _, member := range members {
+			membership, err := g.GetOrgMembership(ctx, repo.Owner, *member.Login)
+			if err != nil {
+				return nil, err
+			}
+			if membership != nil {
+				member.RoleName = membership.Role
+			}
+		}
+	}
+
+	return members, nil
+}
+
+const (
+	// TeamSpecAny is a special team slug that represents the union of all team members across all teams in the organization or repository.
+	TeamSpecAny = "@any"
+	// TeamSpecAll is a special team slug that represents all organization or repository members.
+	TeamSpecAll = "@all"
+)
+
+// ListMembersByTeamSpec lists team members based on the provided team specification.
+// TeamSpecAny (@any): returns the union of all team members across all teams in the organization or repository.
+// TeamSpecAll (@all): returns all repository collaborators if repo.Name is set, otherwise all organization members.
+// Otherwise: returns members of the specified team.
+// Membership information is only available when listing by specific team, not for TeamSpecAny or TeamSpecAll.
+func ListMembersByTeamSpec(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSpec string, roles []string, membership bool) ([]*github.User, error) {
+	switch teamSpec {
+	case TeamSpecAny:
+		return ListAnyTeamMembers(ctx, g, repo, roles, false)
+	case TeamSpecAll:
+		if repo.Name != "" {
+			return ListRepositoryCollaborators(ctx, g, repo, nil, roles)
+		}
+		org_roles := []string{}
+		for _, role := range roles {
+			switch role {
+			case TeamMembershipRoleAll:
+				org_roles = []string{"admin", "member"}
+			case TeamMembershipRoleMember:
+				org_roles = append(org_roles, "member")
+			case TeamMembershipRoleMaintainer:
+				org_roles = append(org_roles, "admin")
+			}
+		}
+
+		return ListOrgMembers(ctx, g, repo, org_roles, false)
+	default:
+		return ListTeamMembers(ctx, g, repo, teamSpec, roles, membership)
+	}
 }
 
 // CopyTeamMembers copies members from the source team to the destination team (add only).
