@@ -9,6 +9,8 @@ import (
 
 // WorkflowDependencyFieldGetter defines a function to get a field value from parser.ActionReference
 type WorkflowDependencyFieldGetter func(ref *parser.ActionReference) string
+
+// WorkflowDependencyFieldGetters holds field getters for ActionReference table rendering.
 type WorkflowDependencyFieldGetters struct {
 	Func map[string]WorkflowDependencyFieldGetter
 }
@@ -35,8 +37,29 @@ func NewWorkflowDependencyFieldGetters() *WorkflowDependencyFieldGetters {
 			"RAW": func(ref *parser.ActionReference) string {
 				return ref.Raw
 			},
+			"USING": func(ref *parser.ActionReference) string {
+				return ref.Using
+			},
+			"NODE_VERSION": func(ref *parser.ActionReference) string {
+				return extractNodeVersion(ref.Using)
+			},
 		},
 	}
+}
+
+// extractNodeVersion extracts the numeric version string from a node runtime identifier.
+// e.g., "node20" -> "20", "node16" -> "16", "composite" -> "".
+func extractNodeVersion(using string) string {
+	remainder, ok := strings.CutPrefix(using, "node")
+	if !ok || remainder == "" {
+		return ""
+	}
+	for _, c := range remainder {
+		if c < '0' || c > '9' {
+			return ""
+		}
+	}
+	return remainder
 }
 
 func (g *WorkflowDependencyFieldGetters) GetField(ref *parser.ActionReference, field string) string {
@@ -47,21 +70,15 @@ func (g *WorkflowDependencyFieldGetters) GetField(ref *parser.ActionReference, f
 	return ""
 }
 
-// RenderActionReferences renders a list of ActionReferences as a table
-func (r *Renderer) RenderActionReferences(refs []parser.ActionReference, headers []string) {
-	if r.exporter != nil {
-		r.RenderExportedData(refs)
-		return
-	}
+// renderActionReferencesWithGetter renders a list of ActionReferences as a table using the given getter.
+func (r *Renderer) renderActionReferencesWithGetter(refs []parser.ActionReference, headers []string, getter *WorkflowDependencyFieldGetters) {
 	if len(refs) == 0 {
 		r.writeLine("No action references.")
 		return
 	}
-
 	if len(headers) == 0 {
 		headers = []string{"Name", "Version"}
 	}
-	getter := NewWorkflowDependencyFieldGetters()
 	table := r.newTableWriter(headers)
 	for i := range refs {
 		row := make([]string, len(headers))
@@ -71,6 +88,15 @@ func (r *Renderer) RenderActionReferences(refs []parser.ActionReference, headers
 		table.Append(row)
 	}
 	table.Render()
+}
+
+// RenderActionReferences renders a list of ActionReferences as a table
+func (r *Renderer) RenderActionReferences(refs []parser.ActionReference, headers []string) {
+	if r.exporter != nil {
+		r.RenderExportedData(refs)
+		return
+	}
+	r.renderActionReferencesWithGetter(refs, headers, NewWorkflowDependencyFieldGetters())
 }
 
 // RenderWorkflowDependencies renders workflow dependencies grouped by source file
@@ -85,9 +111,11 @@ func (r *Renderer) RenderWorkflowDependencies(deps []parser.WorkflowDependency, 
 		return
 	}
 
+	getter := NewWorkflowDependencyFieldGetters()
+
 	for _, dep := range deps {
 		r.writeLine(dep.Source)
-		r.RenderActionReferences(dep.Actions, headers)
+		r.renderActionReferencesWithGetter(dep.Actions, headers, getter)
 	}
 }
 

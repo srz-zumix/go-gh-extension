@@ -9,12 +9,13 @@ import (
 
 // ActionReference represents a parsed reference to a GitHub Action or reusable workflow
 type ActionReference struct {
-	Raw     string `json:"raw" yaml:"raw"`         // Original uses string, e.g. "actions/checkout@v4"
-	Owner   string `json:"owner" yaml:"owner"`     // e.g. "actions"
-	Repo    string `json:"repo" yaml:"repo"`       // e.g. "checkout"
-	Path    string `json:"path" yaml:"path"`       // Subdirectory path, e.g. "subdir" for "owner/repo/subdir@v1"
-	Ref     string `json:"ref" yaml:"ref"`         // Version/ref, e.g. "v4"
-	IsLocal bool   `json:"isLocal" yaml:"isLocal"` // true for "./local-action" references
+	Raw     string `json:"raw" yaml:"raw"`                       // Original uses string, e.g. "actions/checkout@v4"
+	Owner   string `json:"owner" yaml:"owner"`                   // e.g. "actions"
+	Repo    string `json:"repo" yaml:"repo"`                     // e.g. "checkout"
+	Path    string `json:"path" yaml:"path"`                     // Subdirectory path, e.g. "subdir" for "owner/repo/subdir@v1"
+	Ref     string `json:"ref" yaml:"ref"`                       // Version/ref, e.g. "v4"
+	IsLocal bool   `json:"isLocal" yaml:"isLocal"`               // true for "./local-action" references
+	Using   string `json:"using,omitempty" yaml:"using,omitempty"` // runs.using value of the referenced action, e.g. "node20", "composite"
 }
 
 // Name returns a human-readable name for the action reference
@@ -118,6 +119,26 @@ func ResolveActionDepSource(action ActionReference, hasSource func(string) bool)
 		}
 	}
 	return ""
+}
+
+// PopulateActionUsing sets the Using field on each ActionReference in deps
+// by looking up the corresponding source key in usingBySource.
+// usingBySource maps dep source keys (e.g. "actions/checkout:action.yml") to
+// runs.using values (e.g. "node20", "composite").
+func PopulateActionUsing(deps []WorkflowDependency, usingBySource map[string]string) {
+	hasSource := func(key string) bool {
+		_, ok := usingBySource[key]
+		return ok
+	}
+	for i := range deps {
+		for j := range deps[i].Actions {
+			action := &deps[i].Actions[j]
+			sourceKey := ResolveActionDepSource(*action, hasSource)
+			if sourceKey != "" {
+				action.Using = usingBySource[sourceKey]
+			}
+		}
+	}
 }
 
 // WorkflowDependency represents dependencies found in a single workflow or action file
@@ -385,16 +406,18 @@ func ParseWorkflowYAML(content []byte) (string, []ActionReference, error) {
 	return name, refs, nil
 }
 
-// ParseActionYAML parses an action.yml/action.yaml content and extracts action references
-func ParseActionYAML(content []byte) ([]ActionReference, error) {
+// ParseActionYAML parses an action.yml/action.yaml content and extracts action references.
+// It returns the list of action references (non-nil only for composite actions),
+// the runs.using value (e.g. "node20", "composite", "docker"), and any parse error.
+func ParseActionYAML(content []byte) ([]ActionReference, string, error) {
 	var action actionYAML
 	if err := yaml.Unmarshal(content, &action); err != nil {
-		return nil, fmt.Errorf("failed to parse action YAML: %w", err)
+		return nil, "", fmt.Errorf("failed to parse action YAML: %w", err)
 	}
 
-	// Only composite actions have steps
+	// Only composite actions have steps that can reference other actions
 	if action.Runs.Using != "composite" {
-		return nil, nil
+		return nil, action.Runs.Using, nil
 	}
 
 	var refs []ActionReference
@@ -406,5 +429,5 @@ func ParseActionYAML(content []byte) ([]ActionReference, error) {
 			}
 		}
 	}
-	return refs, nil
+	return refs, action.Runs.Using, nil
 }

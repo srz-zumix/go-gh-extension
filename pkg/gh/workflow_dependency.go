@@ -85,7 +85,9 @@ func GetWorkflowFileDependency(ctx context.Context, g *GitHubClient, repo reposi
 		visitedFiles := make(map[string]bool)
 		visitedFiles[filePath] = true
 
-		deps = traverseDependencyActions(ctx, g, fallback, repo, ref, deps, visited, visitedFiles)
+		usingBySource := make(map[string]string)
+		deps = traverseDependencyActions(ctx, g, fallback, repo, ref, deps, visited, visitedFiles, usingBySource)
+		parser.PopulateActionUsing(deps, usingBySource)
 	}
 	return deps, nil
 }
@@ -104,7 +106,7 @@ func GetRepositoryWorkflowDependencies(ctx context.Context, g *GitHubClient, rep
 	deps = append(deps, workflowDeps...)
 
 	// Fetch action.yml or action.yaml if present
-	actionDep, err := getActionFileDependencies(ctx, g, repo, ref)
+	actionDep, actionUsing, err := getActionFileDependencies(ctx, g, repo, ref)
 	if err != nil {
 		// action.yml/action.yaml not found is not an error
 	} else if actionDep != nil {
@@ -120,7 +122,13 @@ func GetRepositoryWorkflowDependencies(ctx context.Context, g *GitHubClient, rep
 			visitedFiles[dep.Source] = true
 		}
 
-		deps = traverseDependencyActions(ctx, g, fallback, repo, ref, deps, visited, visitedFiles)
+		usingBySource := make(map[string]string)
+		// Record the root action's using value if present
+		if actionDep != nil && actionUsing != "" {
+			usingBySource[actionDep.Source] = actionUsing
+		}
+		deps = traverseDependencyActions(ctx, g, fallback, repo, ref, deps, visited, visitedFiles, usingBySource)
+		parser.PopulateActionUsing(deps, usingBySource)
 	}
 
 	return deps, nil
@@ -130,7 +138,8 @@ func GetRepositoryWorkflowDependencies(ctx context.Context, g *GitHubClient, rep
 // at the specified subdirectory (actionDir) and recursively traverses its dependencies.
 // Workflow files in child repos are not fetched because they represent the child repo's own CI.
 // If actionDir is empty, the repository root action.yml/action.yaml is used.
-func getChildRepositoryActionDependencies(ctx context.Context, g *GitHubClient, fallback *GitHubClient, repo repository.Repository, actionDir string, visited map[string]bool) ([]parser.WorkflowDependency, error) {
+// ref specifies the git reference (tag, branch, SHA) to fetch content from; nil uses the default branch.
+func getChildRepositoryActionDependencies(ctx context.Context, g *GitHubClient, fallback *GitHubClient, repo repository.Repository, actionDir string, ref *string, visited map[string]bool, usingBySource map[string]string) ([]parser.WorkflowDependency, error) {
 	repoKey := parser.GetRepositoryFullName(repo)
 	// Use path-specific visited key when actionDir is set to allow traversal from
 	// multiple subdirectories of the same repository.
@@ -147,17 +156,20 @@ func getChildRepositoryActionDependencies(ctx context.Context, g *GitHubClient, 
 	activeFallback := fallback
 
 	var deps []parser.WorkflowDependency
-	actionDep, err := getActionFileDependenciesFromDir(ctx, g, repo, actionDir, nil)
+	actionDep, using, err := getActionFileDependenciesFromDir(ctx, g, repo, actionDir, ref)
 	// Fallback to github.com if the primary host fails (e.g. GHES -> github.com)
 	if err != nil && fallback != nil && repo.Host != defaultHost {
 		repo.Host = defaultHost
-		actionDep, err = getActionFileDependenciesFromDir(ctx, fallback, repo, actionDir, nil)
+		actionDep, using, err = getActionFileDependenciesFromDir(ctx, fallback, repo, actionDir, ref)
 		activeClient = fallback
 		activeFallback = nil
 	}
 	if err == nil && actionDep != nil {
 		actionDep.Source = repoKey + ":" + actionDep.Source
 		deps = append(deps, *actionDep)
+		if using != "" {
+			usingBySource[actionDep.Source] = using
+		}
 	}
 
 	visitedFiles := make(map[string]bool)
@@ -165,14 +177,15 @@ func getChildRepositoryActionDependencies(ctx context.Context, g *GitHubClient, 
 		visitedFiles[dep.Source] = true
 	}
 
-	deps = traverseDependencyActions(ctx, activeClient, activeFallback, repo, nil, deps, visited, visitedFiles)
+	deps = traverseDependencyActions(ctx, activeClient, activeFallback, repo, ref, deps, visited, visitedFiles, usingBySource)
 	return deps, nil
 }
 
 // traverseDependencyActions traverses action references in deps and recursively fetches
 // dependencies from local reusable workflows, remote reusable workflows, and action repositories.
 // New deps are collected separately to avoid modifying the slice being iterated.
-func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *GitHubClient, repo repository.Repository, ref *string, deps []parser.WorkflowDependency, visited map[string]bool, visitedFiles map[string]bool) []parser.WorkflowDependency {
+// usingBySource accumulates the runs.using values keyed by dep source for later propagation.
+func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *GitHubClient, repo repository.Repository, ref *string, deps []parser.WorkflowDependency, visited map[string]bool, visitedFiles map[string]bool, usingBySource map[string]string) []parser.WorkflowDependency {
 	repoKey := parser.GetRepositoryFullName(repo)
 	var newDeps []parser.WorkflowDependency
 	for _, dep := range deps {
@@ -191,7 +204,7 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 				}
 				// Recursively traverse the local reusable workflow's action references
 				// so that actions referenced within it are also resolved.
-				localDeps = traverseDependencyActions(ctx, g, fallback, repo, ref, localDeps, visited, visitedFiles)
+				localDeps = traverseDependencyActions(ctx, g, fallback, repo, ref, localDeps, visited, visitedFiles, usingBySource)
 				newDeps = append(newDeps, localDeps...)
 				continue
 			}
@@ -215,7 +228,11 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 						childKey = childKey + ":" + action.Path
 					}
 					if !visited[childKey] {
-						childDeps, childErr := getChildRepositoryActionDependencies(ctx, g, fallback, childRepo, action.Path, visited)
+						var actionRef *string
+						if action.Ref != "" {
+							actionRef = &action.Ref
+						}
+						childDeps, childErr := getChildRepositoryActionDependencies(ctx, g, fallback, childRepo, action.Path, actionRef, visited, usingBySource)
 						if childErr == nil {
 							newDeps = append(newDeps, childDeps...)
 						}
@@ -223,10 +240,10 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 				} else {
 					// Local action in the current repository (e.g. "./my-action")
 					localPath := action.LocalPath()
-					localActionDeps := getLocalActionDependencies(ctx, g, repo, localPath, ref, visitedFiles, repoKey)
+					localActionDeps := getLocalActionDependencies(ctx, g, repo, localPath, ref, visitedFiles, repoKey, usingBySource)
 					// Recursively traverse the local action's dependencies
 					// so that actions referenced within it are also resolved.
-					localActionDeps = traverseDependencyActions(ctx, g, fallback, repo, ref, localActionDeps, visited, visitedFiles)
+					localActionDeps = traverseDependencyActions(ctx, g, fallback, repo, ref, localActionDeps, visited, visitedFiles, usingBySource)
 					newDeps = append(newDeps, localActionDeps...)
 				}
 				continue
@@ -250,11 +267,15 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 				visitedFiles[fileKey] = true
 				activeClient := g
 				activeFallback := fallback
-				rwDeps, rwErr := getReusableWorkflowDependencies(ctx, g, childRepo, action.Path, nil)
+				var actionRef *string
+				if action.Ref != "" {
+					actionRef = &action.Ref
+				}
+				rwDeps, rwErr := getReusableWorkflowDependencies(ctx, g, childRepo, action.Path, actionRef)
 				// Fallback to github.com if the primary host fails
 				if rwErr != nil && fallback != nil && childRepo.Host != defaultHost {
 					childRepo.Host = defaultHost
-					rwDeps, rwErr = getReusableWorkflowDependencies(ctx, fallback, childRepo, action.Path, nil)
+					rwDeps, rwErr = getReusableWorkflowDependencies(ctx, fallback, childRepo, action.Path, actionRef)
 					activeClient = fallback
 					activeFallback = nil
 				}
@@ -267,7 +288,7 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 					rwDeps[j].Source = childKey + ":" + rwDeps[j].Source
 				}
 				// Recursively traverse the remote reusable workflow's action references
-				rwDeps = traverseDependencyActions(ctx, activeClient, activeFallback, childRepo, nil, rwDeps, visited, visitedFiles)
+				rwDeps = traverseDependencyActions(ctx, activeClient, activeFallback, childRepo, actionRef, rwDeps, visited, visitedFiles, usingBySource)
 				newDeps = append(newDeps, rwDeps...)
 				continue
 			}
@@ -286,7 +307,11 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 				continue
 			}
 			// Traverse referenced repository (only action.yml for child repos)
-			childDeps, err := getChildRepositoryActionDependencies(ctx, g, fallback, childRepo, action.Path, visited)
+			var actionRef *string
+			if action.Ref != "" {
+				actionRef = &action.Ref
+			}
+			childDeps, err := getChildRepositoryActionDependencies(ctx, g, fallback, childRepo, action.Path, actionRef, visited, usingBySource)
 			if err != nil {
 				// Skip repos that are not accessible
 				continue
@@ -325,7 +350,8 @@ func getReusableWorkflowDependencies(ctx context.Context, g *GitHubClient, repo 
 
 // getLocalActionDependencies fetches action.yml/action.yaml from a local action directory
 // in the current repository and returns its dependencies.
-func getLocalActionDependencies(ctx context.Context, g *GitHubClient, repo repository.Repository, localPath string, ref *string, visitedFiles map[string]bool, repoKey string) []parser.WorkflowDependency {
+// The using value is recorded in usingBySource for later propagation to ActionReferences.
+func getLocalActionDependencies(ctx context.Context, g *GitHubClient, repo repository.Repository, localPath string, ref *string, visitedFiles map[string]bool, repoKey string, usingBySource map[string]string) []parser.WorkflowDependency {
 	for _, filename := range []string{"action.yml", "action.yaml"} {
 		actionPath := localPath + "/" + filename
 		fileKey := repoKey + ":" + actionPath
@@ -338,13 +364,16 @@ func getLocalActionDependencies(ctx context.Context, g *GitHubClient, repo repos
 			continue
 		}
 
-		refs, err := parser.ParseActionYAML(content)
-		if err != nil || len(refs) == 0 {
+		refs, using, err := parser.ParseActionYAML(content)
+		if err != nil || (len(refs) == 0 && using == "") {
 			visitedFiles[actionPath] = true
 			return nil
 		}
 
 		visitedFiles[actionPath] = true
+		if using != "" {
+			usingBySource[actionPath] = using
+		}
 		return []parser.WorkflowDependency{
 			{
 				Source:  actionPath,
@@ -398,7 +427,8 @@ func getWorkflowFileDependencies(ctx context.Context, g *GitHubClient, repo repo
 
 // getActionFileDependenciesFromDir fetches action.yml or action.yaml from the specified directory
 // in the repository. If dir is empty, fetches from the repository root.
-func getActionFileDependenciesFromDir(ctx context.Context, g *GitHubClient, repo repository.Repository, dir string, ref *string) (*parser.WorkflowDependency, error) {
+// Returns the dependency, the runs.using value, and any error.
+func getActionFileDependenciesFromDir(ctx context.Context, g *GitHubClient, repo repository.Repository, dir string, ref *string) (*parser.WorkflowDependency, string, error) {
 	for _, base := range []string{"action.yml", "action.yaml"} {
 		filename := base
 		if dir != "" {
@@ -409,25 +439,25 @@ func getActionFileDependenciesFromDir(ctx context.Context, g *GitHubClient, repo
 			continue
 		}
 
-		refs, err := parser.ParseActionYAML(content)
+		refs, using, err := parser.ParseActionYAML(content)
 		if err != nil {
 			continue
 		}
 
-		if len(refs) > 0 {
+		if len(refs) > 0 || using != "" {
 			return &parser.WorkflowDependency{
 				Source:  filename,
 				Actions: refs,
-			}, nil
+			}, using, nil
 		}
 		// File exists but has no dependencies
-		return nil, nil
+		return nil, "", nil
 	}
-	return nil, fmt.Errorf("no action.yml or action.yaml found")
+	return nil, "", fmt.Errorf("no action.yml or action.yaml found")
 }
 
 // getActionFileDependencies fetches action.yml or action.yaml from the repository root and parses it
-func getActionFileDependencies(ctx context.Context, g *GitHubClient, repo repository.Repository, ref *string) (*parser.WorkflowDependency, error) {
+func getActionFileDependencies(ctx context.Context, g *GitHubClient, repo repository.Repository, ref *string) (*parser.WorkflowDependency, string, error) {
 	return getActionFileDependenciesFromDir(ctx, g, repo, "", ref)
 }
 

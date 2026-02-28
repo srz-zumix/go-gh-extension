@@ -144,8 +144,9 @@ runs:
     - run: npm install
       shell: bash
 `
-		refs, err := ParseActionYAML([]byte(yaml))
+		refs, using, err := ParseActionYAML([]byte(yaml))
 		assert.NoError(t, err)
+		assert.Equal(t, "composite", using)
 		assert.Len(t, refs, 2)
 		assert.Equal(t, "actions/checkout@v4", refs[0].Raw)
 		assert.Equal(t, "actions/setup-node@v4", refs[1].Raw)
@@ -159,10 +160,34 @@ runs:
   using: node20
   main: index.js
 `
-		refs, err := ParseActionYAML([]byte(yaml))
+		refs, using, err := ParseActionYAML([]byte(yaml))
 		assert.NoError(t, err)
+		assert.Equal(t, "node20", using)
 		assert.Nil(t, refs)
 	})
+}
+
+func TestPopulateActionUsing(t *testing.T) {
+	deps := []WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Actions: []ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"},
+				{Raw: "my-org/node-action@v1", Owner: "my-org", Repo: "node-action", Ref: "v1"},
+				{Raw: "unknown/action@v1", Owner: "unknown", Repo: "action", Ref: "v1"},
+			},
+		},
+	}
+	usingBySource := map[string]string{
+		"actions/checkout:action.yml":    "node20",
+		"my-org/node-action:action.yml":  "node16",
+	}
+
+	PopulateActionUsing(deps, usingBySource)
+
+	assert.Equal(t, "node20", deps[0].Actions[0].Using)
+	assert.Equal(t, "node16", deps[0].Actions[1].Using)
+	assert.Equal(t, "", deps[0].Actions[2].Using) // unknown action — not populated
 }
 
 func TestActionReferenceName(t *testing.T) {
