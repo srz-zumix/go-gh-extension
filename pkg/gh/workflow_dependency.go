@@ -442,11 +442,11 @@ func getFileContent(ctx context.Context, g *GitHubClient, repo repository.Reposi
 		return nil, fmt.Errorf("file content is empty for %s", path)
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(*fileContent.Content)
+	content, err := fileContent.GetContent()
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode file content for %s: %w", path, err)
 	}
-	return decoded, nil
+	return []byte(content), nil
 }
 
 // FlattenWorkflowDependencies extracts all unique ActionReferences from multiple WorkflowDependencies
