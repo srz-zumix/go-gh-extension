@@ -172,11 +172,12 @@ func getChildRepositoryActionDependencies(ctx context.Context, g *GitHubClient, 
 
 // traverseDependencyActions traverses action references in deps and recursively fetches
 // dependencies from local reusable workflows, remote reusable workflows, and action repositories.
+// New deps are collected separately to avoid modifying the slice being iterated.
 func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *GitHubClient, repo repository.Repository, ref *string, deps []parser.WorkflowDependency, visited map[string]bool, visitedFiles map[string]bool) []parser.WorkflowDependency {
 	repoKey := parser.GetRepositoryFullName(repo)
-	initialLen := len(deps)
-	for i := range initialLen {
-		for _, action := range deps[i].Actions {
+	var newDeps []parser.WorkflowDependency
+	for _, dep := range deps {
+		for _, action := range dep.Actions {
 			// Handle local reusable workflows (e.g. "./.github/workflows/release.yml")
 			if action.IsLocal && action.IsReusableWorkflow() {
 				localPath := action.LocalPath()
@@ -192,7 +193,7 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 				// Recursively traverse the local reusable workflow's action references
 				// so that actions referenced within it are also resolved.
 				localDeps = traverseDependencyActions(ctx, g, fallback, repo, ref, localDeps, visited, visitedFiles)
-				deps = append(deps, localDeps...)
+				newDeps = append(newDeps, localDeps...)
 				continue
 			}
 
@@ -217,7 +218,7 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 					if !visited[childKey] {
 						childDeps, childErr := getChildRepositoryActionDependencies(ctx, g, fallback, childRepo, action.Path, visited)
 						if childErr == nil {
-							deps = append(deps, childDeps...)
+							newDeps = append(newDeps, childDeps...)
 						}
 					}
 				} else {
@@ -227,7 +228,7 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 					// Recursively traverse the local action's dependencies
 					// so that actions referenced within it are also resolved.
 					localActionDeps = traverseDependencyActions(ctx, g, fallback, repo, ref, localActionDeps, visited, visitedFiles)
-					deps = append(deps, localActionDeps...)
+					newDeps = append(newDeps, localActionDeps...)
 				}
 				continue
 			}
@@ -248,11 +249,15 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 					continue
 				}
 				visitedFiles[fileKey] = true
+				activeClient := g
+				activeFallback := fallback
 				rwDeps, rwErr := getReusableWorkflowDependencies(ctx, g, childRepo, action.Path, nil)
 				// Fallback to github.com if the primary host fails
 				if rwErr != nil && fallback != nil && childRepo.Host != defaultHost {
 					childRepo.Host = defaultHost
 					rwDeps, rwErr = getReusableWorkflowDependencies(ctx, fallback, childRepo, action.Path, nil)
+					activeClient = fallback
+					activeFallback = nil
 				}
 				if rwErr != nil {
 					continue
@@ -262,7 +267,9 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 				for j := range rwDeps {
 					rwDeps[j].Source = childKey + ":" + rwDeps[j].Source
 				}
-				deps = append(deps, rwDeps...)
+				// Recursively traverse the remote reusable workflow's action references
+				rwDeps = traverseDependencyActions(ctx, activeClient, activeFallback, childRepo, nil, rwDeps, visited, visitedFiles)
+				newDeps = append(newDeps, rwDeps...)
 				continue
 			}
 
@@ -285,11 +292,11 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 				// Skip repos that are not accessible
 				continue
 			}
-			deps = append(deps, childDeps...)
+			newDeps = append(newDeps, childDeps...)
 		}
 	}
 
-	return deps
+	return append(deps, newDeps...)
 }
 
 // getReusableWorkflowDependencies fetches and parses a single reusable workflow file
