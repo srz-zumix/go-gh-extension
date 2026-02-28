@@ -172,9 +172,13 @@ func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Re
 // ListOnlyTeamMembers returns members who belong exclusively to the specified team
 // and are not members of any other team in the organization.
 func ListOnlyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, roles []string, membership bool) ([]*github.User, error) {
-	targetMembers, err := ListTeamMembers(ctx, g, repo, teamSlug, roles, membership)
+	targetMembers, err := ListTeamMembers(ctx, g, repo, teamSlug, roles, false)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(targetMembers) == 0 {
+		return []*github.User{}, nil
 	}
 
 	teams, err := ListTeams(ctx, g, repo)
@@ -201,18 +205,30 @@ func ListOnlyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.R
 			delete(candidateIDs, member.GetID())
 		}
 		if len(candidateIDs) == 0 {
-			return nil, nil
+			return []*github.User{}, nil
 		}
 	}
 
 	// Filter to only members still in the candidate set
-	result := make([]*github.User, 0, len(candidateIDs))
+	members := make([]*github.User, 0, len(candidateIDs))
 	for _, member := range targetMembers {
 		if _, exists := candidateIDs[member.GetID()]; exists {
-			result = append(result, member)
+			members = append(members, member)
 		}
 	}
-	return result, nil
+	if membership {
+		for _, member := range members {
+			membership, err := g.GetTeamMembership(ctx, repo.Owner, teamSlug, *member.Login)
+			if err != nil {
+				return nil, err
+			}
+			if membership != nil {
+				member.RoleName = membership.Role
+			}
+		}
+	}
+
+	return members, nil
 }
 
 const (
