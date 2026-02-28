@@ -39,6 +39,13 @@ func GetObjectName(item any) string {
 		return *v.Name
 	case RepositorySubmodule:
 		return fmt.Sprintf("%s/%s", v.Repository.Owner, v.Repository.Name)
+	case parser.ActionReference:
+		return v.Name()
+	case *parser.ActionReference:
+		if v == nil {
+			return ""
+		}
+		return v.Name()
 	default:
 		return ""
 	}
@@ -113,6 +120,12 @@ func GetObjectNames(items any) []string {
 		}
 		return names
 	case []RepositorySubmodule:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []parser.ActionReference:
 		names := make([]string, len(v))
 		for i, item := range v {
 			names[i] = GetObjectName(item)

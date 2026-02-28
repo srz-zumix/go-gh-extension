@@ -119,3 +119,13 @@ func GetWorkflowRunLogUrlFetcher(object any) LogUrlFetcher {
 		return GetLogUrlFetcher(object)
 	}
 }
+
+// CreateWorkflowDispatchEventByFileName triggers a workflow dispatch event by workflow file name (wrapper).
+func CreateWorkflowDispatchEventByFileName(ctx context.Context, g *GitHubClient, repo repository.Repository, workflowFileName string, event github.CreateWorkflowDispatchEventRequest) error {
+	return g.CreateWorkflowDispatchEventByFileName(ctx, repo.Owner, repo.Name, workflowFileName, event)
+}
+
+// CreateWorkflowDispatchEventByID triggers a workflow dispatch event by workflow ID (wrapper).
+func CreateWorkflowDispatchEventByID(ctx context.Context, g *GitHubClient, repo repository.Repository, workflowID int64, event github.CreateWorkflowDispatchEventRequest) error {
+	return g.CreateWorkflowDispatchEventByID(ctx, repo.Owner, repo.Name, workflowID, event)
+}

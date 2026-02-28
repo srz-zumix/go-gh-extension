@@ -64,7 +64,18 @@ func (r *Renderer) RenderMermaidGraphEdge(edges []gh.GraphEdge) {
 	}
 }
 
-// mermaidNodeID creates a safe Mermaid node identifier from a repository
+// mermaidNodeID creates a collision-free Mermaid node identifier from a string.
+// All non-alphanumeric characters are hex-encoded using their Unicode code point
+// in lowercase hexadecimal, prefixed with '_' (e.g. "ci-test" and "ci_test" produce
+// different IDs: "ci_2dtest" vs "ci_5ftest").
 func mermaidNodeID(name string) string {
-	return strings.ReplaceAll(name, "-", "_")
+	var b strings.Builder
+	for _, c := range name {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+			b.WriteRune(c)
+		} else {
+			fmt.Fprintf(&b, "_%02x", c)
+		}
+	}
+	return b.String()
 }

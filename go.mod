@@ -91,5 +91,5 @@ require (
 require (
 	github.com/cli/cli/v2 v2.86.0
 	github.com/cli/safeexec v1.0.1 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1
 )

@@ -6,6 +6,42 @@ import (
 	"github.com/google/go-github/v79/github"
 )
 
+// GetWorkflowByID retrieves a workflow definition by its numeric ID.
+func (g *GitHubClient) GetWorkflowByID(ctx context.Context, owner string, repo string, workflowID int64) (*github.Workflow, error) {
+	wf, _, err := g.client.Actions.GetWorkflowByID(ctx, owner, repo, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	return wf, nil
+}
+
+// GetWorkflowByFileName retrieves a workflow definition by its file name.
+func (g *GitHubClient) GetWorkflowByFileName(ctx context.Context, owner string, repo string, workflowFileName string) (*github.Workflow, error) {
+	wf, _, err := g.client.Actions.GetWorkflowByFileName(ctx, owner, repo, workflowFileName)
+	if err != nil {
+		return nil, err
+	}
+	return wf, nil
+}
+
+// ListWorkflows retrieves all workflow definitions for a repository.
+func (g *GitHubClient) ListWorkflows(ctx context.Context, owner string, repo string) ([]*github.Workflow, error) {
+	var allWorkflows []*github.Workflow
+	opt := &github.ListOptions{PerPage: defaultPerPage}
+	for {
+		workflows, resp, err := g.client.Actions.ListWorkflows(ctx, owner, repo, opt)
+		if err != nil {
+			return nil, err
+		}
+		allWorkflows = append(allWorkflows, workflows.Workflows...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return allWorkflows, nil
+}
+
 // GetWorkflowRunByID retrieves a specific workflow run by its ID.
 func (g *GitHubClient) GetWorkflowRunByID(ctx context.Context, owner string, repo string, runID int64) (*github.WorkflowRun, error) {
 	run, _, err := g.client.Actions.GetWorkflowRunByID(ctx, owner, repo, runID)
@@ -192,5 +228,17 @@ func (g *GitHubClient) PendingDeployments(ctx context.Context, owner string, rep
 // ReviewCustomDeploymentProtectionRule reviews and approves or rejects a custom deployment protection rule.
 func (g *GitHubClient) ReviewCustomDeploymentProtectionRule(ctx context.Context, owner string, repo string, runID int64, request *github.ReviewCustomDeploymentProtectionRuleRequest) error {
 	_, err := g.client.Actions.ReviewCustomDeploymentProtectionRule(ctx, owner, repo, runID, request)
+	return err
+}
+
+// CreateWorkflowDispatchEventByFileName triggers a workflow dispatch event by workflow file name.
+func (g *GitHubClient) CreateWorkflowDispatchEventByFileName(ctx context.Context, owner, repo, workflowFileName string, event github.CreateWorkflowDispatchEventRequest) error {
+	_, err := g.client.Actions.CreateWorkflowDispatchEventByFileName(ctx, owner, repo, workflowFileName, event)
+	return err
+}
+
+// CreateWorkflowDispatchEventByID triggers a workflow dispatch event by workflow ID.
+func (g *GitHubClient) CreateWorkflowDispatchEventByID(ctx context.Context, owner, repo string, workflowID int64, event github.CreateWorkflowDispatchEventRequest) error {
+	_, err := g.client.Actions.CreateWorkflowDispatchEventByID(ctx, owner, repo, workflowID, event)
 	return err
 }
