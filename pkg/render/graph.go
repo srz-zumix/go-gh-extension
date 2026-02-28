@@ -58,13 +58,42 @@ func (r *Renderer) RenderMermaidGraphEdge(edges []gh.GraphEdge) {
 		}
 		seen[edgeKey] = true
 		r.writeLine(fmt.Sprintf("    %s[\"%s\"] --> %s[\"%s\"]",
-			sourceID, from,
-			targetID, to,
+			sourceID, mermaidLabel(from),
+			targetID, mermaidLabel(to),
 		))
 	}
 }
 
-// mermaidNodeID creates a safe Mermaid node identifier from a repository
+// mermaidNodeID creates a safe Mermaid node identifier by replacing all
+// non-alphanumeric/underscore characters with '_' and prefixing with '_'
+// if the name starts with a digit.
 func mermaidNodeID(name string) string {
-	return strings.ReplaceAll(name, "-", "_")
+	var b strings.Builder
+	for i, ch := range name {
+		switch {
+		case ch >= 'A' && ch <= 'Z', ch >= 'a' && ch <= 'z', ch == '_':
+			b.WriteRune(ch)
+		case ch >= '0' && ch <= '9':
+			if i == 0 {
+				b.WriteRune('_')
+			}
+			b.WriteRune(ch)
+		default:
+			b.WriteRune('_')
+		}
+	}
+	return b.String()
 }
+
+// mermaidLabel escapes a string for use inside Mermaid ["..."] label blocks.
+func mermaidLabel(label string) string {
+	return mermaidLabelReplacer.Replace(label)
+}
+
+var mermaidLabelReplacer = strings.NewReplacer(
+	"\\", "\\\\",
+	"\"", "&quot;",
+	"\r\n", " ",
+	"\r", "",
+	"\n", " ",
+)

@@ -170,8 +170,8 @@ func (r *Renderer) RenderMermaidWorkflowDependencies(deps []parser.WorkflowDepen
 			}
 			seen[edgeKey] = true
 			r.writeLine(fmt.Sprintf("    %s[\"%s\"] --> %s[\"%s\"]",
-				sourceID, sourceLabel,
-				targetID, targetLabel,
+				sourceID, mermaidLabel(sourceLabel),
+				targetID, mermaidLabel(targetLabel),
 			))
 		}
 	}
