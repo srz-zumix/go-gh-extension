@@ -164,7 +164,29 @@ func getWithString(with map[string]any, key string) string {
 	if !ok {
 		return ""
 	}
-	return fmt.Sprintf("%v", v)
+	if v == nil {
+		return ""
+	}
+
+	switch vv := v.(type) {
+	case string:
+		return vv
+	case *yaml.Node:
+		// Only accept scalar nodes as string values
+		if vv.Kind == yaml.ScalarNode {
+			return vv.Value
+		}
+		return ""
+	case yaml.Node:
+		// Handle non-pointer yaml.Node as well
+		if vv.Kind == yaml.ScalarNode {
+			return vv.Value
+		}
+		return ""
+	default:
+		// Non-string types are not treated as valid string values
+		return ""
+	}
 }
 
 // resolveLocalActionByCheckout resolves a local action reference using checkout path mappings.
