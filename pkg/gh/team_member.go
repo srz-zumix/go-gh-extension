@@ -201,7 +201,7 @@ func ListOnlyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.R
 			delete(candidateIDs, member.GetID())
 		}
 		if len(candidateIDs) == 0 {
-			return []*github.User{}, nil
+			return nil, nil
 		}
 	}
 
