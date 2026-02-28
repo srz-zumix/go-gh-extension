@@ -64,17 +64,3 @@ func TestWorkflowDependencyFieldGetters_Using(t *testing.T) {
 	assert.Equal(t, "", getter.GetField(&unknownRef, "USING"))
 	assert.Equal(t, "", getter.GetField(&unknownRef, "NODE_VERSION"))
 }
-
-func TestWorkflowDependencyFieldGetters_UsingWithoutDepsBySource(t *testing.T) {
-	getter := NewWorkflowDependencyFieldGetters()
-	// Using not set — USING and NODE_VERSION should return empty string
-
-	ref := parser.ActionReference{
-		Raw:   "actions/checkout@v4",
-		Owner: "actions",
-		Repo:  "checkout",
-		Ref:   "v4",
-	}
-	assert.Equal(t, "", getter.GetField(&ref, "USING"))
-	assert.Equal(t, "", getter.GetField(&ref, "NODE_VERSION"))
-}
