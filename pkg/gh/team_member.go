@@ -132,7 +132,7 @@ func RemoveTeamMembersOther(ctx context.Context, g *GitHubClient, repo repositor
 	return nil
 }
 
-// ListAnyTeamMembers lists all teams in the organization and returns the union of all team members.
+// ListAnyTeamMembers lists all teams in the organization or repository and returns the union of all team members.
 // Membership information is not available since members may belong to multiple teams.
 func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, roles []string) ([]*github.User, error) {
 	teams, err := ListTeams(ctx, g, repo)
@@ -157,21 +157,24 @@ func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Re
 }
 
 const (
-	// TeamSpecAny is a special team slug that represents the union of all team members.
+	// TeamSpecAny is a special team slug that represents the union of all team members across all teams in the organization or repository.
 	TeamSpecAny = "@any"
-	// TeamSpecAll is a special team slug that represents all organization members.
+	// TeamSpecAll is a special team slug that represents all organization or repository members.
 	TeamSpecAll = "@all"
 )
 
-// ListMembersByTeamSpec retrieves members based on a team specification.
-// TeamSpecAny (@any): returns the union of all team members across all teams in the organization.
-// TeamSpecAll (@all): returns all organization members.
+// ListMembersByTeamSpec lists team members based on the provided team specification.
+// TeamSpecAny (@any): returns the union of all team members across all teams in the organization or repository.
+// TeamSpecAll (@all): returns all repository collaborators if repo.Name is set, otherwise all organization members.
 // Otherwise: returns members of the specified team.
 func ListMembersByTeamSpec(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSpec string, roles []string, membership bool) ([]*github.User, error) {
 	switch teamSpec {
 	case TeamSpecAny:
 		return ListAnyTeamMembers(ctx, g, repo, roles)
 	case TeamSpecAll:
+		if repo.Name != "" {
+			return ListRepositoryCollaborators(ctx, g, repo, nil, roles)
+		}
 		return ListOrgMembers(ctx, g, repo, roles, membership)
 	default:
 		return ListTeamMembers(ctx, g, repo, teamSpec, roles, membership)
