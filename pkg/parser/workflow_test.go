@@ -144,8 +144,9 @@ runs:
     - run: npm install
       shell: bash
 `
-		refs, err := ParseActionYAML([]byte(yaml))
+		refs, using, err := ParseActionYAML([]byte(yaml))
 		assert.NoError(t, err)
+		assert.Equal(t, "composite", using)
 		assert.Len(t, refs, 2)
 		assert.Equal(t, "actions/checkout@v4", refs[0].Raw)
 		assert.Equal(t, "actions/setup-node@v4", refs[1].Raw)
@@ -159,8 +160,9 @@ runs:
   using: node20
   main: index.js
 `
-		refs, err := ParseActionYAML([]byte(yaml))
+		refs, using, err := ParseActionYAML([]byte(yaml))
 		assert.NoError(t, err)
+		assert.Equal(t, "node20", using)
 		assert.Nil(t, refs)
 	})
 }

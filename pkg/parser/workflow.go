@@ -122,9 +122,10 @@ func ResolveActionDepSource(action ActionReference, hasSource func(string) bool)
 
 // WorkflowDependency represents dependencies found in a single workflow or action file
 type WorkflowDependency struct {
-	Source  string            `json:"source"`  // File path, e.g. ".github/workflows/ci.yml"
-	Name    string            `json:"name"`    // Workflow name from the YAML name field
-	Actions []ActionReference `json:"actions"` // Action references found in the file
+	Source  string            `json:"source"`            // File path, e.g. ".github/workflows/ci.yml"
+	Name    string            `json:"name"`              // Workflow name from the YAML name field
+	Using   string            `json:"using,omitempty"`   // runs.using value from action.yml, e.g. "node20", "composite", "docker"
+	Actions []ActionReference `json:"actions"`           // Action references found in the file
 }
 
 // workflowYAML represents the structure of a GitHub Actions workflow YAML file
@@ -385,16 +386,18 @@ func ParseWorkflowYAML(content []byte) (string, []ActionReference, error) {
 	return name, refs, nil
 }
 
-// ParseActionYAML parses an action.yml/action.yaml content and extracts action references
-func ParseActionYAML(content []byte) ([]ActionReference, error) {
+// ParseActionYAML parses an action.yml/action.yaml content and extracts action references.
+// It returns the list of action references (non-nil only for composite actions),
+// the runs.using value (e.g. "node20", "composite", "docker"), and any parse error.
+func ParseActionYAML(content []byte) ([]ActionReference, string, error) {
 	var action actionYAML
 	if err := yaml.Unmarshal(content, &action); err != nil {
-		return nil, fmt.Errorf("failed to parse action YAML: %w", err)
+		return nil, "", fmt.Errorf("failed to parse action YAML: %w", err)
 	}
 
-	// Only composite actions have steps
+	// Only composite actions have steps that can reference other actions
 	if action.Runs.Using != "composite" {
-		return nil, nil
+		return nil, action.Runs.Using, nil
 	}
 
 	var refs []ActionReference
@@ -406,5 +409,5 @@ func ParseActionYAML(content []byte) ([]ActionReference, error) {
 			}
 		}
 	}
-	return refs, nil
+	return refs, action.Runs.Using, nil
 }

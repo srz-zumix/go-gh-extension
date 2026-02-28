@@ -9,12 +9,35 @@ import (
 
 // WorkflowDependencyFieldGetter defines a function to get a field value from parser.ActionReference
 type WorkflowDependencyFieldGetter func(ref *parser.ActionReference) string
+
+// WorkflowDependencyFieldGetters holds field getters for ActionReference table rendering.
 type WorkflowDependencyFieldGetters struct {
 	Func map[string]WorkflowDependencyFieldGetter
 }
 
-// NewWorkflowDependencyFieldGetters creates field getters for ActionReference table rendering
-func NewWorkflowDependencyFieldGetters() *WorkflowDependencyFieldGetters {
+// resolveUsing returns the runs.using value for an action reference by
+// looking up its corresponding WorkflowDependency in depsBySource.
+func resolveUsing(ref *parser.ActionReference, depsBySource map[string]*parser.WorkflowDependency) string {
+	if depsBySource == nil {
+		return ""
+	}
+	hasSource := func(key string) bool {
+		_, ok := depsBySource[key]
+		return ok
+	}
+	sourceKey := parser.ResolveActionDepSource(*ref, hasSource)
+	if sourceKey == "" {
+		return ""
+	}
+	if dep, ok := depsBySource[sourceKey]; ok {
+		return dep.Using
+	}
+	return ""
+}
+
+// NewWorkflowDependencyFieldGetters creates field getters for ActionReference table rendering.
+// Pass depsBySource to enable USING and NODE_VERSION field resolution.
+func NewWorkflowDependencyFieldGetters(depsBySource map[string]*parser.WorkflowDependency) *WorkflowDependencyFieldGetters {
 	return &WorkflowDependencyFieldGetters{
 		Func: map[string]WorkflowDependencyFieldGetter{
 			"NAME": func(ref *parser.ActionReference) string {
@@ -35,8 +58,31 @@ func NewWorkflowDependencyFieldGetters() *WorkflowDependencyFieldGetters {
 			"RAW": func(ref *parser.ActionReference) string {
 				return ref.Raw
 			},
+			"USING": func(ref *parser.ActionReference) string {
+				// runs.using value from action.yml (e.g. "node20", "composite", "docker")
+				return resolveUsing(ref, depsBySource)
+			},
+			"NODE_VERSION": func(ref *parser.ActionReference) string {
+				// Numeric node version extracted from runs.using (e.g. "node20" -> "20")
+				return extractNodeVersion(resolveUsing(ref, depsBySource))
+			},
 		},
 	}
+}
+
+// extractNodeVersion extracts the numeric version string from a node runtime identifier.
+// e.g., "node20" -> "20", "node16" -> "16", "composite" -> "".
+func extractNodeVersion(using string) string {
+	remainder, ok := strings.CutPrefix(using, "node")
+	if !ok || remainder == "" {
+		return ""
+	}
+	for _, c := range remainder {
+		if c < '0' || c > '9' {
+			return ""
+		}
+	}
+	return remainder
 }
 
 func (g *WorkflowDependencyFieldGetters) GetField(ref *parser.ActionReference, field string) string {
@@ -47,21 +93,15 @@ func (g *WorkflowDependencyFieldGetters) GetField(ref *parser.ActionReference, f
 	return ""
 }
 
-// RenderActionReferences renders a list of ActionReferences as a table
-func (r *Renderer) RenderActionReferences(refs []parser.ActionReference, headers []string) {
-	if r.exporter != nil {
-		r.RenderExportedData(refs)
-		return
-	}
+// renderActionReferencesWithGetter renders a list of ActionReferences as a table using the given getter.
+func (r *Renderer) renderActionReferencesWithGetter(refs []parser.ActionReference, headers []string, getter *WorkflowDependencyFieldGetters) {
 	if len(refs) == 0 {
 		r.writeLine("No action references.")
 		return
 	}
-
 	if len(headers) == 0 {
 		headers = []string{"Name", "Version"}
 	}
-	getter := NewWorkflowDependencyFieldGetters()
 	table := r.newTableWriter(headers)
 	for i := range refs {
 		row := make([]string, len(headers))
@@ -71,6 +111,15 @@ func (r *Renderer) RenderActionReferences(refs []parser.ActionReference, headers
 		table.Append(row)
 	}
 	table.Render()
+}
+
+// RenderActionReferences renders a list of ActionReferences as a table
+func (r *Renderer) RenderActionReferences(refs []parser.ActionReference, headers []string) {
+	if r.exporter != nil {
+		r.RenderExportedData(refs)
+		return
+	}
+	r.renderActionReferencesWithGetter(refs, headers, NewWorkflowDependencyFieldGetters(nil))
 }
 
 // RenderWorkflowDependencies renders workflow dependencies grouped by source file
@@ -85,9 +134,16 @@ func (r *Renderer) RenderWorkflowDependencies(deps []parser.WorkflowDependency, 
 		return
 	}
 
+	// Build source-keyed map so field getters can resolve USING/NODE_VERSION per action reference.
+	depsBySource := make(map[string]*parser.WorkflowDependency, len(deps))
+	for i := range deps {
+		depsBySource[deps[i].Source] = &deps[i]
+	}
+	getter := NewWorkflowDependencyFieldGetters(depsBySource)
+
 	for _, dep := range deps {
 		r.writeLine(dep.Source)
-		r.RenderActionReferences(dep.Actions, headers)
+		r.renderActionReferencesWithGetter(dep.Actions, headers, getter)
 	}
 }
 
