@@ -170,7 +170,7 @@ func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Re
 }
 
 // ListOnlyTeamMembers returns members who belong exclusively to the specified team
-// and are not members of any other team in the organization.
+// and are not members of any other team in the organization or repository.
 func ListOnlyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, roles []string, membership bool) ([]*github.User, error) {
 	targetMembers, err := ListTeamMembers(ctx, g, repo, teamSlug, roles, false)
 	if err != nil {
