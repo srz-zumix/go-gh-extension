@@ -133,8 +133,8 @@ func RemoveTeamMembersOther(ctx context.Context, g *GitHubClient, repo repositor
 }
 
 // ListAnyTeamMembers lists all teams in the organization or repository and returns the union of all team members.
-// Membership information is not available since members may belong to multiple teams.
-func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, roles []string) ([]*github.User, error) {
+// Membership information is organization membership, not team membership, since a user may have different roles in different teams.
+func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, roles []string, membership bool) ([]*github.User, error) {
 	teams, err := ListTeams(ctx, g, repo)
 	if err != nil {
 		return nil, err
@@ -153,7 +153,20 @@ func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Re
 		}
 	}
 
-	return slices.Collect(maps.Values(userMap)), nil
+	members := slices.Collect(maps.Values(userMap))
+	if membership {
+		for _, member := range members {
+			membership, err := g.GetOrgMembership(ctx, repo.Owner, *member.Login)
+			if err != nil {
+				return nil, err
+			}
+			if membership != nil {
+				member.RoleName = membership.Role
+			}
+		}
+	}
+
+	return members, nil
 }
 
 const (
@@ -167,15 +180,28 @@ const (
 // TeamSpecAny (@any): returns the union of all team members across all teams in the organization or repository.
 // TeamSpecAll (@all): returns all repository collaborators if repo.Name is set, otherwise all organization members.
 // Otherwise: returns members of the specified team.
+// Membership information is only available when listing by specific team, not for TeamSpecAny or TeamSpecAll.
 func ListMembersByTeamSpec(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSpec string, roles []string, membership bool) ([]*github.User, error) {
 	switch teamSpec {
 	case TeamSpecAny:
-		return ListAnyTeamMembers(ctx, g, repo, roles)
+		return ListAnyTeamMembers(ctx, g, repo, roles, false)
 	case TeamSpecAll:
 		if repo.Name != "" {
 			return ListRepositoryCollaborators(ctx, g, repo, nil, roles)
 		}
-		return ListOrgMembers(ctx, g, repo, roles, membership)
+		org_roles := []string{}
+		for _, role := range roles {
+			switch role {
+			case TeamMembershipRoleAll:
+				org_roles = []string{"admin", "member"}
+			case TeamMembershipRoleMember:
+				org_roles = append(org_roles, "member")
+			case TeamMembershipRoleMaintainer:
+				org_roles = append(org_roles, "admin")
+			}
+		}
+
+		return ListOrgMembers(ctx, g, repo, org_roles, false)
 	default:
 		return ListTeamMembers(ctx, g, repo, teamSpec, roles, membership)
 	}
