@@ -22,6 +22,9 @@ func (a ActionReference) Name() string {
 	if a.IsLocal {
 		return a.Raw
 	}
+	if a.Owner == "" {
+		return a.Raw
+	}
 	name := a.Owner + "/" + a.Repo
 	if a.Path != "" {
 		name += "/" + a.Path
@@ -292,15 +295,56 @@ func ParseWorkflowName(content []byte) string {
 	return wf.Name
 }
 
-// ParseWorkflowYAML parses a GitHub Actions workflow YAML content and extracts action references
+// ParseWorkflowYAML parses a GitHub Actions workflow YAML content and extracts action references.
+// Jobs and steps are processed in YAML document order to produce deterministic output.
 func ParseWorkflowYAML(content []byte) (string, []ActionReference, error) {
-	var wf workflowYAML
-	if err := yaml.Unmarshal(content, &wf); err != nil {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(content, &doc); err != nil {
 		return "", nil, fmt.Errorf("failed to parse workflow YAML: %w", err)
 	}
 
+	// doc is a Document node; the actual mapping is its first child
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
+		return "", nil, fmt.Errorf("unexpected YAML structure")
+	}
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return "", nil, fmt.Errorf("expected YAML mapping at root")
+	}
+
+	var name string
+	var jobsNode *yaml.Node
+
+	// Iterate root mapping keys in document order
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		key := root.Content[i].Value
+		val := root.Content[i+1]
+		switch key {
+		case "name":
+			name = val.Value
+		case "jobs":
+			jobsNode = val
+		}
+	}
+
+	if jobsNode == nil || jobsNode.Kind != yaml.MappingNode {
+		return name, nil, nil
+	}
+
 	var refs []ActionReference
-	for _, job := range wf.Jobs {
+	// Iterate jobs in document order (mapping key/value pairs)
+	for i := 0; i+1 < len(jobsNode.Content); i += 2 {
+		jobNode := jobsNode.Content[i+1]
+		if jobNode.Kind != yaml.MappingNode {
+			continue
+		}
+
+		// Decode the job into a struct for convenient access
+		var job workflowJob
+		if err := jobNode.Decode(&job); err != nil {
+			continue
+		}
+
 		// Reusable workflow reference (jobs.<job_id>.uses)
 		if job.Uses != "" {
 			ref := ParseActionReference(job.Uses)
@@ -338,7 +382,7 @@ func ParseWorkflowYAML(content []byte) (string, []ActionReference, error) {
 			}
 		}
 	}
-	return wf.Name, refs, nil
+	return name, refs, nil
 }
 
 // ParseActionYAML parses an action.yml/action.yaml content and extracts action references

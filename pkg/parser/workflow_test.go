@@ -110,21 +110,23 @@ jobs:
 	assert.Equal(t, "CI", name)
 	assert.Len(t, refs, 5)
 
+	// Verify refs are returned in YAML document order (build -> lint -> reusable)
 	assert.Equal(t, "actions/checkout@v4", refs[0].Raw)
 	assert.Equal(t, "actions", refs[0].Owner)
 	assert.Equal(t, "checkout", refs[0].Repo)
 	assert.Equal(t, "v4", refs[0].Ref)
 
-	// Check reusable workflow reference is present
-	found := false
-	for _, ref := range refs {
-		if ref.Owner == "octo-org" && ref.Repo == "this-repo" {
-			found = true
-			assert.Equal(t, ".github/workflows/workflow-1.yml", ref.Path)
-			assert.Equal(t, "main", ref.Ref)
-		}
-	}
-	assert.True(t, found, "reusable workflow reference should be found")
+	assert.Equal(t, "actions/setup-go@v5", refs[1].Raw)
+
+	assert.Equal(t, "actions/checkout@v4", refs[2].Raw)
+
+	assert.Equal(t, "golangci/golangci-lint-action@v6", refs[3].Raw)
+
+	assert.Equal(t, "octo-org/this-repo/.github/workflows/workflow-1.yml@main", refs[4].Raw)
+	assert.Equal(t, "octo-org", refs[4].Owner)
+	assert.Equal(t, "this-repo", refs[4].Repo)
+	assert.Equal(t, ".github/workflows/workflow-1.yml", refs[4].Path)
+	assert.Equal(t, "main", refs[4].Ref)
 }
 
 func TestParseActionYAML(t *testing.T) {
@@ -197,6 +199,13 @@ func TestActionReferenceName(t *testing.T) {
 				IsLocal: true,
 			},
 			expected: "./local",
+		},
+		{
+			name: "docker action",
+			ref: ActionReference{
+				Raw: "docker://alpine:3.8",
+			},
+			expected: "docker://alpine:3.8",
 		},
 	}
 

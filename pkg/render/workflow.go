@@ -119,6 +119,10 @@ func (r *Renderer) RenderWorkflowDependenciesWithFormat(format string, deps []pa
 // RenderMarkdownWorkflowDependencies renders workflow dependencies in Markdown format
 // with an embedded Mermaid flowchart code block
 func (r *Renderer) RenderMarkdownWorkflowDependencies(deps []parser.WorkflowDependency) {
+	if r.exporter != nil {
+		r.RenderExportedData(deps)
+		return
+	}
 	r.writeLine("```mermaid")
 	r.RenderMermaidWorkflowDependencies(deps)
 	r.writeLine("```")
@@ -126,6 +130,11 @@ func (r *Renderer) RenderMarkdownWorkflowDependencies(deps []parser.WorkflowDepe
 
 // RenderMermaidWorkflowDependencies renders workflow dependencies as a Mermaid flowchart
 func (r *Renderer) RenderMermaidWorkflowDependencies(deps []parser.WorkflowDependency) {
+	if r.exporter != nil {
+		r.RenderExportedData(deps)
+		return
+	}
+
 	r.writeLine("graph LR")
 
 	// Build a set of dep sources and their labels for resolving action references
