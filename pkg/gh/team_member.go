@@ -169,6 +169,52 @@ func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Re
 	return members, nil
 }
 
+// ListOnlyTeamMembers returns members who belong exclusively to the specified team
+// and are not members of any other team in the organization.
+func ListOnlyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, roles []string, membership bool) ([]*github.User, error) {
+	targetMembers, err := ListTeamMembers(ctx, g, repo, teamSlug, roles, membership)
+	if err != nil {
+		return nil, err
+	}
+
+	teams, err := ListTeams(ctx, g, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build a set of target member IDs for tracking candidates
+	candidateIDs := make(map[int64]struct{}, len(targetMembers))
+	for _, member := range targetMembers {
+		candidateIDs[member.GetID()] = struct{}{}
+	}
+
+	// Iterate other teams and remove candidates found in them; stop early if none remain
+	for _, team := range teams {
+		if team.GetSlug() == teamSlug {
+			continue
+		}
+		members, err := ListTeamMembers(ctx, g, repo, team.GetSlug(), nil, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list members of team '%s': %w", team.GetSlug(), err)
+		}
+		for _, member := range members {
+			delete(candidateIDs, member.GetID())
+		}
+		if len(candidateIDs) == 0 {
+			return []*github.User{}, nil
+		}
+	}
+
+	// Filter to only members still in the candidate set
+	result := make([]*github.User, 0, len(candidateIDs))
+	for _, member := range targetMembers {
+		if _, exists := candidateIDs[member.GetID()]; exists {
+			result = append(result, member)
+		}
+	}
+	return result, nil
+}
+
 const (
 	// TeamSpecAny is a special team slug that represents the union of all team members across all teams in the organization or repository.
 	TeamSpecAny = "@any"
