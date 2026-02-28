@@ -167,6 +167,29 @@ runs:
 	})
 }
 
+func TestPopulateActionUsing(t *testing.T) {
+	deps := []WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Actions: []ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"},
+				{Raw: "my-org/node-action@v1", Owner: "my-org", Repo: "node-action", Ref: "v1"},
+				{Raw: "unknown/action@v1", Owner: "unknown", Repo: "action", Ref: "v1"},
+			},
+		},
+	}
+	usingBySource := map[string]string{
+		"actions/checkout:action.yml":    "node20",
+		"my-org/node-action:action.yml":  "node16",
+	}
+
+	PopulateActionUsing(deps, usingBySource)
+
+	assert.Equal(t, "node20", deps[0].Actions[0].Using)
+	assert.Equal(t, "node16", deps[0].Actions[1].Using)
+	assert.Equal(t, "", deps[0].Actions[2].Using) // unknown action — not populated
+}
+
 func TestActionReferenceName(t *testing.T) {
 	tests := []struct {
 		name     string

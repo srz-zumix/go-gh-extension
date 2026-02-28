@@ -30,32 +30,15 @@ func TestExtractNodeVersion(t *testing.T) {
 }
 
 func TestWorkflowDependencyFieldGetters_Using(t *testing.T) {
-	// Build a simple dep map for a node action
-	deps := []parser.WorkflowDependency{
-		{
-			Source:  "actions/checkout:action.yml",
-			Using:   "node20",
-			Actions: nil,
-		},
-		{
-			Source:  "my-org/composite-action:action.yml",
-			Using:   "composite",
-			Actions: nil,
-		},
-	}
-	depsBySource := make(map[string]*parser.WorkflowDependency, len(deps))
-	for i := range deps {
-		depsBySource[deps[i].Source] = &deps[i]
-	}
+	getter := NewWorkflowDependencyFieldGetters()
 
-	getter := NewWorkflowDependencyFieldGetters(depsBySource)
-
-	// ActionReference pointing to actions/checkout@v4
+	// ActionReference with Using set (populated by PopulateActionUsing)
 	checkoutRef := parser.ActionReference{
 		Raw:   "actions/checkout@v4",
 		Owner: "actions",
 		Repo:  "checkout",
 		Ref:   "v4",
+		Using: "node20",
 	}
 	assert.Equal(t, "node20", getter.GetField(&checkoutRef, "USING"))
 	assert.Equal(t, "20", getter.GetField(&checkoutRef, "NODE_VERSION"))
@@ -66,11 +49,12 @@ func TestWorkflowDependencyFieldGetters_Using(t *testing.T) {
 		Owner: "my-org",
 		Repo:  "composite-action",
 		Ref:   "v1",
+		Using: "composite",
 	}
 	assert.Equal(t, "composite", getter.GetField(&compositeRef, "USING"))
 	assert.Equal(t, "", getter.GetField(&compositeRef, "NODE_VERSION"))
 
-	// Unknown action (no dep entry)
+	// Unknown action (Using not populated)
 	unknownRef := parser.ActionReference{
 		Raw:   "unknown/action@v1",
 		Owner: "unknown",
@@ -82,8 +66,8 @@ func TestWorkflowDependencyFieldGetters_Using(t *testing.T) {
 }
 
 func TestWorkflowDependencyFieldGetters_UsingWithoutDepsBySource(t *testing.T) {
-	getter := NewWorkflowDependencyFieldGetters(nil)
-	// DepsBySource is nil — USING and NODE_VERSION should return empty string
+	getter := NewWorkflowDependencyFieldGetters()
+	// Using not set — USING and NODE_VERSION should return empty string
 
 	ref := parser.ActionReference{
 		Raw:   "actions/checkout@v4",

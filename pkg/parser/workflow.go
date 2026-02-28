@@ -9,12 +9,13 @@ import (
 
 // ActionReference represents a parsed reference to a GitHub Action or reusable workflow
 type ActionReference struct {
-	Raw     string `json:"raw" yaml:"raw"`         // Original uses string, e.g. "actions/checkout@v4"
-	Owner   string `json:"owner" yaml:"owner"`     // e.g. "actions"
-	Repo    string `json:"repo" yaml:"repo"`       // e.g. "checkout"
-	Path    string `json:"path" yaml:"path"`       // Subdirectory path, e.g. "subdir" for "owner/repo/subdir@v1"
-	Ref     string `json:"ref" yaml:"ref"`         // Version/ref, e.g. "v4"
-	IsLocal bool   `json:"isLocal" yaml:"isLocal"` // true for "./local-action" references
+	Raw     string `json:"raw" yaml:"raw"`                       // Original uses string, e.g. "actions/checkout@v4"
+	Owner   string `json:"owner" yaml:"owner"`                   // e.g. "actions"
+	Repo    string `json:"repo" yaml:"repo"`                     // e.g. "checkout"
+	Path    string `json:"path" yaml:"path"`                     // Subdirectory path, e.g. "subdir" for "owner/repo/subdir@v1"
+	Ref     string `json:"ref" yaml:"ref"`                       // Version/ref, e.g. "v4"
+	IsLocal bool   `json:"isLocal" yaml:"isLocal"`               // true for "./local-action" references
+	Using   string `json:"using,omitempty" yaml:"using,omitempty"` // runs.using value of the referenced action, e.g. "node20", "composite"
 }
 
 // Name returns a human-readable name for the action reference
@@ -120,12 +121,31 @@ func ResolveActionDepSource(action ActionReference, hasSource func(string) bool)
 	return ""
 }
 
+// PopulateActionUsing sets the Using field on each ActionReference in deps
+// by looking up the corresponding source key in usingBySource.
+// usingBySource maps dep source keys (e.g. "actions/checkout:action.yml") to
+// runs.using values (e.g. "node20", "composite").
+func PopulateActionUsing(deps []WorkflowDependency, usingBySource map[string]string) {
+	hasSource := func(key string) bool {
+		_, ok := usingBySource[key]
+		return ok
+	}
+	for i := range deps {
+		for j := range deps[i].Actions {
+			action := &deps[i].Actions[j]
+			sourceKey := ResolveActionDepSource(*action, hasSource)
+			if sourceKey != "" {
+				action.Using = usingBySource[sourceKey]
+			}
+		}
+	}
+}
+
 // WorkflowDependency represents dependencies found in a single workflow or action file
 type WorkflowDependency struct {
-	Source  string            `json:"source"`            // File path, e.g. ".github/workflows/ci.yml"
-	Name    string            `json:"name"`              // Workflow name from the YAML name field
-	Using   string            `json:"using,omitempty"`   // runs.using value from action.yml, e.g. "node20", "composite", "docker"
-	Actions []ActionReference `json:"actions"`           // Action references found in the file
+	Source  string            `json:"source"`  // File path, e.g. ".github/workflows/ci.yml"
+	Name    string            `json:"name"`    // Workflow name from the YAML name field
+	Actions []ActionReference `json:"actions"` // Action references found in the file
 }
 
 // workflowYAML represents the structure of a GitHub Actions workflow YAML file
