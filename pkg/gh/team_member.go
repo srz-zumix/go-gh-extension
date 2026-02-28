@@ -3,6 +3,8 @@ package gh
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
@@ -131,7 +133,8 @@ func RemoveTeamMembersOther(ctx context.Context, g *GitHubClient, repo repositor
 }
 
 // ListAnyTeamMembers lists all teams in the organization and returns the union of all team members.
-func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, roles []string, membership bool) ([]*github.User, error) {
+// Membership information is not available since members may belong to multiple teams.
+func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, roles []string) ([]*github.User, error) {
 	teams, err := ListTeams(ctx, g, repo)
 	if err != nil {
 		return nil, err
@@ -139,20 +142,18 @@ func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Re
 
 	userMap := make(map[int64]*github.User)
 	for _, team := range teams {
-		members, err := ListTeamMembers(ctx, g, repo, team.GetSlug(), roles, membership)
+		members, err := ListTeamMembers(ctx, g, repo, team.GetSlug(), roles, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list members of team '%s': %w", team.GetSlug(), err)
 		}
 		for _, member := range members {
-			userMap[member.GetID()] = member
+			if _, exists := userMap[member.GetID()]; !exists {
+				userMap[member.GetID()] = member
+			}
 		}
 	}
 
-	result := make([]*github.User, 0, len(userMap))
-	for _, user := range userMap {
-		result = append(result, user)
-	}
-	return result, nil
+	return slices.Collect(maps.Values(userMap)), nil
 }
 
 const (
@@ -169,7 +170,7 @@ const (
 func ListMembersByTeamSpec(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSpec string, roles []string, membership bool) ([]*github.User, error) {
 	switch teamSpec {
 	case TeamSpecAny:
-		return ListAnyTeamMembers(ctx, g, repo, roles, membership)
+		return ListAnyTeamMembers(ctx, g, repo, roles)
 	case TeamSpecAll:
 		return ListOrgMembers(ctx, g, repo, roles, membership)
 	default:
