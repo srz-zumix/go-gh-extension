@@ -130,6 +130,53 @@ func RemoveTeamMembersOther(ctx context.Context, g *GitHubClient, repo repositor
 	return nil
 }
 
+// ListAnyTeamMembers lists all teams in the organization and returns the union of all team members.
+func ListAnyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, roles []string, membership bool) ([]*github.User, error) {
+	teams, err := ListTeams(ctx, g, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	userMap := make(map[int64]*github.User)
+	for _, team := range teams {
+		members, err := ListTeamMembers(ctx, g, repo, team.GetSlug(), roles, membership)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list members of team '%s': %w", team.GetSlug(), err)
+		}
+		for _, member := range members {
+			userMap[member.GetID()] = member
+		}
+	}
+
+	result := make([]*github.User, 0, len(userMap))
+	for _, user := range userMap {
+		result = append(result, user)
+	}
+	return result, nil
+}
+
+const (
+	// TeamSpecAny is a special team slug that represents the union of all team members.
+	TeamSpecAny = "@any"
+	// TeamSpecAll is a special team slug that represents all organization members.
+	TeamSpecAll = "@all"
+)
+
+// ListMembersByTeamSpec retrieves members based on a team specification.
+// TeamSpecAny (@any): returns the union of all team members across all teams in the organization.
+// TeamSpecAll (@all): returns all organization members.
+// Otherwise: returns members of the specified team.
+func ListMembersByTeamSpec(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSpec string, roles []string, membership bool) ([]*github.User, error) {
+	switch teamSpec {
+	case TeamSpecAny:
+		return ListAnyTeamMembers(ctx, g, repo, roles, membership)
+	case TeamSpecAll:
+		return ListOrgMembers(ctx, g, repo, roles, membership)
+	default:
+		return ListTeamMembers(ctx, g, repo, teamSpec, roles, membership)
+	}
+}
+
 // CopyTeamMembers copies members from the source team to the destination team (add only).
 func CopyTeamMembers(ctx context.Context, srcClient *GitHubClient, srcRepo repository.Repository, srcTeamSlug string, dstClient *GitHubClient, dstRepo repository.Repository, dstTeamSlug string) error {
 	srcMembers, err := ListTeamMembers(ctx, srcClient, srcRepo, srcTeamSlug, nil, false)
