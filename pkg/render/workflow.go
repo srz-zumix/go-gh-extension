@@ -132,6 +132,9 @@ func (r *Renderer) RenderWorkflowDependenciesWithFormat(format string, deps []pa
 	}
 
 	switch strings.ToLower(format) {
+	case "dot":
+		r.RenderDotWorkflowDependencies(deps)
+		return
 	case "markdown":
 		r.RenderMarkdownWorkflowDependencies(deps)
 		return
@@ -142,6 +145,47 @@ func (r *Renderer) RenderWorkflowDependenciesWithFormat(format string, deps []pa
 		r.writeLine(fmt.Sprintf("Unsupported format: %s", format))
 		return
 	}
+}
+
+// RenderDotWorkflowDependencies renders workflow dependencies as a Graphviz DOT digraph
+func (r *Renderer) RenderDotWorkflowDependencies(deps []parser.WorkflowDependency) {
+	if r.exporter != nil {
+		r.RenderExportedData(deps)
+		return
+	}
+
+	r.writeLine("digraph {")
+
+	// Build a set of dep sources for resolving action references
+	depSources := make(map[string]bool)
+	for _, dep := range deps {
+		depSources[dep.Source] = true
+	}
+	hasSource := func(key string) bool {
+		return depSources[key]
+	}
+
+	seen := make(map[string]bool)
+	for _, dep := range deps {
+		for _, action := range dep.Actions {
+			var targetLabel string
+			if resolved := parser.ResolveActionDepSource(action, hasSource); resolved != "" {
+				targetLabel = resolved
+			} else {
+				targetLabel = action.Name()
+			}
+			edgeKey := dep.Source + "->" + targetLabel
+			if seen[edgeKey] {
+				continue
+			}
+			seen[edgeKey] = true
+			r.writeLine(fmt.Sprintf("    %s -> %s",
+				dotQuote(dep.Source),
+				dotQuote(targetLabel),
+			))
+		}
+	}
+	r.writeLine("}")
 }
 
 // RenderMarkdownWorkflowDependencies renders workflow dependencies in Markdown format
@@ -165,17 +209,11 @@ func (r *Renderer) RenderMermaidWorkflowDependencies(deps []parser.WorkflowDepen
 
 	r.writeLine("graph LR")
 
-	// Build a set of dep sources and their labels for resolving action references
+	// Build a set of dep sources for resolving action references
 	// to their corresponding dep nodes in the graph.
 	depSources := make(map[string]bool)
-	depLabels := make(map[string]string)
 	for _, dep := range deps {
 		depSources[dep.Source] = true
-		label := dep.Source
-		if dep.Name != "" {
-			label = dep.Name
-		}
-		depLabels[dep.Source] = label
 	}
 	hasSource := func(key string) bool {
 		return depSources[key]
@@ -184,10 +222,6 @@ func (r *Renderer) RenderMermaidWorkflowDependencies(deps []parser.WorkflowDepen
 	seen := make(map[string]bool)
 	for _, dep := range deps {
 		sourceID := mermaidNodeID(dep.Source)
-		sourceLabel := dep.Source
-		if dep.Name != "" {
-			sourceLabel = dep.Name
-		}
 		for _, action := range dep.Actions {
 			// Resolve action reference to its dep Source for proper graph connectivity.
 			// For example, "./my-action" resolves to "my-action/action.yml", and
@@ -195,7 +229,7 @@ func (r *Renderer) RenderMermaidWorkflowDependencies(deps []parser.WorkflowDepen
 			var targetID, targetLabel string
 			if resolved := parser.ResolveActionDepSource(action, hasSource); resolved != "" {
 				targetID = mermaidNodeID(resolved)
-				targetLabel = depLabels[resolved]
+				targetLabel = resolved
 			} else {
 				targetName := action.Name()
 				targetID = mermaidNodeID(targetName)
@@ -207,7 +241,7 @@ func (r *Renderer) RenderMermaidWorkflowDependencies(deps []parser.WorkflowDepen
 			}
 			seen[edgeKey] = true
 			r.writeLine(fmt.Sprintf("    %s[\"%s\"] --> %s[\"%s\"]",
-				sourceID, sourceLabel,
+				sourceID, dep.Source,
 				targetID, targetLabel,
 			))
 		}
