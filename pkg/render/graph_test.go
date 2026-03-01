@@ -3,8 +3,81 @@ package render
 import (
 	"testing"
 
+	"github.com/srz-zumix/go-gh-extension/pkg/gh"
+	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestDotQuote(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"simple", "abc", `"abc"`},
+		{"with slash", "owner/repo", `"owner/repo"`},
+		{"with quote", `say "hello"`, `"say \"hello\""`},
+		{"with backslash", `a\b`, `"a\\b"`},
+		{"empty", "", `""`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, dotQuote(tt.input))
+		})
+	}
+}
+
+func TestRenderDotGraphEdge(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	edges := []gh.GraphEdge{
+		{From: parser.ActionReference{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"}, To: parser.ActionReference{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5"}},
+		{From: parser.ActionReference{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"}, To: parser.ActionReference{Raw: "actions/cache@v3", Owner: "actions", Repo: "cache", Ref: "v3"}},
+		// duplicate edge should be deduplicated
+		{From: parser.ActionReference{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"}, To: parser.ActionReference{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5"}},
+	}
+	sr.Renderer.RenderDotGraphEdge(edges)
+	got := sr.Stdout.String()
+	assert.Contains(t, got, "digraph {")
+	assert.Contains(t, got, `"actions/checkout" -> "actions/setup-go"`)
+	assert.Contains(t, got, `"actions/checkout" -> "actions/cache"`)
+	assert.Contains(t, got, "}")
+	// verify deduplication: only 2 edges + digraph header + closing brace
+	lines := countNonEmptyLines(got)
+	assert.Equal(t, 4, lines)
+}
+
+func TestRenderDotGraphEdge_Empty(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	sr.Renderer.RenderDotGraphEdge(nil)
+	got := sr.Stdout.String()
+	assert.Contains(t, got, "digraph {")
+	assert.Contains(t, got, "}")
+}
+
+func countNonEmptyLines(s string) int {
+	count := 0
+	for _, line := range splitLines(s) {
+		if len(line) > 0 {
+			count++
+		}
+	}
+	return count
+}
+
+func splitLines(s string) []string {
+	var lines []string
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\n' {
+			lines = append(lines, s[start:i])
+			start = i + 1
+		}
+	}
+	if start < len(s) {
+		lines = append(lines, s[start:])
+	}
+	return lines
+}
 
 func TestMermaidNodeID(t *testing.T) {
 	tests := []struct {
