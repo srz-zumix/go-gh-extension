@@ -45,3 +45,19 @@ func FindOrgRunner(ctx context.Context, g *GitHubClient, repo repository.Reposit
 func GetOrgRunner(ctx context.Context, g *GitHubClient, repo repository.Repository, runnerID int64) (*github.Runner, error) {
 	return g.GetOrgRunner(ctx, repo.Owner, runnerID)
 }
+
+// CreateRegistrationToken creates a registration token for a repository or organization (wrapper)
+func CreateRegistrationToken(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.RegistrationToken, error) {
+	if repo.Name == "" {
+		return g.CreateOrgRegistrationToken(ctx, repo.Owner)
+	}
+	return g.CreateRegistrationToken(ctx, repo.Owner, repo.Name)
+}
+
+// RemoveRunner removes a self-hosted runner from a repository or organization (wrapper)
+func RemoveRunner(ctx context.Context, g *GitHubClient, repo repository.Repository, runnerID int64) error {
+	if repo.Name == "" {
+		return g.RemoveOrgRunner(ctx, repo.Owner, runnerID)
+	}
+	return g.RemoveRunner(ctx, repo.Owner, repo.Name, runnerID)
+}

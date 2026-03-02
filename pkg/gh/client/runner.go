@@ -92,3 +92,33 @@ func (g *GitHubClient) GetOrgRunner(ctx context.Context, owner string, runnerID 
 	}
 	return runner, nil
 }
+
+// CreateRegistrationToken creates a registration token for a repository
+func (g *GitHubClient) CreateRegistrationToken(ctx context.Context, owner, repo string) (*github.RegistrationToken, error) {
+	token, _, err := g.client.Actions.CreateRegistrationToken(ctx, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
+// CreateOrgRegistrationToken creates a registration token for an organization
+func (g *GitHubClient) CreateOrgRegistrationToken(ctx context.Context, owner string) (*github.RegistrationToken, error) {
+	token, _, err := g.client.Actions.CreateOrganizationRegistrationToken(ctx, owner)
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
+// RemoveRunner removes a self-hosted runner from a repository
+func (g *GitHubClient) RemoveRunner(ctx context.Context, owner, repo string, runnerID int64) error {
+	_, err := g.client.Actions.RemoveRunner(ctx, owner, repo, runnerID)
+	return err
+}
+
+// RemoveOrgRunner removes a self-hosted runner from an organization
+func (g *GitHubClient) RemoveOrgRunner(ctx context.Context, owner string, runnerID int64) error {
+	_, err := g.client.Actions.RemoveOrganizationRunner(ctx, owner, runnerID)
+	return err
+}
