@@ -54,6 +54,35 @@ func TestRenderDotGraphEdge_Empty(t *testing.T) {
 	assert.Contains(t, got, "}")
 }
 
+func TestRenderDrawioGraphEdge(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	edges := []gh.GraphEdge{
+		{From: parser.ActionReference{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"}, To: parser.ActionReference{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5"}},
+		{From: parser.ActionReference{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"}, To: parser.ActionReference{Raw: "actions/cache@v3", Owner: "actions", Repo: "cache", Ref: "v3"}},
+		// duplicate edge should be deduplicated
+		{From: parser.ActionReference{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"}, To: parser.ActionReference{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5"}},
+	}
+	sr.Renderer.RenderDrawioGraphEdge(edges)
+	got := sr.Stdout.String()
+	assert.Contains(t, got, `<mxfile host="gh-deps-kit">`)
+	assert.Contains(t, got, `</mxfile>`)
+	// 3 unique nodes: checkout, setup-go, cache
+	assert.Contains(t, got, `value="actions/checkout"`)
+	assert.Contains(t, got, `value="actions/setup-go"`)
+	assert.Contains(t, got, `value="actions/cache"`)
+	// 2 edges (deduplicated)
+	assert.Contains(t, got, `source="2" target="3"`)
+	assert.Contains(t, got, `source="2" target="4"`)
+}
+
+func TestRenderDrawioGraphEdge_Empty(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	sr.Renderer.RenderDrawioGraphEdge(nil)
+	got := sr.Stdout.String()
+	assert.Contains(t, got, `<mxfile host="gh-deps-kit">`)
+	assert.Contains(t, got, `</mxfile>`)
+}
+
 func countNonEmptyLines(s string) int {
 	count := 0
 	for _, line := range splitLines(s) {

@@ -135,6 +135,9 @@ func (r *Renderer) RenderWorkflowDependenciesWithFormat(format string, deps []pa
 	case "dot":
 		r.RenderDotWorkflowDependencies(deps)
 		return
+	case "drawio":
+		r.RenderDrawioWorkflowDependencies(deps)
+		return
 	case "markdown":
 		r.RenderMarkdownWorkflowDependencies(deps)
 		return
@@ -186,6 +189,43 @@ func (r *Renderer) RenderDotWorkflowDependencies(deps []parser.WorkflowDependenc
 		}
 	}
 	r.writeLine("}")
+}
+
+// RenderDrawioWorkflowDependencies renders workflow dependencies as a draw.io XML document
+func (r *Renderer) RenderDrawioWorkflowDependencies(deps []parser.WorkflowDependency) {
+	if r.exporter != nil {
+		r.RenderExportedData(deps)
+		return
+	}
+
+	// Build a set of dep sources for resolving action references
+	depSources := make(map[string]bool)
+	for _, dep := range deps {
+		depSources[dep.Source] = true
+	}
+	hasSource := func(key string) bool {
+		return depSources[key]
+	}
+
+	var edges [][2]string
+	seen := make(map[string]bool)
+	for _, dep := range deps {
+		for _, action := range dep.Actions {
+			var targetLabel string
+			if resolved := parser.ResolveActionDepSource(action, hasSource); resolved != "" {
+				targetLabel = resolved
+			} else {
+				targetLabel = action.Name()
+			}
+			edgeKey := dep.Source + "->" + targetLabel
+			if seen[edgeKey] {
+				continue
+			}
+			seen[edgeKey] = true
+			edges = append(edges, [2]string{dep.Source, targetLabel})
+		}
+	}
+	r.writeDrawioGraph(edges)
 }
 
 // RenderMarkdownWorkflowDependencies renders workflow dependencies in Markdown format

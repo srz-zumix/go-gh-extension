@@ -126,3 +126,33 @@ func TestRenderDotWorkflowDependencies_ResolvedSource(t *testing.T) {
 	assert.Contains(t, got, `".github/workflows/ci.yml" -> "my-action/action.yml"`)
 	assert.Contains(t, got, `"my-action/action.yml" -> "actions/checkout"`)
 }
+
+func TestRenderDrawioWorkflowDependencies(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Name:   "CI",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"},
+				{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5"},
+			},
+		},
+	}
+	sr.Renderer.RenderDrawioWorkflowDependencies(deps)
+	got := sr.Stdout.String()
+	assert.Contains(t, got, `<mxfile host="gh-deps-kit">`)
+	assert.Contains(t, got, `</mxfile>`)
+	// Source uses file path, not workflow name
+	assert.Contains(t, got, `value=".github/workflows/ci.yml"`)
+	assert.Contains(t, got, `value="actions/checkout"`)
+	assert.Contains(t, got, `value="actions/setup-go"`)
+}
+
+func TestRenderDrawioWorkflowDependencies_Empty(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	sr.Renderer.RenderDrawioWorkflowDependencies(nil)
+	got := sr.Stdout.String()
+	assert.Contains(t, got, `<mxfile host="gh-deps-kit">`)
+	assert.Contains(t, got, `</mxfile>`)
+}
