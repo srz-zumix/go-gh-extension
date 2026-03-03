@@ -99,11 +99,13 @@ func getActionsDependencyGraphInternal(ctx context.Context, g *GitHubClient, rep
 			edges = append(edges, GraphEdge{
 				From: repo,
 				To:   pkg,
+				Host: repo.Host,
 			})
 			if GetObjectName(pkg) != GetObjectName(actionRepo) {
 				edges = append(edges, GraphEdge{
 					From: pkg,
 					To:   actionRepo,
+					Host: repo.Host,
 				})
 			}
 			if recursive {

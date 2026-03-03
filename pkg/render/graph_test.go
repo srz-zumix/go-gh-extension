@@ -54,6 +54,103 @@ func TestRenderDotGraphEdge_Empty(t *testing.T) {
 	assert.Contains(t, got, "}")
 }
 
+func TestRenderDrawioGraphEdge(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	edges := []gh.GraphEdge{
+		{From: parser.ActionReference{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"}, To: parser.ActionReference{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5"}},
+		{From: parser.ActionReference{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"}, To: parser.ActionReference{Raw: "actions/cache@v3", Owner: "actions", Repo: "cache", Ref: "v3"}},
+		// duplicate edge should be deduplicated
+		{From: parser.ActionReference{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"}, To: parser.ActionReference{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5"}},
+	}
+	sr.Renderer.RenderDrawioGraphEdge(edges)
+	got := sr.Stdout.String()
+	assert.Contains(t, got, `<mxfile host="gh-deps-kit">`)
+	assert.Contains(t, got, `</mxfile>`)
+	// 3 unique nodes: checkout, setup-go, cache
+	assert.Contains(t, got, `actions/checkout`)
+	assert.Contains(t, got, `actions/setup-go`)
+	assert.Contains(t, got, `actions/cache`)
+	// 2 edges (deduplicated)
+	assert.Contains(t, got, `source="2" target="3"`)
+	assert.Contains(t, got, `source="2" target="4"`)
+}
+
+func TestRenderDrawioGraphEdge_Empty(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	sr.Renderer.RenderDrawioGraphEdge(nil)
+	got := sr.Stdout.String()
+	assert.Contains(t, got, `<mxfile host="gh-deps-kit">`)
+	assert.Contains(t, got, `</mxfile>`)
+}
+
+func TestWorkflowDepSourceURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		source   string
+		host     string
+		ref      string
+		owner    string
+		repo     string
+		expected string
+	}{
+		{"remote action", "actions/checkout:action.yml", "github.com", "", "", "",
+			"https://github.com/actions/checkout/blob/HEAD/action.yml"},
+		{"remote action with ref", "actions/checkout:action.yml", "github.com", "v4", "", "",
+			"https://github.com/actions/checkout/blob/v4/action.yml"},
+		{"remote workflow", "owner/repo:.github/workflows/ci.yml", "github.com", "", "", "",
+			"https://github.com/owner/repo/blob/HEAD/.github/workflows/ci.yml"},
+		{"remote workflow with ref", "owner/repo:.github/workflows/ci.yml", "github.com", "main", "", "",
+			"https://github.com/owner/repo/blob/main/.github/workflows/ci.yml"},
+		{"GHES remote", "actions/checkout:action.yml", "ghes.example.com", "", "", "",
+			"https://ghes.example.com/actions/checkout/blob/HEAD/action.yml"},
+		{"local workflow no host", ".github/workflows/ci.yml", "", "", "", "",
+			""},
+		{"local workflow with host and owner/repo", ".github/workflows/ci.yml", "github.com", "", "myorg", "myrepo",
+			"https://github.com/myorg/myrepo/blob/HEAD/.github/workflows/ci.yml"},
+		{"local workflow with host and ref", ".github/workflows/ci.yml", "github.com", "main", "myorg", "myrepo",
+			"https://github.com/myorg/myrepo/blob/main/.github/workflows/ci.yml"},
+		{"local action with host and owner/repo", "my-action/action.yml", "github.com", "", "myorg", "myrepo",
+			"https://github.com/myorg/myrepo/blob/HEAD/my-action/action.yml"},
+		{"local workflow with host but no owner/repo", ".github/workflows/ci.yml", "github.com", "", "", "",
+			""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, workflowDepSourceURL(tt.source, tt.host, tt.ref, tt.owner, tt.repo))
+		})
+	}
+}
+
+func TestActionReferenceURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		action   parser.ActionReference
+		expected string
+	}{
+		{"remote action", parser.ActionReference{Owner: "actions", Repo: "checkout", Host: "github.com"},
+			"https://github.com/actions/checkout"},
+		{"remote action with path", parser.ActionReference{Owner: "owner", Repo: "repo", Path: "subdir", Host: "github.com"},
+			"https://github.com/owner/repo/blob/HEAD/subdir"},
+		{"remote action with path and ref", parser.ActionReference{Owner: "owner", Repo: "repo", Path: "subdir", Ref: "v1", Host: "github.com"},
+			"https://github.com/owner/repo/blob/v1/subdir"},
+		{"GHES remote", parser.ActionReference{Owner: "owner", Repo: "repo", Path: ".github/workflows/ci.yml", Host: "ghes.example.com"},
+			"https://ghes.example.com/owner/repo/blob/HEAD/.github/workflows/ci.yml"},
+		{"GHES remote with ref", parser.ActionReference{Owner: "owner", Repo: "repo", Path: ".github/workflows/ci.yml", Ref: "abc123", Host: "ghes.example.com"},
+			"https://ghes.example.com/owner/repo/blob/abc123/.github/workflows/ci.yml"},
+		{"local action", parser.ActionReference{IsLocal: true, Raw: "./my-action", Host: "github.com"},
+			""},
+		{"no host", parser.ActionReference{Owner: "actions", Repo: "checkout"},
+			""},
+		{"no owner/repo", parser.ActionReference{Raw: "something", Host: "github.com"},
+			""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, actionReferenceURL(tt.action))
+		})
+	}
+}
+
 func countNonEmptyLines(s string) int {
 	count := 0
 	for _, line := range splitLines(s) {
