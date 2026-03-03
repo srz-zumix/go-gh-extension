@@ -144,7 +144,7 @@ func (r *Renderer) RenderDrawioGraphEdge(edges []gh.GraphEdge) {
 			}
 		}
 	}
-	r.writeDrawioGraph(dedupEdges, nodeURLs)
+	r.writeDrawioGraph(dedupEdges, nodeURLs, nil)
 }
 
 // writeDrawioGraph writes a draw.io (mxGraph) XML document from directed edges.
@@ -153,7 +153,9 @@ func (r *Renderer) RenderDrawioGraphEdge(edges []gh.GraphEdge) {
 // sibling nodes.
 // nodeURLs maps node labels to their remote URLs. If nil or a key is missing,
 // the node is rendered without a link.
-func (r *Renderer) writeDrawioGraph(edges [][2]string, nodeURLs map[string]string) {
+// nodeColors maps node labels to border color hex strings (e.g. "#FF9800").
+// If nil or a key is missing, the default border style is used.
+func (r *Renderer) writeDrawioGraph(edges [][2]string, nodeURLs map[string]string, nodeColors map[string]string) {
 	// Collect unique nodes preserving insertion order
 	nodeIndex := make(map[string]int)
 	var nodes []string
@@ -260,8 +262,8 @@ func (r *Renderer) writeDrawioGraph(edges [][2]string, nodeURLs map[string]strin
 	}
 
 	const (
-		nodeWidth  = 240
-		nodeHeight = 40
+		nodeWidth  = 180
+		nodeHeight = 60
 		xGap       = 60
 		yGap       = 120
 	)
@@ -323,21 +325,27 @@ func (r *Renderer) writeDrawioGraph(edges [][2]string, nodeURLs map[string]strin
 	// Write node cells (IDs start from 2)
 	for i, name := range nodes {
 		cellID := i + 2
-		var nodeValue string
+		// Wrap text in a div with word-break:break-all so that long unbroken
+		// strings (e.g. file paths) are wrapped at character boundaries.
+		var innerHTML string
 		if nodeURLs != nil {
 			if u, ok := nodeURLs[name]; ok && u != "" {
-				// Build HTML link, then XML-escape the whole thing for embedding in an XML attribute.
-				// draw.io with html=1 style decodes the entities and renders HTML.
-				link := fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(u), html.EscapeString(name))
-				nodeValue = html.EscapeString(link)
+				innerHTML = fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(u), html.EscapeString(name))
 			} else {
-				nodeValue = html.EscapeString(name)
+				innerHTML = html.EscapeString(name)
 			}
 		} else {
-			nodeValue = html.EscapeString(name)
+			innerHTML = html.EscapeString(name)
 		}
-		r.writeLine(fmt.Sprintf(`        <mxCell id="%d" value="%s" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">`,
-			cellID, nodeValue))
+		nodeValue := html.EscapeString(fmt.Sprintf(`<div style="word-break:break-all">%s</div>`, innerHTML))
+		style := "rounded=1;whiteSpace=wrap;html=1;"
+		if nodeColors != nil {
+			if color, ok := nodeColors[name]; ok && color != "" {
+				style += "strokeColor=" + color + ";strokeWidth=2;"
+			}
+		}
+		r.writeLine(fmt.Sprintf(`        <mxCell id="%d" value="%s" style="%s" vertex="1" parent="1">`,
+			cellID, nodeValue, style))
 		r.writeLine(fmt.Sprintf(`          <mxGeometry x="%d" y="%d" width="%d" height="%d" as="geometry"/>`,
 			posX[name], posY[name], nodeWidth, nodeHeight))
 		r.writeLine(`        </mxCell>`)

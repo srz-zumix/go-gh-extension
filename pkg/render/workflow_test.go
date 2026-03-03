@@ -207,3 +207,83 @@ func TestRenderDrawioWorkflowDependencies_Empty(t *testing.T) {
 	assert.Contains(t, got, `<mxfile host="gh-deps-kit">`)
 	assert.Contains(t, got, `</mxfile>`)
 }
+
+func TestRenderDrawioWorkflowDependencies_NodeColors(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	deps := []parser.WorkflowDependency{
+		{
+			Source:     ".github/workflows/ci.yml",
+			Name:       "CI",
+			Repository: repository.Repository{Host: "github.com", Owner: "myorg", Name: "myrepo"},
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Host: "github.com", Using: "node20"},
+				{Raw: "actions/composite@v1", Owner: "actions", Repo: "composite", Ref: "v1", Host: "github.com", Using: "composite"},
+				{Raw: "actions/docker@v1", Owner: "actions", Repo: "docker", Ref: "v1", Host: "github.com", Using: "docker"},
+				{Raw: "org/repo/.github/workflows/reuse.yml@main", Owner: "org", Repo: "repo", Path: ".github/workflows/reuse.yml", Ref: "main", Host: "github.com"},
+			},
+		},
+	}
+	sr.Renderer.RenderDrawioWorkflowDependencies(deps)
+	got := sr.Stdout.String()
+	// node action: orange border
+	assert.Contains(t, got, `strokeColor=#FF9800;strokeWidth=2;`)
+	// composite action: green border
+	assert.Contains(t, got, `strokeColor=#4CAF50;strokeWidth=2;`)
+	// docker action: purple border
+	assert.Contains(t, got, `strokeColor=#9C27B0;strokeWidth=2;`)
+	// reusable workflow: blue border
+	assert.Contains(t, got, `strokeColor=#2196F3;strokeWidth=2;`)
+	// source workflow: default style (no strokeColor)
+	// The source node should exist with the default rounded style
+	assert.Contains(t, got, `.github/workflows/ci.yml`)
+}
+
+func TestActionNodeColor(t *testing.T) {
+	tests := []struct {
+		name   string
+		action parser.ActionReference
+		want   string
+	}{
+		{
+			name:   "reusable workflow",
+			action: parser.ActionReference{Raw: "org/repo/.github/workflows/ci.yml@main", Owner: "org", Repo: "repo", Path: ".github/workflows/ci.yml", Ref: "main"},
+			want:   "#2196F3",
+		},
+		{
+			name:   "local reusable workflow",
+			action: parser.ActionReference{Raw: "./.github/workflows/release.yml", IsLocal: true},
+			want:   "#2196F3",
+		},
+		{
+			name:   "composite",
+			action: parser.ActionReference{Using: "composite"},
+			want:   "#4CAF50",
+		},
+		{
+			name:   "node20",
+			action: parser.ActionReference{Using: "node20"},
+			want:   "#FF9800",
+		},
+		{
+			name:   "node16",
+			action: parser.ActionReference{Using: "node16"},
+			want:   "#FF9800",
+		},
+		{
+			name:   "docker",
+			action: parser.ActionReference{Using: "docker"},
+			want:   "#9C27B0",
+		},
+		{
+			name:   "unknown using",
+			action: parser.ActionReference{Using: ""},
+			want:   "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := actionNodeColor(tt.action)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
