@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
@@ -207,9 +208,34 @@ func (r *Renderer) RenderDrawioWorkflowDependencies(deps []parser.WorkflowDepend
 		return depSources[key]
 	}
 
+	// Build dep-source-to-repository map for resolved target URL lookup
+	depRepoBySource := make(map[string]repository.Repository)
+	for _, dep := range deps {
+		depRepoBySource[dep.Source] = dep.Repository
+	}
+
+	// Build dep-source-to-ref map by finding action references that resolve to dep sources.
+	// This allows us to construct URLs with the correct git ref instead of HEAD.
+	depRefBySource := make(map[string]string)
+	for _, dep := range deps {
+		for _, action := range dep.Actions {
+			if resolved := parser.ResolveActionDepSource(action, hasSource); resolved != "" {
+				if _, ok := depRefBySource[resolved]; !ok && action.Ref != "" {
+					depRefBySource[resolved] = action.Ref
+				}
+			}
+		}
+	}
+
+	nodeURLs := make(map[string]string)
 	var edges [][2]string
 	seen := make(map[string]bool)
 	for _, dep := range deps {
+		// Build URL for the source node
+		if _, ok := nodeURLs[dep.Source]; !ok {
+			nodeURLs[dep.Source] = workflowDepSourceURL(dep.Source, dep.Repository.Host, depRefBySource[dep.Source], dep.Repository.Owner, dep.Repository.Name)
+		}
+
 		for _, action := range dep.Actions {
 			var targetLabel string
 			if resolved := parser.ResolveActionDepSource(action, hasSource); resolved != "" {
@@ -223,9 +249,80 @@ func (r *Renderer) RenderDrawioWorkflowDependencies(deps []parser.WorkflowDepend
 			}
 			seen[edgeKey] = true
 			edges = append(edges, [2]string{dep.Source, targetLabel})
+
+			// Build URL for the target node
+			if _, ok := nodeURLs[targetLabel]; !ok {
+				// If the target is a known dep source, use its repository; otherwise use the action's host
+				if r, ok := depRepoBySource[targetLabel]; ok {
+					nodeURLs[targetLabel] = workflowDepSourceURL(targetLabel, r.Host, depRefBySource[targetLabel], r.Owner, r.Name)
+				} else {
+					u := actionReferenceURL(action)
+					// Local action not resolved to a dep source: construct URL from parent dep context
+					if u == "" && action.IsLocal && dep.Repository.Host != "" && dep.Repository.Owner != "" && dep.Repository.Name != "" {
+						localPath := action.LocalPath()
+						u = "https://" + dep.Repository.Host + "/" + dep.Repository.Owner + "/" + dep.Repository.Name + "/blob/HEAD/" + localPath
+					}
+					nodeURLs[targetLabel] = u
+				}
+			}
 		}
 	}
-	r.writeDrawioGraph(edges)
+	r.writeDrawioGraph(edges, nodeURLs)
+}
+
+// workflowDepSourceURL constructs a URL for a workflow/action dependency source label.
+// Labels containing ":" are remote references (e.g. "owner/repo:path"),
+// and labels without ":" are local file paths.
+// ref is the git reference used to fetch the file (e.g. "v1", a SHA). If empty, "HEAD" is used.
+// owner and repo provide the repository context for local sources.
+func workflowDepSourceURL(source string, host string, ref string, owner string, repo string) string {
+	if host == "" {
+		return ""
+	}
+	idx := strings.Index(source, ":")
+	if idx > 0 {
+		// Remote: "owner/repo:path"
+		ownerRepo := source[:idx]
+		path := source[idx+1:]
+		if strings.Contains(ownerRepo, "/") {
+			if ref == "" {
+				ref = "HEAD"
+			}
+			return "https://" + host + "/" + ownerRepo + "/blob/" + ref + "/" + path
+		}
+	}
+	// Local: use provided owner/repo
+	if owner != "" && repo != "" {
+		if ref == "" {
+			ref = "HEAD"
+		}
+		return "https://" + host + "/" + owner + "/" + repo + "/blob/" + ref + "/" + source
+	}
+	return ""
+}
+
+// actionReferenceURL constructs a URL from an ActionReference's structured fields and Host.
+func actionReferenceURL(action parser.ActionReference) string {
+	host := action.Host
+	if host == "" {
+		return ""
+	}
+	if action.IsLocal {
+		return ""
+	}
+	if action.Owner == "" || action.Repo == "" {
+		return ""
+	}
+	// Remote action: owner/repo with optional path
+	u := "https://" + host + "/" + action.Owner + "/" + action.Repo
+	if action.Path != "" {
+		ref := action.Ref
+		if ref == "" {
+			ref = "HEAD"
+		}
+		u += "/blob/" + ref + "/" + action.Path
+	}
+	return u
 }
 
 // RenderMarkdownWorkflowDependencies renders workflow dependencies in Markdown format

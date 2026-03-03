@@ -3,6 +3,7 @@ package render
 import (
 	"testing"
 
+	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 	"github.com/stretchr/testify/assert"
 )
@@ -32,7 +33,7 @@ func TestExtractNodeVersion(t *testing.T) {
 func TestWorkflowDependencyFieldGetters_Using(t *testing.T) {
 	getter := NewWorkflowDependencyFieldGetters()
 
-	// ActionReference with Using set (populated by PopulateActionUsing)
+	// ActionReference with Using set (resolved during traversal)
 	checkoutRef := parser.ActionReference{
 		Raw:   "actions/checkout@v4",
 		Owner: "actions",
@@ -133,9 +134,10 @@ func TestRenderDrawioWorkflowDependencies(t *testing.T) {
 		{
 			Source: ".github/workflows/ci.yml",
 			Name:   "CI",
+			Repository: repository.Repository{Host: "github.com", Owner: "myorg", Name: "myrepo"},
 			Actions: []parser.ActionReference{
-				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"},
-				{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5"},
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Host: "github.com"},
+				{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5", Host: "github.com"},
 			},
 		},
 	}
@@ -143,10 +145,59 @@ func TestRenderDrawioWorkflowDependencies(t *testing.T) {
 	got := sr.Stdout.String()
 	assert.Contains(t, got, `<mxfile host="gh-deps-kit">`)
 	assert.Contains(t, got, `</mxfile>`)
-	// Source uses file path, not workflow name
-	assert.Contains(t, got, `value=".github/workflows/ci.yml"`)
-	assert.Contains(t, got, `value="actions/checkout"`)
-	assert.Contains(t, got, `value="actions/setup-go"`)
+	// Source node should have a URL for local files using owner/repo
+	assert.Contains(t, got, `https://github.com/myorg/myrepo/blob/HEAD/.github/workflows/ci.yml`)
+	assert.Contains(t, got, `.github/workflows/ci.yml`)
+	// Remote actions have URLs
+	assert.Contains(t, got, `https://github.com/actions/checkout`)
+	assert.Contains(t, got, `actions/checkout`)
+	assert.Contains(t, got, `https://github.com/actions/setup-go`)
+	assert.Contains(t, got, `actions/setup-go`)
+}
+
+func TestRenderDrawioWorkflowDependencies_GHES(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Name:   "CI",
+			Repository: repository.Repository{Host: "ghes.example.com", Owner: "myorg", Name: "myrepo"},
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Host: "ghes.example.com"},
+			},
+		},
+	}
+	sr.Renderer.RenderDrawioWorkflowDependencies(deps)
+	got := sr.Stdout.String()
+	// GHES host should be used for remote actions
+	assert.Contains(t, got, `https://ghes.example.com/actions/checkout`)
+	// Local source should use GHES host
+	assert.Contains(t, got, `https://ghes.example.com/myorg/myrepo/blob/HEAD/.github/workflows/ci.yml`)
+	assert.NotContains(t, got, `github.com`)
+}
+
+func TestRenderDrawioWorkflowDependencies_FallbackMixedHosts(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Name:   "CI",
+			Repository: repository.Repository{Host: "ghes.example.com", Owner: "myorg", Name: "myrepo"},
+			Actions: []parser.ActionReference{
+				// This action was resolved on GHES
+				{Raw: "internal/action@v1", Owner: "internal", Repo: "action", Ref: "v1", Host: "ghes.example.com"},
+				// This action was resolved via fallback to github.com
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Host: "github.com"},
+			},
+		},
+	}
+	sr.Renderer.RenderDrawioWorkflowDependencies(deps)
+	got := sr.Stdout.String()
+	// Each action should use its own host for URL generation
+	assert.Contains(t, got, `https://ghes.example.com/internal/action`)
+	assert.Contains(t, got, `https://github.com/actions/checkout`)
+	// Local source should use GHES host
+	assert.Contains(t, got, `https://ghes.example.com/myorg/myrepo/blob/HEAD/.github/workflows/ci.yml`)
 }
 
 func TestRenderDrawioWorkflowDependencies_Empty(t *testing.T) {

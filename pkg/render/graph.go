@@ -119,6 +119,7 @@ func (r *Renderer) RenderDrawioGraphEdge(edges []gh.GraphEdge) {
 		return
 	}
 
+	nodeURLs := make(map[string]string)
 	var dedupEdges [][2]string
 	seen := make(map[string]bool)
 	for _, edge := range edges {
@@ -130,15 +131,29 @@ func (r *Renderer) RenderDrawioGraphEdge(edges []gh.GraphEdge) {
 		}
 		seen[edgeKey] = true
 		dedupEdges = append(dedupEdges, [2]string{from, to})
+
+		// Build node URL map from edge's typed objects and host
+		if _, ok := nodeURLs[from]; !ok {
+			if u := edge.GetFromURL(); u != "" {
+				nodeURLs[from] = u
+			}
+		}
+		if _, ok := nodeURLs[to]; !ok {
+			if u := edge.GetToURL(); u != "" {
+				nodeURLs[to] = u
+			}
+		}
 	}
-	r.writeDrawioGraph(dedupEdges)
+	r.writeDrawioGraph(dedupEdges, nodeURLs)
 }
 
 // writeDrawioGraph writes a draw.io (mxGraph) XML document from directed edges.
 // Nodes are laid out using a subtree-based placement so that each parent's
 // children are grouped directly below it, avoiding arrows that cross through
 // sibling nodes.
-func (r *Renderer) writeDrawioGraph(edges [][2]string) {
+// nodeURLs maps node labels to their remote URLs. If nil or a key is missing,
+// the node is rendered without a link.
+func (r *Renderer) writeDrawioGraph(edges [][2]string, nodeURLs map[string]string) {
 	// Collect unique nodes preserving insertion order
 	nodeIndex := make(map[string]int)
 	var nodes []string
@@ -308,8 +323,21 @@ func (r *Renderer) writeDrawioGraph(edges [][2]string) {
 	// Write node cells (IDs start from 2)
 	for i, name := range nodes {
 		cellID := i + 2
+		var nodeValue string
+		if nodeURLs != nil {
+			if u, ok := nodeURLs[name]; ok && u != "" {
+				// Build HTML link, then XML-escape the whole thing for embedding in an XML attribute.
+				// draw.io with html=1 style decodes the entities and renders HTML.
+				link := fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(u), html.EscapeString(name))
+				nodeValue = html.EscapeString(link)
+			} else {
+				nodeValue = html.EscapeString(name)
+			}
+		} else {
+			nodeValue = html.EscapeString(name)
+		}
 		r.writeLine(fmt.Sprintf(`        <mxCell id="%d" value="%s" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">`,
-			cellID, html.EscapeString(name)))
+			cellID, nodeValue))
 		r.writeLine(fmt.Sprintf(`          <mxGeometry x="%d" y="%d" width="%d" height="%d" as="geometry"/>`,
 			posX[name], posY[name], nodeWidth, nodeHeight))
 		r.writeLine(`        </mxCell>`)
@@ -403,3 +431,5 @@ func dotQuote(s string) string {
 	s = strings.ReplaceAll(s, "\"", "\\\"")
 	return "\"" + s + "\""
 }
+
+
