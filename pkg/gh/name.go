@@ -51,37 +51,6 @@ func GetObjectName(item any) string {
 	}
 }
 
-// GetObjectHTMLURL constructs a browsable URL for the given object.
-// defaultHost is used when the object does not carry its own host information
-// (e.g. "github.com" or a GHES hostname).
-func GetObjectHTMLURL(item any, defaultHost string) string {
-	host := defaultHost
-	if host == "" {
-		host = "github.com"
-	}
-	switch v := item.(type) {
-	case *github.Repository:
-		if v.HTMLURL != nil {
-			return *v.HTMLURL
-		}
-		return "https://" + host + "/" + *v.FullName
-	case repository.Repository:
-		h := v.Host
-		if h == "" {
-			h = host
-		}
-		return "https://" + h + "/" + v.Owner + "/" + v.Name
-	case *github.RepoDependencies:
-		s := strings.Split(*v.Name, ":")
-		if len(s) < 2 {
-			return ""
-		}
-		return "https://" + host + "/" + s[1]
-	default:
-		return ""
-	}
-}
-
 func GetObjectNames(items any) []string {
 	switch v := items.(type) {
 	case []*github.Repository:
@@ -164,5 +133,36 @@ func GetObjectNames(items any) []string {
 		return names
 	default:
 		return nil
+	}
+}
+
+// GetObjectHTMLURL constructs a browsable URL for the given object.
+// defaultHost is used when the object does not carry its own host information
+// (e.g. "github.com" or a GHES hostname).
+func GetObjectHTMLURL(item any, defaultHost string) string {
+	host := defaultHost
+	if host == "" {
+		host = "github.com"
+	}
+	switch v := item.(type) {
+	case *github.Repository:
+		if v.HTMLURL != nil {
+			return *v.HTMLURL
+		}
+		return "https://" + host + "/" + *v.FullName
+	case repository.Repository:
+		h := v.Host
+		if h == "" {
+			h = host
+		}
+		return "https://" + h + "/" + v.Owner + "/" + v.Name
+	case *github.RepoDependencies:
+		s := strings.Split(*v.Name, ":")
+		if len(s) < 2 {
+			return ""
+		}
+		return "https://" + host + "/" + s[1]
+	default:
+		return ""
 	}
 }

@@ -8,6 +8,14 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
+// Node border color constants for draw.io rendering by action type
+const (
+	nodeColorReusableWorkflow = "#2196F3" // Blue: reusable workflow
+	nodeColorComposite        = "#4CAF50" // Green: composite action
+	nodeColorNode             = "#FF9800" // Orange: node runtime action
+	nodeColorDocker           = "#9C27B0" // Purple: docker action
+)
+
 // WorkflowDependencyFieldGetter defines a function to get a field value from parser.ActionReference
 type WorkflowDependencyFieldGetter func(ref *parser.ActionReference) string
 
@@ -228,6 +236,7 @@ func (r *Renderer) RenderDrawioWorkflowDependencies(deps []parser.WorkflowDepend
 	}
 
 	nodeURLs := make(map[string]string)
+	nodeColors := make(map[string]string)
 	var edges [][2]string
 	seen := make(map[string]bool)
 	for _, dep := range deps {
@@ -250,6 +259,13 @@ func (r *Renderer) RenderDrawioWorkflowDependencies(deps []parser.WorkflowDepend
 			seen[edgeKey] = true
 			edges = append(edges, [2]string{dep.Source, targetLabel})
 
+			// Assign border color based on action type
+			if _, ok := nodeColors[targetLabel]; !ok {
+				if c := actionNodeColor(action); c != "" {
+					nodeColors[targetLabel] = c
+				}
+			}
+
 			// Build URL for the target node
 			if _, ok := nodeURLs[targetLabel]; !ok {
 				// If the target is a known dep source, use its repository; otherwise use the action's host
@@ -267,7 +283,26 @@ func (r *Renderer) RenderDrawioWorkflowDependencies(deps []parser.WorkflowDepend
 			}
 		}
 	}
-	r.writeDrawioGraph(edges, nodeURLs)
+	r.writeDrawioGraph(edges, nodeURLs, nodeColors)
+}
+
+// actionNodeColor returns a draw.io border color hex string based on the action reference type.
+// Returns empty string for unknown or unresolved types (default border).
+func actionNodeColor(action parser.ActionReference) string {
+	if action.IsReusableWorkflow() {
+		return nodeColorReusableWorkflow
+	}
+	using := strings.ToLower(action.Using)
+	switch {
+	case using == "composite":
+		return nodeColorComposite
+	case strings.HasPrefix(using, "node"):
+		return nodeColorNode
+	case using == "docker":
+		return nodeColorDocker
+	default:
+		return ""
+	}
 }
 
 // workflowDepSourceURL constructs a URL for a workflow/action dependency source label.
