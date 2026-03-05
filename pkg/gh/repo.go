@@ -2,6 +2,7 @@ package gh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -20,6 +21,22 @@ func GetRepositoryByID(ctx context.Context, g *GitHubClient, id int64) (*github.
 	return g.GetRepositoryByID(ctx, id)
 }
 
+// GetBranch retrieves a branch by name (wrapper).
+func GetBranch(ctx context.Context, g *GitHubClient, repo repository.Repository, branch string) (*github.Branch, error) {
+	return g.GetBranch(ctx, repo.Owner, repo.Name, branch)
+}
+
+// CreateBranch creates a new branch from the given SHA (wrapper).
+func CreateBranch(ctx context.Context, g *GitHubClient, repo repository.Repository, branchName string, sha string) (*github.Reference, error) {
+	return g.CreateRef(ctx, repo.Owner, repo.Name, "refs/heads/"+branchName, sha)
+}
+
+// DeleteBranch deletes a branch (wrapper).
+func DeleteBranch(ctx context.Context, g *GitHubClient, repo repository.Repository, branchName string) error {
+	return g.DeleteRef(ctx, repo.Owner, repo.Name, "heads/"+branchName)
+}
+
+// ListBranches retrieves all branches for a repository (wrapper).
 func ListBranches(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Branch, error) {
 	return g.ListBranches(ctx, repo.Owner, repo.Name, nil)
 }
@@ -31,6 +48,32 @@ func ListTags(ctx context.Context, g *GitHubClient, repo repository.Repository) 
 func ListProtectedBranches(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Branch, error) {
 	protected := true
 	return g.ListBranches(ctx, repo.Owner, repo.Name, &protected)
+}
+
+// ListOrganizationRepositories lists all repositories in an organization (wrapper).
+func ListOrganizationRepositories(ctx context.Context, g *GitHubClient, org string) ([]*github.Repository, error) {
+	return g.ListOrganizationRepositories(ctx, org, "all")
+}
+
+// ListUserRepositories lists all repositories owned by a user (wrapper).
+func ListUserRepositories(ctx context.Context, g *GitHubClient, user string) ([]*github.Repository, error) {
+	return g.ListUserRepositories(ctx, user, "all")
+}
+
+// ListOwnerRepositories lists all repositories for the given owner.
+// It first attempts to list by organization; if the owner is not an organization (HTTP 404),
+// it falls back to listing by user.
+func ListOwnerRepositories(ctx context.Context, g *GitHubClient, owner string) ([]*github.Repository, error) {
+	repos, err := g.ListOrganizationRepositories(ctx, owner, "all")
+	if err != nil {
+		var errResp *github.ErrorResponse
+		if errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == 404 {
+			// Owner is not an organization; fall back to user repositories
+			return g.ListUserRepositories(ctx, owner, "all")
+		}
+		return nil, err
+	}
+	return repos, nil
 }
 
 // CheckTeamPermissions is a wrapper function to check team permissions for a repository.
@@ -295,17 +338,56 @@ func GetRepositoryFileContent(ctx context.Context, g *GitHubClient, repo reposit
 	return fileContent, nil
 }
 
+// RepositoryContentFileOptions holds options for creating, updating, or deleting a repository file.
+// Message and Content are required.
+// SHA is required for update and delete operations.
+// Branch, Author, and Committer are optional.
+type RepositoryContentFileOptions struct {
+	Message   string         // required
+	Content   []byte         // required
+	Branch    *string        // optional: defaults to the repository's default branch
+	SHA       *string        // optional: required for update/delete
+	Author    *CommitAuthor  // optional
+	Committer *CommitAuthor  // optional
+}
+
+// toGitHubRepositoryContentFileOptions converts RepositoryContentFileOptions to github.RepositoryContentFileOptions.
+func toGitHubRepositoryContentFileOptions(opts *RepositoryContentFileOptions) *github.RepositoryContentFileOptions {
+	if opts == nil {
+		return nil
+	}
+	return &github.RepositoryContentFileOptions{
+		Message:   &opts.Message,
+		Content:   opts.Content,
+		Branch:    opts.Branch,
+		SHA:       opts.SHA,
+		Author:    toGitHubCommitAuthor(opts.Author),
+		Committer: toGitHubCommitAuthor(opts.Committer),
+	}
+}
+
 // CreateRepositoryFile creates a new file in a repository (wrapper).
-func CreateRepositoryFile(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, opts *github.RepositoryContentFileOptions) (*github.RepositoryContentResponse, error) {
-	return g.CreateFile(ctx, repo.Owner, repo.Name, path, opts)
+func CreateRepositoryFile(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, opts *RepositoryContentFileOptions) (*github.RepositoryContentResponse, error) {
+	return g.CreateFile(ctx, repo.Owner, repo.Name, path, toGitHubRepositoryContentFileOptions(opts))
 }
 
 // UpdateRepositoryFile updates an existing file in a repository (wrapper).
-func UpdateRepositoryFile(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, opts *github.RepositoryContentFileOptions) (*github.RepositoryContentResponse, error) {
-	return g.UpdateFile(ctx, repo.Owner, repo.Name, path, opts)
+func UpdateRepositoryFile(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, opts *RepositoryContentFileOptions) (*github.RepositoryContentResponse, error) {
+	return g.UpdateFile(ctx, repo.Owner, repo.Name, path, toGitHubRepositoryContentFileOptions(opts))
 }
 
 // DeleteRepositoryFile deletes a file in a repository (wrapper).
-func DeleteRepositoryFile(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, opts *github.RepositoryContentFileOptions) error {
-	return g.DeleteFile(ctx, repo.Owner, repo.Name, path, opts)
+func DeleteRepositoryFile(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, opts *RepositoryContentFileOptions) error {
+	return g.DeleteFile(ctx, repo.Owner, repo.Name, path, toGitHubRepositoryContentFileOptions(opts))
+}
+
+// RepoWithSecrets holds a repository and its associated secrets.
+type RepoWithSecrets struct {
+	Repository *github.Repository
+	Secrets    []*github.Secret
+}
+
+// SecretCount returns the number of secrets associated with the repository.
+func (r *RepoWithSecrets) SecretCount() int {
+	return len(r.Secrets)
 }

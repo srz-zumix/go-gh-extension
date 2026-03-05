@@ -17,6 +17,24 @@ func (g *GitHubClient) GetPullRequest(ctx context.Context, owner string, repo st
 	return pr, nil
 }
 
+// CreatePullRequest creates a new pull request.
+func (g *GitHubClient) CreatePullRequest(ctx context.Context, owner string, repo string, newPR *github.NewPullRequest) (*github.PullRequest, error) {
+	pr, _, err := g.client.PullRequests.Create(ctx, owner, repo, newPR)
+	if err != nil {
+		return nil, err
+	}
+	return pr, nil
+}
+
+// EditPullRequest updates an existing pull request (e.g., to close it).
+func (g *GitHubClient) EditPullRequest(ctx context.Context, owner string, repo string, number int, update *github.PullRequest) (*github.PullRequest, error) {
+	pr, _, err := g.client.PullRequests.Edit(ctx, owner, repo, number, update)
+	if err != nil {
+		return nil, err
+	}
+	return pr, nil
+}
+
 func (g *GitHubClient) ListPullRequestCommits(ctx context.Context, owner string, repo string, number int) ([]*github.RepositoryCommit, error) {
 	allCommits := []*github.RepositoryCommit{}
 	opt := &github.ListOptions{PerPage: defaultPerPage}

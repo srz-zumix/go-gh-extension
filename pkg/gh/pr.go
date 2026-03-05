@@ -445,3 +445,47 @@ func GetAssociatedPullRequestsForRef(ctx context.Context, g *GitHubClient, repo 
 	}
 	return g.GetAssociatedPullRequestsForRef(ctx, repo.Owner, repo.Name, ref, option)
 }
+
+// NewPullRequest holds options for creating a new pull request.
+// Title, Head, and Base are required. All other fields are optional.
+type NewPullRequest struct {
+	Title               string  // required
+	Head                string  // required: branch or "username:branch"
+	Base                string  // required: target branch
+	HeadRepo            *string // optional: head repo for cross-repository PRs
+	Body                *string // optional
+	Issue               *int    // optional: issue number to convert into a pull request
+	MaintainerCanModify *bool   // optional
+	Draft               *bool   // optional
+}
+
+// CreatePullRequest creates a new pull request (wrapper).
+func CreatePullRequest(ctx context.Context, g *GitHubClient, repo repository.Repository, newPR NewPullRequest) (*github.PullRequest, error) {
+	gpr := &github.NewPullRequest{
+		Title:               &newPR.Title,
+		Head:                &newPR.Head,
+		Base:                &newPR.Base,
+		HeadRepo:            newPR.HeadRepo,
+		Body:                newPR.Body,
+		Issue:               newPR.Issue,
+		MaintainerCanModify: newPR.MaintainerCanModify,
+		Draft:               newPR.Draft,
+	}
+	return g.CreatePullRequest(ctx, repo.Owner, repo.Name, gpr)
+}
+
+// ClosePullRequest closes an open pull request without merging (wrapper).
+func ClosePullRequest(ctx context.Context, g *GitHubClient, repo repository.Repository, number int) (*github.PullRequest, error) {
+	state := "closed"
+	return g.EditPullRequest(ctx, repo.Owner, repo.Name, number, &github.PullRequest{
+		State: &state,
+	})
+}
+
+// OpenPullRequest reopens a closed pull request (wrapper).
+func OpenPullRequest(ctx context.Context, g *GitHubClient, repo repository.Repository, number int) (*github.PullRequest, error) {
+	state := "open"
+	return g.EditPullRequest(ctx, repo.Owner, repo.Name, number, &github.PullRequest{
+		State: &state,
+	})
+}

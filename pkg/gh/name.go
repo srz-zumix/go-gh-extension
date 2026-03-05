@@ -33,6 +33,8 @@ func GetObjectName(item any) string {
 			return *v.Name
 		}
 		return s[1]
+	case *github.Secret:
+		return v.Name
 	case *github.SBOM:
 		return *v.SBOM.Name
 	case *github.SBOMInfo:
@@ -102,6 +104,12 @@ func GetObjectNames(items any) []string {
 		}
 		return names
 	case []*github.RepoDependencies:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*github.Secret:
 		names := make([]string, len(v))
 		for i, item := range v {
 			names[i] = GetObjectName(item)

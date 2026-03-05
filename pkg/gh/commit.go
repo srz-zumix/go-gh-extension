@@ -8,6 +8,31 @@ import (
 	"github.com/google/go-github/v79/github"
 )
 
+// CommitAuthor identifies the author or committer of a commit.
+// All fields are optional.
+type CommitAuthor struct {
+	Date  *time.Time
+	Name  *string
+	Email *string
+	Login *string
+}
+
+// toGitHubCommitAuthor converts CommitAuthor to github.CommitAuthor.
+func toGitHubCommitAuthor(a *CommitAuthor) *github.CommitAuthor {
+	if a == nil {
+		return nil
+	}
+	r := &github.CommitAuthor{
+		Name:  a.Name,
+		Email: a.Email,
+		Login: a.Login,
+	}
+	if a.Date != nil {
+		r.Date = &github.Timestamp{Time: *a.Date}
+	}
+	return r
+}
+
 type ListCommitsOptions interface {
 	ToCommitListOptions(*github.CommitsListOptions) *github.CommitsListOptions
 }
