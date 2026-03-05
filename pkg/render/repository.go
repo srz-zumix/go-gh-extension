@@ -1,7 +1,8 @@
 package render
 
 import (
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/google/go-github/v79/github"
@@ -180,11 +181,7 @@ func (r *Renderer) RenderRepositoriesWithScopedSecretCount(repos []gh.RepoWithSe
 		}
 
 		// Sort environment names for consistent output
-		envNames := make([]string, 0, len(repos[i].EnvSecrets))
-		for envName := range repos[i].EnvSecrets {
-			envNames = append(envNames, envName)
-		}
-		sort.Strings(envNames)
+		envNames := slices.Collect(maps.Keys(repos[i].EnvSecrets))
 
 		for _, envName := range envNames {
 			secrets := repos[i].EnvSecrets[envName]
