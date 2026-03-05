@@ -385,9 +385,29 @@ func DeleteRepositoryFile(ctx context.Context, g *GitHubClient, repo repository.
 type RepoWithSecrets struct {
 	Repository *github.Repository
 	Secrets    []*github.Secret
+	EnvSecrets map[string][]*github.Secret // environment name -> secrets
 }
 
-// SecretCount returns the number of secrets associated with the repository.
+// SecretCount returns the number of repository-level secrets.
 func (r *RepoWithSecrets) SecretCount() int {
 	return len(r.Secrets)
+}
+
+// EnvSecretCount returns the total number of environment secrets across all environments.
+func (r *RepoWithSecrets) EnvSecretCount() int {
+	total := 0
+	for _, secrets := range r.EnvSecrets {
+		total += len(secrets)
+	}
+	return total
+}
+
+// TotalSecretCount returns the total number of secrets (repository + environment).
+func (r *RepoWithSecrets) TotalSecretCount() int {
+	return r.SecretCount() + r.EnvSecretCount()
+}
+
+// HasAnySecrets returns true if the repository has any secrets (repository or environment level).
+func (r *RepoWithSecrets) HasAnySecrets() bool {
+	return r.TotalSecretCount() > 0
 }

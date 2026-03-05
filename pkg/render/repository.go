@@ -1,6 +1,7 @@
 package render
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/google/go-github/v79/github"
@@ -153,4 +154,44 @@ func (r *Renderer) RenderRepositoriesWithSecret(repos []gh.RepoWithSecrets, head
 // RenderRepositoriesWithSecretCount renders a table of repositories and their secret counts.
 func (r *Renderer) RenderRepositoriesWithSecretCount(repos []gh.RepoWithSecrets) {
 	r.RenderRepositoriesWithSecret(repos, []string{"REPOSITORY", "COUNT"})
+}
+
+// RenderRepositoriesWithScopedSecretCount renders a table of repositories with per-scope secret counts.
+// Each repository may generate multiple rows: one for repository-level secrets and one for each environment.
+func (r *Renderer) RenderRepositoriesWithScopedSecretCount(repos []gh.RepoWithSecrets) {
+	if r.exporter != nil {
+		r.RenderExportedData(repos)
+		return
+	}
+
+	if len(repos) == 0 {
+		r.writeLine("No repositories with secrets found.")
+		return
+	}
+
+	headers := []string{"REPOSITORY", "SCOPE", "COUNT"}
+	table := r.newTableWriter(headers)
+
+	for i := range repos {
+		repoName := ToString(repos[i].Repository.FullName)
+
+		if repos[i].SecretCount() > 0 {
+			table.Append([]string{repoName, "repository", ToString(repos[i].SecretCount())})
+		}
+
+		// Sort environment names for consistent output
+		envNames := make([]string, 0, len(repos[i].EnvSecrets))
+		for envName := range repos[i].EnvSecrets {
+			envNames = append(envNames, envName)
+		}
+		sort.Strings(envNames)
+
+		for _, envName := range envNames {
+			secrets := repos[i].EnvSecrets[envName]
+			if len(secrets) > 0 {
+				table.Append([]string{repoName, "env:" + envName, ToString(len(secrets))})
+			}
+		}
+	}
+	table.Render()
 }

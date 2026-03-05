@@ -2,6 +2,7 @@ package gh
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
@@ -137,4 +138,33 @@ func AddSelectedRepoToOrgSecret(ctx context.Context, g *GitHubClient, repo repos
 // RemoveSelectedRepoFromOrgSecret removes a repository from an organization secret (wrapper).
 func RemoveSelectedRepoFromOrgSecret(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, targetRepo *github.Repository) error {
 	return g.RemoveSelectedRepoFromOrgSecret(ctx, repo.Owner, name, targetRepo)
+}
+
+// CollectEnvSecrets retrieves all environment secrets for a repository.
+// It lists all environments and fetches secrets for each one.
+// Returns a map of environment name to secrets, or nil if no environment secrets are found.
+func CollectEnvSecrets(ctx context.Context, g *GitHubClient, repo repository.Repository, repoID int) (map[string][]*github.Secret, error) {
+	envs, err := ListEnvironments(ctx, g, repo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list environments: %w", err)
+	}
+	if len(envs) == 0 {
+		return nil, nil
+	}
+
+	envSecrets := make(map[string][]*github.Secret)
+	for _, env := range envs {
+		envName := env.GetName()
+		secrets, err := ListEnvSecrets(ctx, g, repoID, envName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list secrets for environment %s: %w", envName, err)
+		}
+		if len(secrets) > 0 {
+			envSecrets[envName] = secrets
+		}
+	}
+	if len(envSecrets) == 0 {
+		return nil, nil
+	}
+	return envSecrets, nil
 }
