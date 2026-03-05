@@ -85,3 +85,25 @@ func NewGitHubClientWith2Repos(repo1, repo2 repository.Repository) (*GitHubClien
 func NewGitHubClientForDefaultHost() (*GitHubClient, error) {
 	return NewGitHubClientWithRepo(repository.Repository{Host: defaultHost})
 }
+
+// NewGitHubClientWithToken creates a new GitHubClient using an explicit token.
+// The host is derived from repo.Host to build the correct endpoint.
+func NewGitHubClientWithToken(repo repository.Repository, token string) (*GitHubClient, error) {
+	host := repo.Host
+	if host == "" {
+		host = defaultHost
+	}
+	endpoint := defaultV3Endpoint
+	if host != defaultHost {
+		endpoint = "https://" + host + "/api/v3"
+	}
+	c, err := factory.NewGithubClient(
+		factory.Endpoint(endpoint),
+		factory.Token(token),
+		factory.ReadOnly(guardrails.IsReadonly()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return client.NewClient(c)
+}

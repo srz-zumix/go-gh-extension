@@ -64,6 +64,26 @@ func (g *GitHubClient) ListOrganizationRepositories(ctx context.Context, org str
 	return allRepos, nil
 }
 
+// ListUserRepositories retrieves all repositories owned by a specific user.
+func (g *GitHubClient) ListUserRepositories(ctx context.Context, user string, repoType string) ([]*github.Repository, error) {
+	var allRepos []*github.Repository
+	opt := &github.RepositoryListByUserOptions{Type: repoType, ListOptions: github.ListOptions{PerPage: defaultPerPage}}
+
+	for {
+		repos, resp, err := g.client.Repositories.ListByUser(ctx, user, opt)
+		if err != nil {
+			return nil, err
+		}
+		allRepos = append(allRepos, repos...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+
+	return allRepos, nil
+}
+
 func (g *GitHubClient) CheckRepositoryCollaborators(ctx context.Context, owner string, repo string, username string) (bool, error) {
 	collaborator, _, err := g.client.Repositories.IsCollaborator(ctx, owner, repo, username)
 	if err != nil {
@@ -272,5 +292,33 @@ func (g *GitHubClient) UpdateFile(ctx context.Context, owner, repo, path string,
 // DeleteFile deletes a file in a repository.
 func (g *GitHubClient) DeleteFile(ctx context.Context, owner, repo, path string, opts *github.RepositoryContentFileOptions) error {
 	_, _, err := g.client.Repositories.DeleteFile(ctx, owner, repo, path, opts)
+	return err
+}
+
+// GetBranch retrieves a branch by name.
+func (g *GitHubClient) GetBranch(ctx context.Context, owner, repo, branch string) (*github.Branch, error) {
+	b, _, err := g.client.Repositories.GetBranch(ctx, owner, repo, branch, 0)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// CreateRef creates a new Git reference (e.g., branch).
+func (g *GitHubClient) CreateRef(ctx context.Context, owner, repo string, ref string, sha string) (*github.Reference, error) {
+	createRef := github.CreateRef{
+		Ref: ref,
+		SHA: sha,
+	}
+	r, _, err := g.client.Git.CreateRef(ctx, owner, repo, createRef)
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+// DeleteRef deletes a Git reference (e.g., branch).
+func (g *GitHubClient) DeleteRef(ctx context.Context, owner, repo, ref string) error {
+	_, err := g.client.Git.DeleteRef(ctx, owner, repo, ref)
 	return err
 }
