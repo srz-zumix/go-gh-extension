@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v79/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
 
 // SecretFieldGetter defines a function to get a field value from a github.Secret
@@ -22,10 +23,10 @@ func NewSecretFieldGetters() *SecretFieldGetters {
 				return secret.Name
 			},
 			"CREATED_AT": func(secret *github.Secret) string {
-				return secret.CreatedAt.String()
+				return ToString(secret.CreatedAt)
 			},
 			"UPDATED_AT": func(secret *github.Secret) string {
-				return secret.UpdatedAt.String()
+				return ToString(secret.UpdatedAt)
 			},
 			"VISIBILITY": func(secret *github.Secret) string {
 				return secret.Visibility
@@ -56,17 +57,15 @@ func NewSecretsFieldGetters() *SecretsFieldGetters {
 	return &SecretsFieldGetters{
 		Func: map[string]SecretsFieldGetter{
 			"NAMES": func(secrets []*github.Secret) string {
-				names := make([]string, len(secrets))
-				for i, s := range secrets {
-					names[i] = s.Name
-				}
+				names := gh.GetObjectNames(secrets)
 				return strings.Join(names, ", ")
 			},
 			"COUNT": func(secrets []*github.Secret) string {
 				return ToString(len(secrets))
 			},
 			"SECRETS": func(secrets []*github.Secret) string {
-				return ToString(len(secrets))
+				names := gh.GetObjectNames(secrets)
+				return strings.Join(names, ", ")
 			},
 		},
 	}

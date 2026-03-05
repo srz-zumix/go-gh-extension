@@ -460,7 +460,7 @@ type NewPullRequest struct {
 }
 
 // CreatePullRequest creates a new pull request (wrapper).
-func CreatePullRequest(ctx context.Context, g *GitHubClient, repo repository.Repository, newPR *NewPullRequest) (*github.PullRequest, error) {
+func CreatePullRequest(ctx context.Context, g *GitHubClient, repo repository.Repository, newPR NewPullRequest) (*github.PullRequest, error) {
 	gpr := &github.NewPullRequest{
 		Title:               &newPR.Title,
 		Head:                &newPR.Head,
