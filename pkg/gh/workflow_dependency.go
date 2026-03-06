@@ -61,7 +61,7 @@ func ResolveWorkflowFilePath(ctx context.Context, g *GitHubClient, repo reposito
 // GetWorkflowFileDependency fetches and parses a single workflow file to extract action dependencies.
 // If recursive is true, it also traverses referenced action repositories and reusable workflows.
 func GetWorkflowFileDependency(ctx context.Context, g *GitHubClient, repo repository.Repository, filePath string, ref *string, recursive bool, fallback *GitHubClient) ([]parser.WorkflowDependency, error) {
-	content, err := getFileContent(ctx, g, repo, filePath, ref)
+	content, err := GetFileContent(ctx, g, repo, filePath, ref)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file content for %s: %w", filePath, err)
 	}
@@ -364,7 +364,7 @@ func traverseDependencyActions(ctx context.Context, g *GitHubClient, fallback *G
 
 // getReusableWorkflowDependencies fetches and parses a single reusable workflow file
 func getReusableWorkflowDependencies(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, ref *string) ([]parser.WorkflowDependency, error) {
-	content, err := getFileContent(ctx, g, repo, path, ref)
+	content, err := GetFileContent(ctx, g, repo, path, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +398,7 @@ func getLocalActionDependencies(ctx context.Context, g *GitHubClient, repo repos
 			return nil, ""
 		}
 
-		content, err := getFileContent(ctx, g, repo, actionPath, ref)
+		content, err := GetFileContent(ctx, g, repo, actionPath, ref)
 		if err != nil {
 			continue
 		}
@@ -440,7 +440,7 @@ func getWorkflowFileDependencies(ctx context.Context, g *GitHubClient, repo repo
 		}
 
 		filePath := workflowsDir + "/" + name
-		content, err := getFileContent(ctx, g, repo, filePath, ref)
+		content, err := GetFileContent(ctx, g, repo, filePath, ref)
 		if err != nil {
 			continue // skip files that cannot be read
 		}
@@ -472,7 +472,7 @@ func getActionFileDependenciesFromDir(ctx context.Context, g *GitHubClient, repo
 		if dir != "" {
 			filename = dir + "/" + base
 		}
-		content, err := getFileContent(ctx, g, repo, filename, ref)
+		content, err := GetFileContent(ctx, g, repo, filename, ref)
 		if err != nil {
 			continue
 		}
@@ -497,23 +497,6 @@ func getActionFileDependenciesFromDir(ctx context.Context, g *GitHubClient, repo
 // getActionFileDependencies fetches action.yml or action.yaml from the repository root and parses it
 func getActionFileDependencies(ctx context.Context, g *GitHubClient, repo repository.Repository, ref *string) (*parser.WorkflowDependency, string, error) {
 	return getActionFileDependenciesFromDir(ctx, g, repo, "", ref)
-}
-
-// getFileContent retrieves the decoded content of a file from the repository
-func getFileContent(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, ref *string) ([]byte, error) {
-	fileContent, _, err := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, path, ref)
-	if err != nil {
-		return nil, err
-	}
-	if fileContent == nil || fileContent.Content == nil {
-		return nil, fmt.Errorf("file content is empty for %s", path)
-	}
-
-	content, err := fileContent.GetContent()
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode file content for %s: %w", path, err)
-	}
-	return []byte(content), nil
 }
 
 // FlattenWorkflowDependencies extracts all unique ActionReferences from multiple WorkflowDependencies

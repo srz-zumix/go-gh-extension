@@ -338,6 +338,23 @@ func GetRepositoryFileContent(ctx context.Context, g *GitHubClient, repo reposit
 	return fileContent, nil
 }
 
+// GetFileContent retrieves the decoded content of a file from the repository
+func GetFileContent(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, ref *string) ([]byte, error) {
+	fileContent, err := GetRepositoryFileContent(ctx, g, repo, path, ref)
+	if err != nil {
+		return nil, err
+	}
+	if fileContent == nil || fileContent.Content == nil {
+		return nil, fmt.Errorf("file content is empty for %s", path)
+	}
+
+	content, err := fileContent.GetContent()
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode file content for %s: %w", path, err)
+	}
+	return []byte(content), nil
+}
+
 // RepositoryContentFileOptions holds options for creating, updating, or deleting a repository file.
 // Message and Content are required.
 // SHA is required for update and delete operations.
