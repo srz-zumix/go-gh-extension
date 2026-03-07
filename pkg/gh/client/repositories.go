@@ -322,3 +322,12 @@ func (g *GitHubClient) DeleteRef(ctx context.Context, owner, repo, ref string) e
 	_, err := g.client.Git.DeleteRef(ctx, owner, repo, ref)
 	return err
 }
+
+// EditRepository updates a repository with the given settings.
+func (g *GitHubClient) EditRepository(ctx context.Context, owner, repo string, repoUpdate *github.Repository) (*github.Repository, error) {
+	updatedRepo, _, err := g.client.Repositories.Edit(ctx, owner, repo, repoUpdate)
+	if err != nil {
+		return nil, err
+	}
+	return updatedRepo, nil
+}
