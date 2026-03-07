@@ -428,3 +428,18 @@ func (r *RepoWithSecrets) TotalSecretCount() int {
 func (r *RepoWithSecrets) HasAnySecrets() bool {
 	return r.TotalSecretCount() > 0
 }
+
+// EditRepository updates a repository with the given settings (wrapper).
+func EditRepository(ctx context.Context, g *GitHubClient, repo repository.Repository, repoUpdate *github.Repository) (*github.Repository, error) {
+	return g.EditRepository(ctx, repo.Owner, repo.Name, repoUpdate)
+}
+
+// UnarchiveRepository unarchives a repository (wrapper).
+func UnarchiveRepository(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
+	return g.EditRepository(ctx, repo.Owner, repo.Name, &github.Repository{Archived: github.Ptr(false)})
+}
+
+// ArchiveRepository archives a repository (wrapper).
+func ArchiveRepository(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
+	return g.EditRepository(ctx, repo.Owner, repo.Name, &github.Repository{Archived: github.Ptr(true)})
+}
