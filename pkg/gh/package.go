@@ -146,7 +146,7 @@ func listUserPackagesAllTypes(ctx context.Context, g *GitHubClient, user string,
 		}
 		packages, err := g.ListUserPackages(ctx, user, opts)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list packages for user '%s': %w", user, err)
+			return nil, fmt.Errorf("failed to list %s packages for user '%s': %w", pt, user, err)
 		}
 		allPackages = append(allPackages, packages...)
 	}
