@@ -41,7 +41,7 @@ func listOrgPackagesAllTypes(ctx context.Context, g *GitHubClient, repo reposito
 		}
 		packages, err := g.ListOrgPackages(ctx, repo.Owner, opts)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list packages for organization '%s': %w", repo.Owner, err)
+			return nil, fmt.Errorf("failed to list %s packages for organization '%s': %w", pt, repo.Owner, err)
 		}
 		allPackages = append(allPackages, packages...)
 	}
