@@ -436,10 +436,10 @@ func EditRepository(ctx context.Context, g *GitHubClient, repo repository.Reposi
 
 // UnarchiveRepository unarchives a repository (wrapper).
 func UnarchiveRepository(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
-	return g.EditRepository(ctx, repo.Owner, repo.Name, &github.Repository{Archived: github.Ptr(false)})
+	return EditRepository(ctx, g, repo, &github.Repository{Archived: github.Ptr(false)})
 }
 
 // ArchiveRepository archives a repository (wrapper).
 func ArchiveRepository(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
-	return g.EditRepository(ctx, repo.Owner, repo.Name, &github.Repository{Archived: github.Ptr(true)})
+	return EditRepository(ctx, g, repo, &github.Repository{Archived: github.Ptr(true)})
 }
