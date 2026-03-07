@@ -15,7 +15,9 @@ func (g *GitHubClient) ListOrgPackages(ctx context.Context, org string, opts *gi
 	if opts == nil {
 		opts = &github.PackageListOptions{}
 	}
-	opts.ListOptions = github.ListOptions{PerPage: defaultPerPage}
+	if opts.ListOptions.PerPage == 0 {
+		opts.ListOptions.PerPage = defaultPerPage
+	}
 
 	for {
 		packages, resp, err := g.client.Organizations.ListPackages(ctx, org, opts)
@@ -59,7 +61,9 @@ func (g *GitHubClient) ListOrgPackageVersions(ctx context.Context, org, packageT
 	if opts == nil {
 		opts = &github.PackageListOptions{}
 	}
-	opts.ListOptions = github.ListOptions{PerPage: defaultPerPage}
+	if opts.ListOptions.PerPage == 0 {
+		opts.ListOptions.PerPage = defaultPerPage
+	}
 
 	for {
 		versions, resp, err := g.client.Organizations.PackageGetAllVersions(ctx, org, packageType, packageName, opts)
@@ -103,7 +107,9 @@ func (g *GitHubClient) ListUserPackages(ctx context.Context, user string, opts *
 	if opts == nil {
 		opts = &github.PackageListOptions{}
 	}
-	opts.ListOptions = github.ListOptions{PerPage: defaultPerPage}
+	if opts.ListOptions.PerPage == 0 {
+		opts.ListOptions.PerPage = defaultPerPage
+	}
 
 	for {
 		packages, resp, err := g.client.Users.ListPackages(ctx, user, opts)
@@ -147,7 +153,9 @@ func (g *GitHubClient) ListUserPackageVersions(ctx context.Context, user, packag
 	if opts == nil {
 		opts = &github.PackageListOptions{}
 	}
-	opts.ListOptions = github.ListOptions{PerPage: defaultPerPage}
+	if opts.ListOptions.PerPage == 0 {
+		opts.ListOptions.PerPage = defaultPerPage
+	}
 
 	for {
 		versions, resp, err := g.client.Users.PackageGetAllVersions(ctx, user, packageType, packageName, opts)
