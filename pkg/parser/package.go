@@ -36,12 +36,12 @@ func ParsePackageRef(s, defaultPackage string) (PackageRef, error) {
 	rest := s[firstSlash+1:]
 
 	if first == "" {
-		return PackageRef{}, fmt.Errorf("invalid package reference '%s': owner cannot be empty", s)
+		return PackageRef{}, fmt.Errorf("invalid package reference %q: owner cannot be empty", s)
 	}
 	if strings.Contains(first, ".") {
 		// first segment is a host
 		if rest == "" {
-			return PackageRef{}, fmt.Errorf("invalid package reference '%s': owner cannot be empty", s)
+			return PackageRef{}, fmt.Errorf("invalid package reference %q: owner cannot be empty", s)
 		}
 		nextSlash := strings.Index(rest, "/")
 		if nextSlash == -1 {
@@ -51,10 +51,10 @@ func ParsePackageRef(s, defaultPackage string) (PackageRef, error) {
 		owner := rest[:nextSlash]
 		pkg := rest[nextSlash+1:]
 		if owner == "" {
-			return PackageRef{}, fmt.Errorf("invalid package reference '%s': owner cannot be empty", s)
+			return PackageRef{}, fmt.Errorf("invalid package reference %q: owner cannot be empty", s)
 		}
 		if pkg == "" {
-			return PackageRef{}, fmt.Errorf("invalid package reference '%s': package name cannot be empty", s)
+			return PackageRef{}, fmt.Errorf("invalid package reference %q: package name cannot be empty", s)
 		}
 		return PackageRef{Host: first, Owner: owner, Package: pkg}, nil
 	}
