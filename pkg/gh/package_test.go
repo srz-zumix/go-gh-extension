@@ -17,8 +17,6 @@ func makeVersion(id int64, createdAt *time.Time) *github.PackageVersion {
 	return v
 }
 
-func ptr[T any](v T) *T { return &v }
-
 var (
 	t1 = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	t2 = time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
