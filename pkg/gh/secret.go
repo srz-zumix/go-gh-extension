@@ -19,8 +19,8 @@ func GetOrgPublicKey(ctx context.Context, g *GitHubClient, repo repository.Repos
 }
 
 // GetEnvPublicKey gets the public key for encrypting secrets in an environment (wrapper).
-func GetEnvPublicKey(ctx context.Context, g *GitHubClient, repo *github.Repository, env string) (*github.PublicKey, error) {
-	return g.GetEnvPublicKey(ctx, int(repo.GetID()), env)
+func GetEnvPublicKey(ctx context.Context, g *GitHubClient, repo any, env string) (*github.PublicKey, error) {
+	return g.GetEnvPublicKey(ctx, GetRepositoryID(repo), env)
 }
 
 // ListRepoSecrets lists all secrets in a repository (wrapper).
@@ -39,8 +39,8 @@ func ListOrgSecrets(ctx context.Context, g *GitHubClient, repo repository.Reposi
 }
 
 // ListEnvSecrets lists all secrets in an environment (wrapper).
-func ListEnvSecrets(ctx context.Context, g *GitHubClient, repo *github.Repository, env string) ([]*github.Secret, error) {
-	return g.ListEnvSecrets(ctx, int(repo.GetID()), env)
+func ListEnvSecrets(ctx context.Context, g *GitHubClient, repo any, env string) ([]*github.Secret, error) {
+	return g.ListEnvSecrets(ctx, GetRepositoryID(repo), env)
 }
 
 // ListSecrets lists secrets for a repository or organization depending on whether repo name is set (wrapper).
@@ -62,8 +62,8 @@ func GetOrgSecret(ctx context.Context, g *GitHubClient, repo repository.Reposito
 }
 
 // GetEnvSecret gets a single environment secret (wrapper).
-func GetEnvSecret(ctx context.Context, g *GitHubClient, repo *github.Repository, env, secretName string) (*github.Secret, error) {
-	return g.GetEnvSecret(ctx, int(repo.GetID()), env, secretName)
+func GetEnvSecret(ctx context.Context, g *GitHubClient, repo any, env, secretName string) (*github.Secret, error) {
+	return g.GetEnvSecret(ctx, GetRepositoryID(repo), env, secretName)
 }
 
 // GetSecret gets a secret for a repository or organization depending on whether repo name is set (wrapper).
@@ -85,8 +85,8 @@ func CreateOrUpdateOrgSecret(ctx context.Context, g *GitHubClient, repo reposito
 }
 
 // CreateOrUpdateEnvSecret creates or updates an environment secret (wrapper).
-func CreateOrUpdateEnvSecret(ctx context.Context, g *GitHubClient, repo *github.Repository, env string, eSecret *github.EncryptedSecret) error {
-	return g.CreateOrUpdateEnvSecret(ctx, int(repo.GetID()), env, eSecret)
+func CreateOrUpdateEnvSecret(ctx context.Context, g *GitHubClient, repo any, env string, eSecret *github.EncryptedSecret) error {
+	return g.CreateOrUpdateEnvSecret(ctx, GetRepositoryID(repo), env, eSecret)
 }
 
 // CreateOrUpdateSecret creates or updates a secret for a repository or organization depending on whether repo name is set (wrapper).
@@ -108,8 +108,8 @@ func DeleteOrgSecret(ctx context.Context, g *GitHubClient, repo repository.Repos
 }
 
 // DeleteEnvSecret deletes a secret in an environment (wrapper).
-func DeleteEnvSecret(ctx context.Context, g *GitHubClient, repo *github.Repository, env, secretName string) error {
-	return g.DeleteEnvSecret(ctx, int(repo.GetID()), env, secretName)
+func DeleteEnvSecret(ctx context.Context, g *GitHubClient, repo any, env, secretName string) error {
+	return g.DeleteEnvSecret(ctx, GetRepositoryID(repo), env, secretName)
 }
 
 // DeleteSecret deletes a secret for a repository or organization depending on whether repo name is set (wrapper).

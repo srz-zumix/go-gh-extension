@@ -13,6 +13,26 @@ import (
 
 type RepositorySubmodule = client.RepositorySubmodule
 
+func GetRepositoryID(repo any) int {
+	switch v := repo.(type) {
+	case int:
+		return v
+	case *int:
+		return *v
+	case int64:
+		return (int)(v)
+	case *int64:
+		return (int)(*v)
+	case github.Repository:
+		return (int)(*v.ID)
+	case *github.Repository:
+		return (int)(*v.ID)
+	default:
+		return 0
+	}
+}
+
+// GetRepository retrieves a repository by owner and name (wrapper).
 func GetRepository(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
 	return g.GetRepository(ctx, repo.Owner, repo.Name)
 }
