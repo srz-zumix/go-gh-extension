@@ -35,6 +35,9 @@ func ParsePackageRef(s, defaultPackage string) (PackageRef, error) {
 	first := s[:firstSlash]
 	rest := s[firstSlash+1:]
 
+	if first == "" {
+		return PackageRef{}, fmt.Errorf("invalid package reference '%s': owner cannot be empty", s)
+	}
 	if strings.Contains(first, ".") {
 		// first segment is a host
 		if rest == "" {
