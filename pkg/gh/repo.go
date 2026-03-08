@@ -13,6 +13,30 @@ import (
 
 type RepositorySubmodule = client.RepositorySubmodule
 
+// GetRepositoryFromGitHubRepository converts github.Repository to repository.Repository.
+func GetRepositoryFromGitHubRepository(repo any) (repository.Repository, error) {
+	switch v := repo.(type) {
+	case github.Repository:
+		owner := v.GetOwner()
+		if owner == nil {
+			return repository.Repository{}, fmt.Errorf("repository owner is nil")
+		}
+		ownerLogin := owner.GetLogin()
+		repoName := v.GetName()
+		if ownerLogin == "" || repoName == "" {
+			return repository.Repository{}, fmt.Errorf("repository owner login or name is empty")
+		}
+		return repository.Repository{Owner: ownerLogin, Name: repoName}, nil
+	case *github.Repository:
+		if v == nil {
+			return repository.Repository{}, fmt.Errorf("repository is nil")
+		}
+		return GetRepositoryFromGitHubRepository(*v)
+	default:
+		return repository.Repository{}, fmt.Errorf("unsupported repository type %T", repo)
+	}
+}
+
 func GetRepositoryID(repoID any) (int, error) {
 	switch v := repoID.(type) {
 	case int:
