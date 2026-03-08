@@ -24,6 +24,68 @@ var (
 	t4 = time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC)
 )
 
+func TestContainerRegistry(t *testing.T) {
+	tests := []struct {
+		name     string
+		host     string
+		expected string
+	}{
+		{name: "github.com", host: "github.com", expected: "ghcr.io"},
+		{name: "empty host treated as github.com", host: "", expected: "ghcr.io"},
+		{name: "enterprise host", host: "github.example.com", expected: "containers.github.example.com"},
+		{name: "enterprise host short", host: "ghe.internal", expected: "containers.ghe.internal"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, ContainerRegistry(tt.host))
+		})
+	}
+}
+
+func TestContainerImageBase(t *testing.T) {
+	tests := []struct {
+		name     string
+		host     string
+		owner    string
+		pkg      string
+		expected string
+	}{
+		{
+			name:     "github.com lowercase",
+			host:     "github.com",
+			owner:    "MyOwner",
+			pkg:      "MyPkg",
+			expected: "ghcr.io/myowner/mypkg",
+		},
+		{
+			name:     "empty host treated as github.com",
+			host:     "",
+			owner:    "Owner",
+			pkg:      "pkg",
+			expected: "ghcr.io/owner/pkg",
+		},
+		{
+			name:     "enterprise host",
+			host:     "ghe.internal",
+			owner:    "Owner",
+			pkg:      "Pkg",
+			expected: "containers.ghe.internal/owner/pkg",
+		},
+		{
+			name:     "scoped package lowercase",
+			host:     "github.com",
+			owner:    "Owner",
+			pkg:      "Scope/Pkg",
+			expected: "ghcr.io/owner/scope/pkg",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, ContainerImageBase(tt.host, tt.owner, tt.pkg))
+		})
+	}
+}
+
 func TestFilterVersions_NoFilter(t *testing.T) {
 	versions := []*github.PackageVersion{
 		makeVersion(1, &t1),
