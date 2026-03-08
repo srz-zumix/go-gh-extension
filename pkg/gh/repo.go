@@ -13,8 +13,8 @@ import (
 
 type RepositorySubmodule = client.RepositorySubmodule
 
-func GetRepositoryID(repo any) (int, error) {
-	switch v := repo.(type) {
+func GetRepositoryID(repoID any) (int, error) {
+	switch v := repoID.(type) {
 	case int:
 		return v, nil
 	case *int:
@@ -43,7 +43,7 @@ func GetRepositoryID(repo any) (int, error) {
 		}
 		return int(v.GetID()), nil
 	default:
-		return 0, fmt.Errorf("unsupported repository type %T", repo)
+		return 0, fmt.Errorf("unsupported repository type %T", repoID)
 	}
 }
 

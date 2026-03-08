@@ -19,8 +19,8 @@ func GetOrgPublicKey(ctx context.Context, g *GitHubClient, repo repository.Repos
 }
 
 // GetEnvPublicKey gets the public key for encrypting secrets in an environment (wrapper).
-func GetEnvPublicKey(ctx context.Context, g *GitHubClient, repo any, env string) (*github.PublicKey, error) {
-	id, err := GetRepositoryID(repo)
+func GetEnvPublicKey(ctx context.Context, g *GitHubClient, repoID any, env string) (*github.PublicKey, error) {
+	id, err := GetRepositoryID(repoID)
 	if err != nil {
 		return nil, err
 	}
@@ -43,8 +43,8 @@ func ListOrgSecrets(ctx context.Context, g *GitHubClient, repo repository.Reposi
 }
 
 // ListEnvSecrets lists all secrets in an environment (wrapper).
-func ListEnvSecrets(ctx context.Context, g *GitHubClient, repo any, env string) ([]*github.Secret, error) {
-	id, err := GetRepositoryID(repo)
+func ListEnvSecrets(ctx context.Context, g *GitHubClient, repoID any, env string) ([]*github.Secret, error) {
+	id, err := GetRepositoryID(repoID)
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +70,8 @@ func GetOrgSecret(ctx context.Context, g *GitHubClient, repo repository.Reposito
 }
 
 // GetEnvSecret gets a single environment secret (wrapper).
-func GetEnvSecret(ctx context.Context, g *GitHubClient, repo any, env, secretName string) (*github.Secret, error) {
-	id, err := GetRepositoryID(repo)
+func GetEnvSecret(ctx context.Context, g *GitHubClient, repoID any, env, secretName string) (*github.Secret, error) {
+	id, err := GetRepositoryID(repoID)
 	if err != nil {
 		return nil, err
 	}
@@ -97,8 +97,8 @@ func CreateOrUpdateOrgSecret(ctx context.Context, g *GitHubClient, repo reposito
 }
 
 // CreateOrUpdateEnvSecret creates or updates an environment secret (wrapper).
-func CreateOrUpdateEnvSecret(ctx context.Context, g *GitHubClient, repo any, env string, eSecret *github.EncryptedSecret) error {
-	id, err := GetRepositoryID(repo)
+func CreateOrUpdateEnvSecret(ctx context.Context, g *GitHubClient, repoID any, env string, eSecret *github.EncryptedSecret) error {
+	id, err := GetRepositoryID(repoID)
 	if err != nil {
 		return err
 	}
@@ -124,8 +124,8 @@ func DeleteOrgSecret(ctx context.Context, g *GitHubClient, repo repository.Repos
 }
 
 // DeleteEnvSecret deletes a secret in an environment (wrapper).
-func DeleteEnvSecret(ctx context.Context, g *GitHubClient, repo any, env, secretName string) error {
-	id, err := GetRepositoryID(repo)
+func DeleteEnvSecret(ctx context.Context, g *GitHubClient, repoID any, env, secretName string) error {
+	id, err := GetRepositoryID(repoID)
 	if err != nil {
 		return err
 	}
