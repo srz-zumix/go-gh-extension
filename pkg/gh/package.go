@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -19,7 +18,7 @@ var PackageTypes = []string{"npm", "maven", "rubygems", "docker", "nuget", "cont
 // For github.com, it returns "ghcr.io".
 // For GitHub Enterprise Server, it returns "containers.HOSTNAME".
 func ContainerRegistry(host string) string {
-	if host == defaultHost {
+	if host == "" || host == defaultHost {
 		return "ghcr.io"
 	}
 	return "containers." + host
@@ -303,6 +302,7 @@ type VersionFilter struct {
 // 3. Sort by creation date descending, then apply latest N
 func FilterVersions(versions []*github.PackageVersion, filter VersionFilter) []*github.PackageVersion {
 	result := versions
+	isNewSlice := false
 
 	// Filter by version IDs
 	if len(filter.VersionIDs) > 0 {
@@ -313,43 +313,50 @@ func FilterVersions(versions []*github.PackageVersion, filter VersionFilter) []*
 			}
 		}
 		result = filtered
+		isNewSlice = true
 	}
 
 	// Filter by since
 	if filter.Since != nil {
 		var filtered []*github.PackageVersion
 		for _, v := range result {
-			if v.CreatedAt != nil && !v.CreatedAt.Time.Before(*filter.Since) {
+			if v.CreatedAt != nil && !v.CreatedAt.Before(*filter.Since) {
 				filtered = append(filtered, v)
 			}
 		}
 		result = filtered
+		isNewSlice = true
 	}
 
 	// Filter by until
 	if filter.Until != nil {
 		var filtered []*github.PackageVersion
 		for _, v := range result {
-			if v.CreatedAt != nil && !v.CreatedAt.Time.After(*filter.Until) {
+			if v.CreatedAt != nil && !v.CreatedAt.After(*filter.Until) {
 				filtered = append(filtered, v)
 			}
 		}
 		result = filtered
+		isNewSlice = true
 	}
 
-	// Sort by creation date descending (newest first)
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].CreatedAt == nil {
-			return false
-		}
-		if result[j].CreatedAt == nil {
-			return true
-		}
-		return result[i].CreatedAt.Time.After(result[j].CreatedAt.Time)
-	})
-
-	// Apply latest N
+	// Apply latest N (sort required)
 	if filter.Latest > 0 && len(result) > filter.Latest {
+		if !isNewSlice {
+			result = slices.Clone(result)
+		}
+		slices.SortFunc(result, func(a, b *github.PackageVersion) int {
+			if a.CreatedAt == nil && b.CreatedAt == nil {
+				return 0
+			}
+			if a.CreatedAt == nil {
+				return 1
+			}
+			if b.CreatedAt == nil {
+				return -1
+			}
+			return b.CreatedAt.Compare(a.CreatedAt.Time)
+		})
 		result = result[:filter.Latest]
 	}
 
