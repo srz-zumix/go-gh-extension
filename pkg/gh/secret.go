@@ -19,8 +19,8 @@ func GetOrgPublicKey(ctx context.Context, g *GitHubClient, repo repository.Repos
 }
 
 // GetEnvPublicKey gets the public key for encrypting secrets in an environment (wrapper).
-func GetEnvPublicKey(ctx context.Context, g *GitHubClient, repoID int, env string) (*github.PublicKey, error) {
-	return g.GetEnvPublicKey(ctx, repoID, env)
+func GetEnvPublicKey(ctx context.Context, g *GitHubClient, repo *github.Repository, env string) (*github.PublicKey, error) {
+	return g.GetEnvPublicKey(ctx, int(repo.GetID()), env)
 }
 
 // ListRepoSecrets lists all secrets in a repository (wrapper).
@@ -39,8 +39,8 @@ func ListOrgSecrets(ctx context.Context, g *GitHubClient, repo repository.Reposi
 }
 
 // ListEnvSecrets lists all secrets in an environment (wrapper).
-func ListEnvSecrets(ctx context.Context, g *GitHubClient, repoID int, env string) ([]*github.Secret, error) {
-	return g.ListEnvSecrets(ctx, repoID, env)
+func ListEnvSecrets(ctx context.Context, g *GitHubClient, repo *github.Repository, env string) ([]*github.Secret, error) {
+	return g.ListEnvSecrets(ctx, int(repo.GetID()), env)
 }
 
 // ListSecrets lists secrets for a repository or organization depending on whether repo name is set (wrapper).
@@ -62,8 +62,8 @@ func GetOrgSecret(ctx context.Context, g *GitHubClient, repo repository.Reposito
 }
 
 // GetEnvSecret gets a single environment secret (wrapper).
-func GetEnvSecret(ctx context.Context, g *GitHubClient, repoID int, env, secretName string) (*github.Secret, error) {
-	return g.GetEnvSecret(ctx, repoID, env, secretName)
+func GetEnvSecret(ctx context.Context, g *GitHubClient, repo *github.Repository, env, secretName string) (*github.Secret, error) {
+	return g.GetEnvSecret(ctx, int(repo.GetID()), env, secretName)
 }
 
 // GetSecret gets a secret for a repository or organization depending on whether repo name is set (wrapper).
@@ -85,8 +85,8 @@ func CreateOrUpdateOrgSecret(ctx context.Context, g *GitHubClient, repo reposito
 }
 
 // CreateOrUpdateEnvSecret creates or updates an environment secret (wrapper).
-func CreateOrUpdateEnvSecret(ctx context.Context, g *GitHubClient, repoID int, env string, eSecret *github.EncryptedSecret) error {
-	return g.CreateOrUpdateEnvSecret(ctx, repoID, env, eSecret)
+func CreateOrUpdateEnvSecret(ctx context.Context, g *GitHubClient, repo *github.Repository, env string, eSecret *github.EncryptedSecret) error {
+	return g.CreateOrUpdateEnvSecret(ctx, int(repo.GetID()), env, eSecret)
 }
 
 // CreateOrUpdateSecret creates or updates a secret for a repository or organization depending on whether repo name is set (wrapper).
@@ -108,8 +108,8 @@ func DeleteOrgSecret(ctx context.Context, g *GitHubClient, repo repository.Repos
 }
 
 // DeleteEnvSecret deletes a secret in an environment (wrapper).
-func DeleteEnvSecret(ctx context.Context, g *GitHubClient, repoID int, env, secretName string) error {
-	return g.DeleteEnvSecret(ctx, repoID, env, secretName)
+func DeleteEnvSecret(ctx context.Context, g *GitHubClient, repo *github.Repository, env, secretName string) error {
+	return g.DeleteEnvSecret(ctx, int(repo.GetID()), env, secretName)
 }
 
 // DeleteSecret deletes a secret for a repository or organization depending on whether repo name is set (wrapper).
@@ -143,7 +143,7 @@ func RemoveSelectedRepoFromOrgSecret(ctx context.Context, g *GitHubClient, repo 
 // CollectEnvSecrets retrieves all environment secrets for a repository.
 // It lists all environments and fetches secrets for each one.
 // Returns a map of environment name to secrets, or nil if no environment secrets are found.
-func CollectEnvSecrets(ctx context.Context, g *GitHubClient, repo repository.Repository, repoID int) (map[string][]*github.Secret, error) {
+func CollectEnvSecrets(ctx context.Context, g *GitHubClient, repo repository.Repository, repoInfo *github.Repository) (map[string][]*github.Secret, error) {
 	envs, err := ListEnvironments(ctx, g, repo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
@@ -155,7 +155,7 @@ func CollectEnvSecrets(ctx context.Context, g *GitHubClient, repo repository.Rep
 	envSecrets := make(map[string][]*github.Secret)
 	for _, env := range envs {
 		envName := env.GetName()
-		secrets, err := ListEnvSecrets(ctx, g, repoID, envName)
+		secrets, err := ListEnvSecrets(ctx, g, repoInfo, envName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list secrets for environment %s: %w", envName, err)
 		}
