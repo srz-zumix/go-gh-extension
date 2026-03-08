@@ -143,8 +143,8 @@ func RemoveSelectedRepoFromOrgSecret(ctx context.Context, g *GitHubClient, repo 
 // CollectEnvSecrets retrieves all environment secrets for a repository.
 // It lists all environments and fetches secrets for each one.
 // Returns a map of environment name to secrets, or nil if no environment secrets are found.
-func CollectEnvSecrets(ctx context.Context, g *GitHubClient, repo repository.Repository, repoInfo *github.Repository) (map[string][]*github.Secret, error) {
-	envs, err := ListEnvironments(ctx, g, repo)
+func CollectEnvSecrets(ctx context.Context, g *GitHubClient, repo *github.Repository) (map[string][]*github.Secret, error) {
+	envs, err := g.ListEnvironments(ctx, repo.GetOwner().GetLogin(), repo.GetName(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
@@ -155,7 +155,7 @@ func CollectEnvSecrets(ctx context.Context, g *GitHubClient, repo repository.Rep
 	envSecrets := make(map[string][]*github.Secret)
 	for _, env := range envs {
 		envName := env.GetName()
-		secrets, err := ListEnvSecrets(ctx, g, repoInfo, envName)
+		secrets, err := ListEnvSecrets(ctx, g, repo, envName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list secrets for environment %s: %w", envName, err)
 		}
