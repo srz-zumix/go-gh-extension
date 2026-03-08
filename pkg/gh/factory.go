@@ -65,6 +65,15 @@ func NewGitHubClientWithRepo(repo repository.Repository) (*GitHubClient, error) 
 	return client, nil
 }
 
+// NewGitHubClientWith2Hosts creates two GitHubClient instances for the given hosts.
+// If the hosts are the same, the same client is returned for both.
+func NewGitHubClientWith2Hosts(host1, host2 string) (*GitHubClient, *GitHubClient, error) {
+	return NewGitHubClientWith2Repos(
+		repository.Repository{Host: host1},
+		repository.Repository{Host: host2},
+	)
+}
+
 func NewGitHubClientWith2Repos(repo1, repo2 repository.Repository) (*GitHubClient, *GitHubClient, error) {
 	c1, err := NewGitHubClientWithRepo(repo1)
 	if err != nil {
