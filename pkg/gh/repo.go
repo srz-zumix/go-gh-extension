@@ -13,22 +13,37 @@ import (
 
 type RepositorySubmodule = client.RepositorySubmodule
 
-func GetRepositoryID(repo any) int {
+func GetRepositoryID(repo any) (int, error) {
 	switch v := repo.(type) {
 	case int:
-		return v
+		return v, nil
 	case *int:
-		return *v
+		if v == nil {
+			return 0, fmt.Errorf("repository ID pointer is nil")
+		}
+		return *v, nil
 	case int64:
-		return (int)(v)
+		return int(v), nil
 	case *int64:
-		return (int)(*v)
+		if v == nil {
+			return 0, fmt.Errorf("repository ID pointer is nil")
+		}
+		return int(*v), nil
 	case github.Repository:
-		return (int)(*v.ID)
+		if v.ID == nil {
+			return 0, fmt.Errorf("repository ID is nil")
+		}
+		return int(v.GetID()), nil
 	case *github.Repository:
-		return (int)(*v.ID)
+		if v == nil {
+			return 0, fmt.Errorf("repository is nil")
+		}
+		if v.ID == nil {
+			return 0, fmt.Errorf("repository ID is nil")
+		}
+		return int(v.GetID()), nil
 	default:
-		return 0
+		return 0, fmt.Errorf("unsupported repository type %T", repo)
 	}
 }
 
