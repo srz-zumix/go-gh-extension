@@ -19,8 +19,17 @@ func DetectOwnerType(ctx context.Context, g *GitHubClient, owner string) (OwnerT
 	if err != nil {
 		return "", fmt.Errorf("failed to detect owner type for '%s': %w", owner, err)
 	}
-	if user.Type != nil && *user.Type == string(OwnerTypeOrg) {
-		return OwnerTypeOrg, nil
+
+	if user.Type == nil {
+		return "", fmt.Errorf("failed to detect owner type for '%s': user type is nil", owner)
 	}
-	return OwnerTypeUser, nil
+
+	switch *user.Type {
+	case string(OwnerTypeOrg):
+		return OwnerTypeOrg, nil
+	case string(OwnerTypeUser):
+		return OwnerTypeUser, nil
+	default:
+		return "", fmt.Errorf("failed to detect owner type for '%s': unknown type '%s'", owner, *user.Type)
+	}
 }
