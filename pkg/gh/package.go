@@ -340,8 +340,8 @@ func FilterVersions(versions []*github.PackageVersion, filter VersionFilter) []*
 		isNewSlice = true
 	}
 
-	// Apply latest N (sort required)
-	if filter.Latest > 0 && len(result) > filter.Latest {
+	// Apply latest N (sort by creation date descending, then truncate)
+	if filter.Latest > 0 {
 		if !isNewSlice {
 			result = slices.Clone(result)
 		}
@@ -357,7 +357,9 @@ func FilterVersions(versions []*github.PackageVersion, filter VersionFilter) []*
 			}
 			return b.CreatedAt.Compare(a.CreatedAt.Time)
 		})
-		result = result[:filter.Latest]
+		if len(result) > filter.Latest {
+			result = result[:filter.Latest]
+		}
 	}
 
 	return result
