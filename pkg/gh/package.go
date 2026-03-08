@@ -3,6 +3,10 @@ package gh
 import (
 	"context"
 	"fmt"
+	"slices"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
@@ -10,6 +14,22 @@ import (
 
 // PackageTypes is a list of valid package types.
 var PackageTypes = []string{"npm", "maven", "rubygems", "docker", "nuget", "container"}
+
+// ContainerRegistry returns the container registry host for the given GitHub host.
+// For github.com, it returns "ghcr.io".
+// For GitHub Enterprise Server, it returns "containers.HOSTNAME".
+func ContainerRegistry(host string) string {
+	if host == defaultHost {
+		return "ghcr.io"
+	}
+	return "containers." + host
+}
+
+// ContainerImageBase returns the base image path for an OCI image: "registry/owner/package".
+// Owner and package are lowercased to comply with the OCI Distribution Spec.
+func ContainerImageBase(host, owner, pkg string) string {
+	return ContainerRegistry(host) + "/" + strings.ToLower(owner) + "/" + strings.ToLower(pkg)
+}
 
 // ListOrgPackages lists packages in an organization.
 // If packageType is empty, lists packages for all package types.
@@ -225,4 +245,131 @@ func RestoreUserPackageVersion(ctx context.Context, g *GitHubClient, user string
 		return fmt.Errorf("failed to restore version %d for package '%s' for user '%s': %w", versionID, packageName, user, err)
 	}
 	return nil
+}
+
+// ListPackageVersionsByOwnerType lists package versions using the appropriate API based on owner type.
+func ListPackageVersionsByOwnerType(ctx context.Context, g *GitHubClient, ownerType OwnerType, owner, packageType, packageName string) ([]*github.PackageVersion, error) {
+	opts := &github.PackageListOptions{}
+	switch ownerType {
+	case OwnerTypeOrg:
+		versions, err := g.ListOrgPackageVersions(ctx, owner, packageType, packageName, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list versions for package '%s' in organization '%s': %w", packageName, owner, err)
+		}
+		return versions, nil
+	case OwnerTypeUser:
+		versions, err := g.ListUserPackageVersions(ctx, owner, packageType, packageName, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list versions for package '%s' for user '%s': %w", packageName, owner, err)
+		}
+		return versions, nil
+	default:
+		return nil, fmt.Errorf("unknown owner type: %s", ownerType)
+	}
+}
+
+// DeletePackageVersionByOwnerType deletes a package version using the appropriate API based on owner type.
+func DeletePackageVersionByOwnerType(ctx context.Context, g *GitHubClient, ownerType OwnerType, owner, packageType, packageName string, versionID int64) error {
+	switch ownerType {
+	case OwnerTypeOrg:
+		err := g.DeleteOrgPackageVersion(ctx, owner, packageType, packageName, versionID)
+		if err != nil {
+			return fmt.Errorf("failed to delete version %d for package '%s' in organization '%s': %w", versionID, packageName, owner, err)
+		}
+		return nil
+	case OwnerTypeUser:
+		err := g.DeleteUserPackageVersion(ctx, owner, packageType, packageName, versionID)
+		if err != nil {
+			return fmt.Errorf("failed to delete version %d for package '%s' for user '%s': %w", versionID, packageName, owner, err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown owner type: %s", ownerType)
+	}
+}
+
+// VersionFilter defines criteria for filtering package versions.
+type VersionFilter struct {
+	VersionIDs []int64
+	Latest     int
+	Since      *time.Time
+	Until      *time.Time
+}
+
+// FilterVersions applies the given filter to a list of package versions.
+// Filters are applied as intersection (AND):
+// 1. Filter by version IDs (if specified)
+// 2. Filter by date range (since/until)
+// 3. Sort by creation date descending, then apply latest N
+func FilterVersions(versions []*github.PackageVersion, filter VersionFilter) []*github.PackageVersion {
+	result := versions
+
+	// Filter by version IDs
+	if len(filter.VersionIDs) > 0 {
+		var filtered []*github.PackageVersion
+		for _, v := range result {
+			if v.ID != nil && slices.Contains(filter.VersionIDs, *v.ID) {
+				filtered = append(filtered, v)
+			}
+		}
+		result = filtered
+	}
+
+	// Filter by since
+	if filter.Since != nil {
+		var filtered []*github.PackageVersion
+		for _, v := range result {
+			if v.CreatedAt != nil && !v.CreatedAt.Time.Before(*filter.Since) {
+				filtered = append(filtered, v)
+			}
+		}
+		result = filtered
+	}
+
+	// Filter by until
+	if filter.Until != nil {
+		var filtered []*github.PackageVersion
+		for _, v := range result {
+			if v.CreatedAt != nil && !v.CreatedAt.Time.After(*filter.Until) {
+				filtered = append(filtered, v)
+			}
+		}
+		result = filtered
+	}
+
+	// Sort by creation date descending (newest first)
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].CreatedAt == nil {
+			return false
+		}
+		if result[j].CreatedAt == nil {
+			return true
+		}
+		return result[i].CreatedAt.Time.After(result[j].CreatedAt.Time)
+	})
+
+	// Apply latest N
+	if filter.Latest > 0 && len(result) > filter.Latest {
+		result = result[:filter.Latest]
+	}
+
+	return result
+}
+
+// GetVersionTags extracts tags from a package version's container metadata.
+func GetVersionTags(v *github.PackageVersion) []string {
+	metadata, ok := v.GetMetadata()
+	if !ok || metadata.Container == nil {
+		return nil
+	}
+	return metadata.Container.Tags
+}
+
+// GetVersionDigest returns the version name as digest if it looks like a digest.
+func GetVersionDigest(v *github.PackageVersion) string {
+	n := v.GetName()
+	if strings.HasPrefix(n, "sha256:") {
+		return n
+	}
+	return ""
 }
