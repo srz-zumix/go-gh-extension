@@ -36,8 +36,7 @@ type JobLog struct {
 
 // ListSteps returns a list of all steps in the job, sorted by step number
 func (j *JobLog) ListSteps() []*StepLog {
-	stepNumbers := slices.Collect(maps.Keys(j.StepLogs))
-	slices.Sort(stepNumbers)
+	stepNumbers := slices.Sorted(maps.Keys(j.StepLogs))
 
 	// Build sorted StepLog array
 	steps := make([]*StepLog, 0, len(stepNumbers))

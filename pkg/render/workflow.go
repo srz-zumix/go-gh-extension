@@ -16,6 +16,9 @@ const (
 	nodeColorDocker           = "#9C27B0" // Purple: docker action
 )
 
+// WorkflowDependencyFields lists all available field names for ActionReference table rendering.
+var WorkflowDependencyFields = []string{"Name", "Version", "Owner", "Repo", "Path", "Raw", "Using", "Node_Version"}
+
 // WorkflowDependencyFieldGetter defines a function to get a field value from parser.ActionReference
 type WorkflowDependencyFieldGetter func(ref *parser.ActionReference) string
 
