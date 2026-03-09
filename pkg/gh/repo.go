@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 
+	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
@@ -17,6 +19,19 @@ type RepositorySubmodule = client.RepositorySubmodule
 func GetRepositoryFromGitHubRepository(repo any) (repository.Repository, error) {
 	switch v := repo.(type) {
 	case github.Repository:
+		host := ""
+		htmlURL := v.GetHTMLURL()
+		if htmlURL != "" {
+			parsedURL, err := url.Parse(htmlURL)
+			if err != nil {
+				return repository.Repository{}, fmt.Errorf("failed to parse repository HTML URL %q: %w", htmlURL, err)
+			}
+			host = parsedURL.Host
+		}
+		if host == "" {
+			host, _ = auth.DefaultHost()
+		}
+
 		owner := v.GetOwner()
 		if owner == nil {
 			return repository.Repository{}, fmt.Errorf("repository owner is nil")
@@ -26,7 +41,7 @@ func GetRepositoryFromGitHubRepository(repo any) (repository.Repository, error) 
 		if ownerLogin == "" || repoName == "" {
 			return repository.Repository{}, fmt.Errorf("repository owner login or name is empty")
 		}
-		return repository.Repository{Owner: ownerLogin, Name: repoName}, nil
+		return repository.Repository{Host: host, Owner: ownerLogin, Name: repoName}, nil
 	case *github.Repository:
 		if v == nil {
 			return repository.Repository{}, fmt.Errorf("repository is nil")
