@@ -263,33 +263,9 @@ func ExportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 
 	teams := GetRulesetActorsTeams(ctx, g, repo, ruleset)
 
-	checkRuns := make(map[int64]*CheckRun)
-	if ruleset.Rules.RequiredStatusChecks != nil {
-		// Get the target repository for resolving check runs
-		// For org rulesets, this is a repository where checks are actually run
-		// For repo rulesets, this returns the repo itself
-		checkRunRepo, err := GetRulesetTargetRepository(ctx, g, repo, ruleset)
-		if err != nil || checkRunRepo == nil {
-			checkRunRepo = &repo
-		}
-		ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, *checkRunRepo, ruleset)
-		if err != nil {
-			ref = "HEAD"
-		}
-		for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
-			if check.IntegrationID != nil {
-				if _, ok := checkRuns[*check.IntegrationID]; ok {
-					continue
-				}
-				checkRun, err := findIntegrationID(ctx, g, *checkRunRepo, ref, check.Context, check.IntegrationID, nil)
-				if err != nil {
-					return nil, err
-				}
-				if checkRun != nil {
-					checkRuns[*check.IntegrationID] = checkRun
-				}
-			}
-		}
+	checkRuns, err := exportRulesetCheckRuns(ctx, g, repo, ruleset)
+	if err != nil {
+		return nil, err
 	}
 
 	repositories := make(map[int64]*github.Repository)
@@ -303,7 +279,7 @@ func ExportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 			}
 		}
 	}
-	if ruleset.Rules.Workflows != nil {
+	if ruleset.Rules != nil && ruleset.Rules.Workflows != nil {
 		for _, workflow := range ruleset.Rules.Workflows.Workflows {
 			r, err := GetRepositoryByID(ctx, g, workflow.GetRepositoryID())
 			if err != nil {
@@ -320,6 +296,47 @@ func ExportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 		CheckRuns:    checkRuns,
 		Repositories: repositories,
 	}, nil
+}
+
+// exportRulesetCheckRuns collects check run app metadata for all required status checks in a ruleset.
+// This information is used to remap integration IDs during migration to a different organization.
+func exportRulesetCheckRuns(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) (map[int64]*CheckRun, error) {
+	checkRuns := make(map[int64]*CheckRun)
+	if ruleset.Rules == nil || ruleset.Rules.RequiredStatusChecks == nil {
+		return checkRuns, nil
+	}
+
+	// Get the target repository for resolving check runs.
+	// For org rulesets, this is a repository where checks are actually run.
+	// For repo rulesets, this returns the repo itself.
+	checkRunRepo, err := GetRulesetTargetRepository(ctx, g, repo, ruleset)
+	if err != nil || checkRunRepo == nil {
+		checkRunRepo = &repo
+	}
+	if checkRunRepo.Name == "" {
+		logger.Warn("No target repository available for resolving required status check integrations, skipping check run collection...")
+		return checkRuns, nil
+	}
+	ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, *checkRunRepo, ruleset)
+	if err != nil {
+		ref = "HEAD"
+	}
+	for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
+		if check.IntegrationID == nil {
+			continue
+		}
+		if _, ok := checkRuns[*check.IntegrationID]; ok {
+			continue
+		}
+		checkRun, err := findIntegrationID(ctx, g, *checkRunRepo, ref, check.Context, check.IntegrationID, nil)
+		if err != nil {
+			return nil, err
+		}
+		if checkRun != nil {
+			checkRuns[*check.IntegrationID] = checkRun
+		}
+	}
+	return checkRuns, nil
 }
 
 var GitHubComGitHubActionsAppID int64 = 15368
