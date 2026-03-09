@@ -614,13 +614,20 @@ func importRulesetConditions(repo repository.Repository, ruleset *github.Reposit
 		}
 	}
 	if len(newRepoIDs) == 0 {
+		// When no repository IDs could be mapped, try to fall back to repository names if available.
 		ruleset.Conditions.RepositoryID = nil
+		if len(newRepoNames) == 0 {
+			// No repository names are available either; remove repository conditions entirely.
+			ruleset.Conditions.RepositoryName = nil
+			logger.Warn("No valid repository ID or repository name conditions found in target organization, removing repository conditions...")
+			return
+		}
 		ruleset.Conditions.RepositoryName = &github.RepositoryRulesetRepositoryNamesConditionParameters{
 			Include:   newRepoNames,
 			Exclude:   []string{},
 			Protected: nil,
 		}
-		logger.Warn("No valid repository ID conditions found in target repository, converting to repository name condition...")
+		logger.Warn("No valid repository ID conditions found in target organization, converting to repository name conditions...")
 		return
 	}
 
