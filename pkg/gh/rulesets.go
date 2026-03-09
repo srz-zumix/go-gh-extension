@@ -474,6 +474,8 @@ func importRulesetRequiredStatusChecks(ctx context.Context, g *GitHubClient, rep
 
 		found, err := findIntegrationID(ctx, g, *checkRunRepo, ref, check.Context, check.IntegrationID, nil)
 		if err == nil && found != nil {
+			// cache successful no-op integration mapping to avoid duplicate lookups
+			foundIntegrations[id] = check.IntegrationID
 			continue
 		}
 
