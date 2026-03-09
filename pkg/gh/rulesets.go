@@ -465,7 +465,10 @@ func importRulesetRequiredStatusChecks(ctx context.Context, g *GitHubClient, rep
 	// For org rulesets, this is a repository where checks are actually run.
 	// For repo rulesets, this returns the repo itself.
 	checkRunRepo, err := GetRulesetTargetRepository(ctx, g, repo, ruleset)
-	if err != nil || checkRunRepo == nil {
+	if err != nil {
+		return err
+	}
+	if checkRunRepo == nil {
 		checkRunRepo = &repo
 	}
 	if checkRunRepo.Name == "" {
