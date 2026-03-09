@@ -24,7 +24,7 @@ func GetRepositoryFromGitHubRepository(repo any) (repository.Repository, error) 
 		if htmlURL != "" {
 			parsedURL, err := url.Parse(htmlURL)
 			if err != nil {
-				return repository.Repository{}, fmt.Errorf("failed to parse repository HTML URL: %w", err)
+				return repository.Repository{}, fmt.Errorf("failed to parse repository HTML URL %q: %w", htmlURL, err)
 			}
 			host = parsedURL.Host
 		}
