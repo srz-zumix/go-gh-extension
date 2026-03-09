@@ -16,16 +16,18 @@ func TestGetRepositoryFromGitHubRepository(t *testing.T) {
 	}{
 		{
 			name:  "pointer repository",
-			input: &github.Repository{Owner: &github.User{Login: github.Ptr("octocat")}, Name: github.Ptr("hello-world")},
+			input: &github.Repository{Owner: &github.User{Login: github.Ptr("octocat")}, Name: github.Ptr("hello-world"), HTMLURL: github.Ptr("https://github.com/octocat/hello-world")},
 			expected: repository.Repository{
+				Host:  "github.com",
 				Owner: "octocat",
 				Name:  "hello-world",
 			},
 		},
 		{
 			name:  "value repository",
-			input: github.Repository{Owner: &github.User{Login: github.Ptr("octocat")}, Name: github.Ptr("hello-world")},
+			input: github.Repository{Owner: &github.User{Login: github.Ptr("octocat")}, Name: github.Ptr("hello-world"), HTMLURL: github.Ptr("https://github.com/octocat/hello-world")},
 			expected: repository.Repository{
+				Host:  "github.com",
 				Owner: "octocat",
 				Name:  "hello-world",
 			},
@@ -70,7 +72,7 @@ func TestGetRepositoryFromGitHubRepository(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if result.Owner != tt.expected.Owner || result.Name != tt.expected.Name {
+			if result.Host != tt.expected.Host || result.Owner != tt.expected.Owner || result.Name != tt.expected.Name {
 				t.Fatalf("unexpected repository: got %+v, want %+v", result, tt.expected)
 			}
 		})
