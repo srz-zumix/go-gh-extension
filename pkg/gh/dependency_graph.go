@@ -133,15 +133,15 @@ func FlattenSBOMPackages(sboms []*github.SBOM) []*github.RepoDependencies {
 }
 
 // SelectSBOMPackage filters the dependency list to packages matching a single ecosystem prefix
-func SelectSBOMPackage(deps []*github.RepoDependencies, packageName string) []*github.RepoDependencies {
-	return SelectSBOMPackages(deps, []string{packageName})
+func SelectSBOMPackage(deps []*github.RepoDependencies, ecosystem string) []*github.RepoDependencies {
+	return SelectSBOMPackages(deps, []string{ecosystem})
 }
 
-// SelectSBOMPackages filters the dependency list to packages whose ecosystem matches any of the specified names.
+// SelectSBOMPackages filters the dependency list to packages whose ecosystem matches any of the specified ecosystems.
 // Ecosystem is the prefix of a package name before the colon (e.g. "actions" in "actions:owner/repo").
-func SelectSBOMPackages(deps []*github.RepoDependencies, packageNames []string) []*github.RepoDependencies {
-	includeSet := make(map[string]struct{}, len(packageNames))
-	for _, n := range packageNames {
+func SelectSBOMPackages(deps []*github.RepoDependencies, ecosystems []string) []*github.RepoDependencies {
+	includeSet := make(map[string]struct{}, len(ecosystems))
+	for _, n := range ecosystems {
 		includeSet[n] = struct{}{}
 	}
 	var selected []*github.RepoDependencies
@@ -172,8 +172,8 @@ func SelectSBOMPackages(deps []*github.RepoDependencies, packageNames []string) 
 }
 
 // FilterSBOMPackage filters the SBOM to include only packages matching a single ecosystem prefix
-func FilterSBOMPackage(sbom *github.SBOM, packageName string) *github.SBOM {
-	return FilterSBOMPackages(sbom, []string{packageName})
+func FilterSBOMPackage(sbom *github.SBOM, ecosystem string) *github.SBOM {
+	return FilterSBOMPackages(sbom, []string{ecosystem})
 }
 
 // copySBOMWithPackages creates a copy of the SBOM metadata with the provided package list.
@@ -193,17 +193,17 @@ func copySBOMWithPackages(sbom *github.SBOM, packages []*github.RepoDependencies
 	}
 }
 
-// FilterSBOMPackages filters the SBOM to include only packages whose ecosystem matches any of the specified names
-func FilterSBOMPackages(sbom *github.SBOM, packageNames []string) *github.SBOM {
-	packages := SelectSBOMPackages(sbom.SBOM.Packages, packageNames)
+// FilterSBOMPackages filters the SBOM to include only packages whose ecosystem matches any of the specified ecosystems.
+func FilterSBOMPackages(sbom *github.SBOM, ecosystems []string) *github.SBOM {
+	packages := SelectSBOMPackages(sbom.SBOM.Packages, ecosystems)
 	return copySBOMWithPackages(sbom, packages)
 }
 
-// FilterSBOMsPackage filters multiple SBOMs to include only packages that match the specified package name
-func FilterSBOMsPackage(sboms []*github.SBOM, packageName string) []*github.SBOM {
+// FilterSBOMsPackage filters multiple SBOMs to include only packages that match the specified ecosystem
+func FilterSBOMsPackage(sboms []*github.SBOM, ecosystem string) []*github.SBOM {
 	var filteredSBOMs []*github.SBOM
 	for _, sbom := range sboms {
-		filteredSBOM := FilterSBOMPackage(sbom, packageName)
+		filteredSBOM := FilterSBOMPackage(sbom, ecosystem)
 		filteredSBOMs = append(filteredSBOMs, filteredSBOM)
 	}
 	return filteredSBOMs
