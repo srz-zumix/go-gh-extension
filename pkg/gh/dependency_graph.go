@@ -150,7 +150,7 @@ func SelectSBOMPackages(deps []*github.RepoDependencies, packageNames []string) 
 			// Skip dependencies without a name to avoid nil pointer dereference
 			continue
 		}
-		parts := strings.Split(*dep.Name, ":")
+		parts := strings.SplitN(*dep.Name, ":", 2)
 		if _, ok := includeSet[parts[0]]; ok {
 			selected = append(selected, dep)
 		}
