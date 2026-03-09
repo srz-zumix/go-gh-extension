@@ -132,16 +132,26 @@ func FlattenSBOMPackages(sboms []*github.SBOM) []*github.RepoDependencies {
 	return allPackages
 }
 
-// SelectDependencyGraphEdges filters the dependency graph edges based on the provided package name
-func SelectSBOMPackage(deps []*github.RepoDependencies, packageName string) []*github.RepoDependencies {
+// SelectSBOMPackage filters the dependency list to packages matching a single ecosystem prefix
+func SelectSBOMPackage(deps []*github.RepoDependencies, ecosystem string) []*github.RepoDependencies {
+	return SelectSBOMPackages(deps, []string{ecosystem})
+}
+
+// SelectSBOMPackages filters the dependency list to packages whose ecosystem matches any of the specified ecosystems.
+// Ecosystem is the prefix of a package name before the colon (e.g. "actions" in "actions:owner/repo").
+func SelectSBOMPackages(deps []*github.RepoDependencies, ecosystems []string) []*github.RepoDependencies {
+	includeSet := make(map[string]struct{}, len(ecosystems))
+	for _, n := range ecosystems {
+		includeSet[n] = struct{}{}
+	}
 	var selected []*github.RepoDependencies
 	for _, dep := range deps {
 		if dep.Name == nil {
 			// Skip dependencies without a name to avoid nil pointer dereference
 			continue
 		}
-		parts := strings.Split(*dep.Name, ":")
-		if parts[0] == packageName {
+		parts := strings.SplitN(*dep.Name, ":", 2)
+		if _, ok := includeSet[parts[0]]; ok {
 			selected = append(selected, dep)
 		}
 	}
@@ -161,10 +171,14 @@ func SelectSBOMPackage(deps []*github.RepoDependencies, packageName string) []*g
 	return selected
 }
 
-// FilterSBOMPackage filters the SBOM to include only packages that match the specified package name
-func FilterSBOMPackage(sbom *github.SBOM, packageName string) *github.SBOM {
-	packages := SelectSBOMPackage(sbom.SBOM.Packages, packageName)
-	filteredSBOM := &github.SBOM{
+// FilterSBOMPackage filters the SBOM to include only packages matching a single ecosystem prefix
+func FilterSBOMPackage(sbom *github.SBOM, ecosystem string) *github.SBOM {
+	return FilterSBOMPackages(sbom, []string{ecosystem})
+}
+
+// copySBOMWithPackages creates a copy of the SBOM metadata with the provided package list.
+func copySBOMWithPackages(sbom *github.SBOM, packages []*github.RepoDependencies) *github.SBOM {
+	return &github.SBOM{
 		SBOM: &github.SBOMInfo{
 			SPDXID:            sbom.SBOM.SPDXID,
 			SPDXVersion:       sbom.SBOM.SPDXVersion,
@@ -177,15 +191,44 @@ func FilterSBOMPackage(sbom *github.SBOM, packageName string) *github.SBOM {
 			Packages:          packages,
 		},
 	}
-	return filteredSBOM
 }
 
-// FilterSBOMsPackage filters multiple SBOMs to include only packages that match the specified package name
-func FilterSBOMsPackage(sboms []*github.SBOM, packageName string) []*github.SBOM {
+// FilterSBOMPackages filters the SBOM to include only packages whose ecosystem matches any of the specified ecosystems.
+func FilterSBOMPackages(sbom *github.SBOM, ecosystems []string) *github.SBOM {
+	packages := SelectSBOMPackages(sbom.SBOM.Packages, ecosystems)
+	return copySBOMWithPackages(sbom, packages)
+}
+
+// FilterSBOMsPackage filters multiple SBOMs to include only packages that match the specified ecosystem
+func FilterSBOMsPackage(sboms []*github.SBOM, ecosystem string) []*github.SBOM {
 	var filteredSBOMs []*github.SBOM
 	for _, sbom := range sboms {
-		filteredSBOM := FilterSBOMPackage(sbom, packageName)
+		filteredSBOM := FilterSBOMPackage(sbom, ecosystem)
 		filteredSBOMs = append(filteredSBOMs, filteredSBOM)
 	}
 	return filteredSBOMs
+}
+
+// ExcludeSBOMPackages removes packages from the SBOM whose ecosystem matches any of the specified ecosystems.
+// Ecosystem is the prefix of a package name before the colon (e.g. "actions" in "actions:owner/repo").
+func ExcludeSBOMPackages(sbom *github.SBOM, ecosystems []string) *github.SBOM {
+	if len(ecosystems) == 0 {
+		return sbom
+	}
+	excludeSet := make(map[string]struct{}, len(ecosystems))
+	for _, e := range ecosystems {
+		excludeSet[e] = struct{}{}
+	}
+	var packages []*github.RepoDependencies
+	for _, dep := range sbom.SBOM.Packages {
+		if dep.Name == nil {
+			packages = append(packages, dep)
+			continue
+		}
+		parts := strings.SplitN(*dep.Name, ":", 2)
+		if _, excluded := excludeSet[parts[0]]; !excluded {
+			packages = append(packages, dep)
+		}
+	}
+	return copySBOMWithPackages(sbom, packages)
 }
