@@ -447,6 +447,16 @@ func importRulesetRequiredStatusChecks(ctx context.Context, g *GitHubClient, rep
 	if err != nil || checkRunRepo == nil {
 		checkRunRepo = &repo
 	}
+	if checkRunRepo.Name == "" {
+		logger.Warn("No target repository available for resolving required status check integrations, falling back to any-source...")
+		for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
+			if check.IntegrationID != nil {
+				check.IntegrationID = nil
+				logger.Warn("Required status check integration replaced to any-source due to missing target repository", "integration", check.Context)
+			}
+		}
+		return nil
+	}
 	ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, *checkRunRepo, ruleset)
 	if err != nil {
 		ref = "HEAD"
@@ -589,14 +599,19 @@ func importRulesetConditions(repo repository.Repository, ruleset *github.Reposit
 	newRepoIDs := []int64{}
 	newRepoNames := []string{}
 	for _, id := range ruleset.Conditions.RepositoryID.RepositoryIDs {
-		newRepoNames = append(newRepoNames, migrateRepositoryNames[id])
 		r, ok := migrateRepositories[id]
-		if !ok {
-			logger.Warn("Repository ID condition not found in target repository, skipping...", "id", id)
+		if ok {
+			newRepoIDs = append(newRepoIDs, r.GetID())
+			newRepoNames = append(newRepoNames, r.GetName())
+			logger.Info("Repository ID condition has been mapped to target repository", "name", r.GetName(), "id", r.GetID())
 			continue
 		}
-		newRepoIDs = append(newRepoIDs, r.GetID())
-		logger.Info("Repository ID condition has been mapped to target repository", "name", r.GetName(), "id", r.GetID())
+		if name, nameOk := migrateRepositoryNames[id]; nameOk && name != "" {
+			newRepoNames = append(newRepoNames, name)
+			logger.Warn("Repository ID condition not found in target organization, will use repository name as fallback...", "id", id, "name", name)
+		} else {
+			logger.Warn("Repository ID condition not found in target organization and name unknown, skipping...", "id", id)
+		}
 	}
 	if len(newRepoIDs) == 0 {
 		ruleset.Conditions.RepositoryID = nil
