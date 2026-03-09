@@ -176,10 +176,9 @@ func FilterSBOMPackage(sbom *github.SBOM, packageName string) *github.SBOM {
 	return FilterSBOMPackages(sbom, []string{packageName})
 }
 
-// FilterSBOMPackages filters the SBOM to include only packages whose ecosystem matches any of the specified names
-func FilterSBOMPackages(sbom *github.SBOM, packageNames []string) *github.SBOM {
-	packages := SelectSBOMPackages(sbom.SBOM.Packages, packageNames)
-	filteredSBOM := &github.SBOM{
+// copySBOMWithPackages creates a copy of the SBOM metadata with the provided package list.
+func copySBOMWithPackages(sbom *github.SBOM, packages []*github.RepoDependencies) *github.SBOM {
+	return &github.SBOM{
 		SBOM: &github.SBOMInfo{
 			SPDXID:            sbom.SBOM.SPDXID,
 			SPDXVersion:       sbom.SBOM.SPDXVersion,
@@ -192,7 +191,12 @@ func FilterSBOMPackages(sbom *github.SBOM, packageNames []string) *github.SBOM {
 			Packages:          packages,
 		},
 	}
-	return filteredSBOM
+}
+
+// FilterSBOMPackages filters the SBOM to include only packages whose ecosystem matches any of the specified names
+func FilterSBOMPackages(sbom *github.SBOM, packageNames []string) *github.SBOM {
+	packages := SelectSBOMPackages(sbom.SBOM.Packages, packageNames)
+	return copySBOMWithPackages(sbom, packages)
 }
 
 // FilterSBOMsPackage filters multiple SBOMs to include only packages that match the specified package name
@@ -226,17 +230,5 @@ func ExcludeSBOMPackages(sbom *github.SBOM, ecosystems []string) *github.SBOM {
 			packages = append(packages, dep)
 		}
 	}
-	return &github.SBOM{
-		SBOM: &github.SBOMInfo{
-			SPDXID:            sbom.SBOM.SPDXID,
-			SPDXVersion:       sbom.SBOM.SPDXVersion,
-			CreationInfo:      sbom.SBOM.CreationInfo,
-			Name:              sbom.SBOM.Name,
-			DataLicense:       sbom.SBOM.DataLicense,
-			DocumentDescribes: sbom.SBOM.DocumentDescribes,
-			DocumentNamespace: sbom.SBOM.DocumentNamespace,
-			Relationships:     sbom.SBOM.Relationships,
-			Packages:          packages,
-		},
-	}
+	return copySBOMWithPackages(sbom, packages)
 }
