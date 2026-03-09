@@ -132,8 +132,18 @@ func FlattenSBOMPackages(sboms []*github.SBOM) []*github.RepoDependencies {
 	return allPackages
 }
 
-// SelectDependencyGraphEdges filters the dependency graph edges based on the provided package name
+// SelectSBOMPackage filters the dependency list to packages matching a single ecosystem prefix
 func SelectSBOMPackage(deps []*github.RepoDependencies, packageName string) []*github.RepoDependencies {
+	return SelectSBOMPackages(deps, []string{packageName})
+}
+
+// SelectSBOMPackages filters the dependency list to packages whose ecosystem matches any of the specified names.
+// Ecosystem is the prefix of a package name before the colon (e.g. "actions" in "actions:owner/repo").
+func SelectSBOMPackages(deps []*github.RepoDependencies, packageNames []string) []*github.RepoDependencies {
+	includeSet := make(map[string]struct{}, len(packageNames))
+	for _, n := range packageNames {
+		includeSet[n] = struct{}{}
+	}
 	var selected []*github.RepoDependencies
 	for _, dep := range deps {
 		if dep.Name == nil {
@@ -141,7 +151,7 @@ func SelectSBOMPackage(deps []*github.RepoDependencies, packageName string) []*g
 			continue
 		}
 		parts := strings.Split(*dep.Name, ":")
-		if parts[0] == packageName {
+		if _, ok := includeSet[parts[0]]; ok {
 			selected = append(selected, dep)
 		}
 	}
@@ -161,9 +171,14 @@ func SelectSBOMPackage(deps []*github.RepoDependencies, packageName string) []*g
 	return selected
 }
 
-// FilterSBOMPackage filters the SBOM to include only packages that match the specified package name
+// FilterSBOMPackage filters the SBOM to include only packages matching a single ecosystem prefix
 func FilterSBOMPackage(sbom *github.SBOM, packageName string) *github.SBOM {
-	packages := SelectSBOMPackage(sbom.SBOM.Packages, packageName)
+	return FilterSBOMPackages(sbom, []string{packageName})
+}
+
+// FilterSBOMPackages filters the SBOM to include only packages whose ecosystem matches any of the specified names
+func FilterSBOMPackages(sbom *github.SBOM, packageNames []string) *github.SBOM {
+	packages := SelectSBOMPackages(sbom.SBOM.Packages, packageNames)
 	filteredSBOM := &github.SBOM{
 		SBOM: &github.SBOMInfo{
 			SPDXID:            sbom.SBOM.SPDXID,
@@ -188,4 +203,40 @@ func FilterSBOMsPackage(sboms []*github.SBOM, packageName string) []*github.SBOM
 		filteredSBOMs = append(filteredSBOMs, filteredSBOM)
 	}
 	return filteredSBOMs
+}
+
+// ExcludeSBOMPackages removes packages from the SBOM whose ecosystem matches any of the specified ecosystems.
+// Ecosystem is the prefix of a package name before the colon (e.g. "actions" in "actions:owner/repo").
+func ExcludeSBOMPackages(sbom *github.SBOM, ecosystems []string) *github.SBOM {
+	if len(ecosystems) == 0 {
+		return sbom
+	}
+	excludeSet := make(map[string]struct{}, len(ecosystems))
+	for _, e := range ecosystems {
+		excludeSet[e] = struct{}{}
+	}
+	var packages []*github.RepoDependencies
+	for _, dep := range sbom.SBOM.Packages {
+		if dep.Name == nil {
+			packages = append(packages, dep)
+			continue
+		}
+		parts := strings.SplitN(*dep.Name, ":", 2)
+		if _, excluded := excludeSet[parts[0]]; !excluded {
+			packages = append(packages, dep)
+		}
+	}
+	return &github.SBOM{
+		SBOM: &github.SBOMInfo{
+			SPDXID:            sbom.SBOM.SPDXID,
+			SPDXVersion:       sbom.SBOM.SPDXVersion,
+			CreationInfo:      sbom.SBOM.CreationInfo,
+			Name:              sbom.SBOM.Name,
+			DataLicense:       sbom.SBOM.DataLicense,
+			DocumentDescribes: sbom.SBOM.DocumentDescribes,
+			DocumentNamespace: sbom.SBOM.DocumentNamespace,
+			Relationships:     sbom.SBOM.Relationships,
+			Packages:          packages,
+		},
+	}
 }
