@@ -424,13 +424,9 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 		}
 	}
 
-	if err := importRulesetRequiredStatusChecks(ctx, g, repo, ruleset, migrateConfig, org, gitHubActionsAppID); err != nil {
-		return nil, err
-	}
-	if err := importRulesetRequiredDeployments(ctx, g, repo, ruleset); err != nil {
-		return nil, err
-	}
-
+	// Build the destination repository mapping first, then apply conditions/workflows so that
+	// importRulesetRequiredStatusChecks can use the already-remapped Conditions.RepositoryID
+	// to resolve a valid checkRunRepo for org rulesets.
 	migrateRepositoryNames := map[int64]string{}
 	migrateRepositories := map[int64]*github.Repository{}
 	for id, r := range migrateConfig.Repositories {
@@ -445,6 +441,13 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 	importRulesetConditions(repo, ruleset, migrateRepositoryNames, migrateRepositories)
 	importRulesetWorkflows(ruleset, migrateRepositories)
 
+	if err := importRulesetRequiredStatusChecks(ctx, g, repo, ruleset, migrateConfig, org, gitHubActionsAppID); err != nil {
+		return nil, err
+	}
+	if err := importRulesetRequiredDeployments(ctx, g, repo, ruleset); err != nil {
+		return nil, err
+	}
+
 	result, err := CreateOrUpdateRuleset(ctx, g, repo, ruleset)
 	if err != nil {
 		return nil, err
@@ -454,6 +457,8 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 }
 
 // importRulesetRequiredStatusChecks remaps required status checks integration IDs for the destination repository.
+// It should be called after importRulesetConditions so that Conditions.RepositoryID already contains destination
+// repository IDs, allowing GetRulesetTargetRepository to resolve the correct checkRunRepo for org rulesets.
 func importRulesetRequiredStatusChecks(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset, migrateConfig *RepositoryRulesetMigrateConfig, org *OrganizationProfile, gitHubActionsAppID *int64) error {
 	if ruleset == nil || ruleset.Rules == nil || ruleset.Rules.RequiredStatusChecks == nil {
 		return nil
