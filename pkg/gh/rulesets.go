@@ -540,7 +540,7 @@ func importRulesetRequiredStatusChecks(ctx context.Context, g *GitHubClient, rep
 				}
 			}
 		}
-		logger.Warn("Required status check integration not found in target repository, replace to any-source", "integration", check.Context)
+		logger.Warn("Required status check integration not found in target repository, replacing with any-source", "integration", check.Context)
 	}
 
 	return nil
