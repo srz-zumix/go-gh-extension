@@ -314,7 +314,6 @@ func exportRulesetCheckRuns(ctx context.Context, g *GitHubClient, repo repositor
 		return nil, err
 	}
 	if checkRunRepo == nil {
-		logger.Warn("Ruleset target repository not found, falling back to source repository for check run resolution")
 		checkRunRepo = &repo
 	}
 	if checkRunRepo.Name == "" {
@@ -479,12 +478,15 @@ func importRulesetRequiredStatusChecks(ctx context.Context, g *GitHubClient, rep
 		checkRunRepo = &repo
 	}
 	if checkRunRepo.Name == "" {
-		logger.Warn("No target repository available for resolving required status check integrations, falling back to any-source...")
+		var integrationNames []string
 		for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
 			if check.IntegrationID != nil {
+				integrationNames = append(integrationNames, check.Context)
 				check.IntegrationID = nil
-				logger.Warn("Required status check integration replaced to any-source due to missing target repository", "integration", check.Context)
 			}
+		}
+		if len(integrationNames) > 0 {
+			logger.Warn("No target repository available for resolving required status check integrations, replaced to any-source", "count", len(integrationNames), "integrations", integrationNames)
 		}
 		return nil
 	}
