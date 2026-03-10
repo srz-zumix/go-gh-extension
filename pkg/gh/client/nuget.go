@@ -17,8 +17,10 @@ import (
 
 const nugetDefaultHost = "github.com"
 
-// repositoryElemRe matches the <repository .../> element in a .nuspec file.
-var repositoryElemRe = regexp.MustCompile(`(?i)<repository\b[^>]*/?>(?:\s*</repository>)?`)
+// repositoryElemRe matches the full <repository .../> or <repository ...>...</repository> element
+// in a .nuspec file, including any child content between the tags.
+// (?is) enables case-insensitive matching and makes '.' match newlines for multi-line elements.
+var repositoryElemRe = regexp.MustCompile(`(?is)<repository\b[^>]*(?:/>|>[\s\S]*?</repository\s*>)`)
 
 // NuGetRegistryBase returns the NuGet registry base URL for the given GitHub host and owner.
 // For github.com, it returns "https://nuget.pkg.github.com/<owner>".
@@ -56,90 +58,116 @@ func rewriteNuspecRepository(nuspec []byte, repoURL string) []byte {
 }
 
 // RewriteNuPkgRepository rewrites the <repository> element in the .nuspec file inside
-// a .nupkg (ZIP archive) to use the given repository URL.
+// a .nupkg (ZIP archive) to use the given repository URL, reading from src (size bytes)
+// and writing the rewritten archive to dst.
 // This is required when pushing to GitHub Packages, which mandates a repository
 // association via the <repository url="..." /> element in the .nuspec.
-func RewriteNuPkgRepository(data []byte, repoURL string) ([]byte, error) {
-	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+func RewriteNuPkgRepository(src io.ReaderAt, size int64, dst io.Writer, repoURL string) error {
+	r, err := zip.NewReader(src, size)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open nupkg: %w", err)
+		return fmt.Errorf("failed to open nupkg: %w", err)
 	}
 
-	var buf bytes.Buffer
-	w := zip.NewWriter(&buf)
+	w := zip.NewWriter(dst)
 
 	for _, f := range r.File {
 		fhCopy := f.FileHeader
 		fw, err := w.CreateHeader(&fhCopy)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create zip entry %s: %w", f.Name, err)
+			return fmt.Errorf("failed to create zip entry %s: %w", f.Name, err)
 		}
 
 		rc, err := f.Open()
 		if err != nil {
-			return nil, fmt.Errorf("failed to open zip entry %s: %w", f.Name, err)
-		}
-		content, readErr := io.ReadAll(rc)
-		rc.Close()
-		if readErr != nil {
-			return nil, fmt.Errorf("failed to read zip entry %s: %w", f.Name, readErr)
+			return fmt.Errorf("failed to open zip entry %s: %w", f.Name, err)
 		}
 
 		if strings.HasSuffix(strings.ToLower(f.Name), ".nuspec") {
+			content, readErr := io.ReadAll(rc)
+			if closeErr := rc.Close(); closeErr != nil && readErr == nil {
+				return fmt.Errorf("failed to close zip entry %s: %w", f.Name, closeErr)
+			}
+			if readErr != nil {
+				return fmt.Errorf("failed to read zip entry %s: %w", f.Name, readErr)
+			}
 			content = rewriteNuspecRepository(content, repoURL)
-		}
-
-		if _, err := fw.Write(content); err != nil {
-			return nil, fmt.Errorf("failed to write zip entry %s: %w", f.Name, err)
+			if _, err := fw.Write(content); err != nil {
+				return fmt.Errorf("failed to write zip entry %s: %w", f.Name, err)
+			}
+		} else {
+			if _, err := io.Copy(fw, rc); err != nil {
+				rc.Close()
+				return fmt.Errorf("failed to copy zip entry %s: %w", f.Name, err)
+			}
+			if err := rc.Close(); err != nil {
+				return fmt.Errorf("failed to close zip entry %s: %w", f.Name, err)
+			}
 		}
 	}
 
 	if err := w.Close(); err != nil {
-		return nil, fmt.Errorf("failed to finalize nupkg: %w", err)
+		return fmt.Errorf("failed to finalize nupkg: %w", err)
 	}
-	return buf.Bytes(), nil
+	return nil
 }
 
-// DownloadNuGetPackage downloads a .nupkg file from the GitHub NuGet registry using the authenticated HTTP client.
-func (g *GitHubClient) DownloadNuGetPackage(ctx context.Context, owner, packageName, version string) ([]byte, error) {
+// DownloadNuGetPackage downloads a .nupkg file from the GitHub NuGet registry and
+// streams it to dst.
+func (g *GitHubClient) DownloadNuGetPackage(ctx context.Context, owner, packageName, version string, dst io.Writer) (retErr error) {
 	url := NuGetDownloadURL(g.Host(), owner, packageName, version)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	resp, err := g.client.Client().Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("download failed with status %d: %s", resp.StatusCode, string(body))
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("download failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
-	return io.ReadAll(resp.Body)
+	if _, err := io.Copy(dst, resp.Body); err != nil {
+		return fmt.Errorf("failed to write nupkg: %w", err)
+	}
+	return nil
 }
 
-// PushNuGetPackage pushes a .nupkg file to the GitHub NuGet registry using the authenticated HTTP client.
-func (g *GitHubClient) PushNuGetPackage(ctx context.Context, owner string, data []byte) error {
+// PushNuGetPackage pushes a .nupkg file to the GitHub NuGet registry, streaming
+// the contents of r via a multipart request without buffering the full payload in memory.
+func (g *GitHubClient) PushNuGetPackage(ctx context.Context, owner string, r io.Reader) (retErr error) {
 	url := NuGetPushURL(g.Host(), owner)
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-	part, err := writer.CreateFormFile("package", "package.nupkg")
-	if err != nil {
-		return fmt.Errorf("failed to create multipart form: %w", err)
-	}
-	if _, err := part.Write(data); err != nil {
-		return fmt.Errorf("failed to write package data: %w", err)
-	}
-	if err := writer.Close(); err != nil {
-		return fmt.Errorf("failed to close multipart writer: %w", err)
-	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, &buf)
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
+	go func() {
+		part, err := writer.CreateFormFile("package", "package.nupkg")
+		if err != nil {
+			pw.CloseWithError(fmt.Errorf("failed to create multipart form: %w", err))
+			return
+		}
+		if _, err := io.Copy(part, r); err != nil {
+			pw.CloseWithError(fmt.Errorf("failed to write package data: %w", err))
+			return
+		}
+		if err := writer.Close(); err != nil {
+			pw.CloseWithError(fmt.Errorf("failed to close multipart writer: %w", err))
+			return
+		}
+		pw.Close()
+	}()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, pr)
 	if err != nil {
+		pr.CloseWithError(err)
 		return err
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -148,11 +176,15 @@ func (g *GitHubClient) PushNuGetPackage(ctx context.Context, owner string, data 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("push failed with status %d: %s", resp.StatusCode, string(body))
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("push failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	return nil
 }
