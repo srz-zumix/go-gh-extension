@@ -323,6 +323,8 @@ func exportRulesetCheckRuns(ctx context.Context, g *GitHubClient, repo repositor
 	}
 	ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, *checkRunRepo, ruleset)
 	if err != nil {
+		// Log the error before falling back to HEAD so operators can troubleshoot ref resolution issues
+		logger.Warn("Failed to resolve ref for required status check runs, falling back to HEAD", "error", err.Error(), "repository", checkRunRepo.Name)
 		ref = "HEAD"
 	}
 	for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
@@ -557,7 +559,7 @@ func importRulesetRequiredDeployments(ctx context.Context, g *GitHubClient, repo
 
 	newEnvironments := []string{}
 	for _, env := range ruleset.Rules.RequiredDeployments.RequiredDeploymentEnvironments {
-		deployments, err := ListEnvrionmentDeployments(ctx, g, repo, env)
+		deployments, err := ListEnvironmentDeployments(ctx, g, repo, env)
 		if err != nil || len(deployments) == 0 {
 			logger.Warn("Required deployment environment not found in target repository, skipping...", "environment", env)
 			continue

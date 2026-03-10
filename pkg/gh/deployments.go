@@ -27,7 +27,8 @@ func ListDeployments(ctx context.Context, g *GitHubClient, repo repository.Repos
 	return g.ListDeployments(ctx, repo.Owner, repo.Name, opts)
 }
 
-func ListEnvrionmentDeployments(ctx context.Context, g *GitHubClient, repo repository.Repository, environment string) ([]*github.Deployment, error) {
+// ListEnvironmentDeployments returns all deployments for the given environment in a repository.
+func ListEnvironmentDeployments(ctx context.Context, g *GitHubClient, repo repository.Repository, environment string) ([]*github.Deployment, error) {
 	opts := &github.DeploymentsListOptions{
 		Environment: environment,
 	}
