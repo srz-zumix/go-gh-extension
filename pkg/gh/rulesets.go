@@ -491,7 +491,7 @@ func importRulesetRequiredStatusChecks(ctx context.Context, g *GitHubClient, rep
 	ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, *checkRunRepo, ruleset)
 	if err != nil {
 		// Log the error before falling back to HEAD so operators can troubleshoot ref resolution issues
-		logger.Warn("Failed to resolve ref for required status check runs, falling back to HEAD", "error", err.Error(), "repository", checkRunRepo.Name)
+		logger.Warn("Failed to resolve ref for required status check runs, falling back to HEAD", "error", err, "repository", checkRunRepo.Name)
 		ref = "HEAD"
 	}
 
