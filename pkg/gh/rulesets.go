@@ -261,40 +261,15 @@ func ExportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 		return nil, err
 	}
 
-	targetRepository, err := GetRulesetTargetRepository(ctx, g, repo, ruleset)
+	teams := GetRulesetActorsTeams(ctx, g, repo, ruleset)
+
+	checkRuns, err := exportRulesetCheckRuns(ctx, g, repo, ruleset)
 	if err != nil {
 		return nil, err
 	}
-	if targetRepository != nil {
-		repo = *targetRepository
-	}
-
-	teams := GetRulesetActorsTeams(ctx, g, repo, ruleset)
-
-	checkRuns := make(map[int64]*CheckRun)
-	if ruleset.Rules.RequiredStatusChecks != nil {
-		ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, repo, ruleset)
-		if err != nil {
-			ref = "HEAD"
-		}
-		for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
-			if check.IntegrationID != nil {
-				if _, ok := checkRuns[*check.IntegrationID]; ok {
-					continue
-				}
-				checkRun, err := findIntegrationID(ctx, g, repo, ref, check.Context, check.IntegrationID, nil)
-				if err != nil {
-					return nil, err
-				}
-				if checkRun != nil {
-					checkRuns[*check.IntegrationID] = checkRun
-				}
-			}
-		}
-	}
 
 	repositories := make(map[int64]*github.Repository)
-	if ruleset.Conditions.RepositoryID != nil {
+	if ruleset.Conditions != nil && ruleset.Conditions.RepositoryID != nil {
 		for _, id := range ruleset.Conditions.RepositoryID.RepositoryIDs {
 			r, err := GetRepositoryByID(ctx, g, id)
 			if err != nil {
@@ -304,7 +279,7 @@ func ExportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 			}
 		}
 	}
-	if ruleset.Rules.Workflows != nil {
+	if ruleset.Rules != nil && ruleset.Rules.Workflows != nil {
 		for _, workflow := range ruleset.Rules.Workflows.Workflows {
 			r, err := GetRepositoryByID(ctx, g, workflow.GetRepositoryID())
 			if err != nil {
@@ -323,6 +298,52 @@ func ExportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 	}, nil
 }
 
+// exportRulesetCheckRuns collects check run app metadata for all required status checks in a ruleset.
+// This information is used to remap integration IDs during migration to a different organization.
+func exportRulesetCheckRuns(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) (map[int64]*CheckRun, error) {
+	checkRuns := make(map[int64]*CheckRun)
+	if ruleset.Rules == nil || ruleset.Rules.RequiredStatusChecks == nil {
+		return checkRuns, nil
+	}
+
+	// Get the target repository for resolving check runs.
+	// For org rulesets, this is a repository where checks are actually run.
+	// For repo rulesets, this returns the repo itself.
+	checkRunRepo, err := GetRulesetTargetRepository(ctx, g, repo, ruleset)
+	if err != nil {
+		return nil, err
+	}
+	if checkRunRepo == nil {
+		checkRunRepo = &repo
+	}
+	if checkRunRepo.Name == "" {
+		logger.Warn("No target repository available for resolving required status check integrations, skipping check run collection...")
+		return checkRuns, nil
+	}
+	ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, *checkRunRepo, ruleset)
+	if err != nil {
+		// Log the error before falling back to HEAD so operators can troubleshoot ref resolution issues
+		logger.Warn("Failed to resolve ref for required status check runs, falling back to HEAD", "error", err, "repository", checkRunRepo.Name)
+		ref = "HEAD"
+	}
+	for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
+		if check.IntegrationID == nil {
+			continue
+		}
+		if _, ok := checkRuns[*check.IntegrationID]; ok {
+			continue
+		}
+		checkRun, err := findIntegrationID(ctx, g, *checkRunRepo, ref, check.Context, check.IntegrationID, nil)
+		if err != nil {
+			return nil, err
+		}
+		if checkRun != nil {
+			checkRuns[*check.IntegrationID] = checkRun
+		}
+	}
+	return checkRuns, nil
+}
+
 var GitHubComGitHubActionsAppID int64 = 15368
 
 func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, migrateConfig *RepositoryRulesetMigrateConfig, gitHubActionsAppID *int64) (*github.RepositoryRuleset, error) {
@@ -332,14 +353,6 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 	org, err := GetOrganizationProfile(ctx, g, repo)
 	if err != nil {
 		return nil, err
-	}
-
-	targetRepository, err := GetRulesetTargetRepository(ctx, g, repo, ruleset)
-	if err != nil {
-		return nil, err
-	}
-	if targetRepository != nil {
-		repo = *targetRepository
 	}
 
 	newBypassActors := []*github.BypassActor{}
@@ -412,73 +425,9 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 		}
 	}
 
-	foundIntegrations := make(map[int64]*int64)
-
-	if ruleset.Rules.RequiredStatusChecks != nil {
-		ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, repo, ruleset)
-		if err != nil {
-			ref = "HEAD"
-		}
-		for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
-			if check.IntegrationID != nil {
-				id := *check.IntegrationID
-				if dstID, ok := foundIntegrations[id]; ok {
-					check.IntegrationID = dstID
-					continue
-				}
-				found, err := findIntegrationID(ctx, g, repo, ref, check.Context, check.IntegrationID, nil)
-				if err == nil && found != nil {
-					continue
-				}
-				check.IntegrationID = nil
-				checkRun := migrateConfig.CheckRuns[id]
-				if checkRun != nil {
-					found, err = findIntegrationID(ctx, g, repo, ref, check.Context, nil, checkRun.App)
-					if err == nil {
-						if found != nil {
-							check.IntegrationID = found.App.ID
-							foundIntegrations[id] = found.App.ID
-							logger.Info("Mapped required status check integration to target repository", "integration", check.Context, "id", found.App.GetID())
-							continue
-						}
-
-						if checkRun.App != nil && checkRun.App.GetSlug() == "github-actions" {
-							actionAppId := gitHubActionsAppID
-							if actionAppId == nil && org.IsGitHubCom() {
-								actionAppId = &GitHubComGitHubActionsAppID
-							}
-							if actionAppId != nil {
-								check.IntegrationID = actionAppId
-								foundIntegrations[id] = actionAppId
-								logger.Info("Mapped required status check integration to GitHub Actions in target repository", "integration", check.Context)
-								continue
-							}
-						}
-					}
-				}
-				logger.Warn("Required status check integration not found in target repository, replace to any-source", "integration", check.Context)
-			}
-		}
-	}
-
-	if ruleset.Rules.RequiredDeployments != nil {
-		newEnvrionments := []string{}
-		for _, env := range ruleset.Rules.RequiredDeployments.RequiredDeploymentEnvironments {
-			deployments, err := ListEnvrionmentDeployments(ctx, g, repo, env)
-			if err != nil || len(deployments) == 0 {
-				logger.Warn("Required deployment environment not found in target repository, skipping...", "environment", env)
-			} else {
-				newEnvrionments = append(newEnvrionments, env)
-			}
-		}
-		if len(newEnvrionments) == 0 {
-			ruleset.Rules.RequiredDeployments = nil
-			logger.Warn("No valid required deployment environments found in target repository, removing required deployments rule...")
-		} else {
-			ruleset.Rules.RequiredDeployments.RequiredDeploymentEnvironments = newEnvrionments
-		}
-	}
-
+	// Build the destination repository mapping first, then apply conditions/workflows so that
+	// importRulesetRequiredStatusChecks can use the already-remapped Conditions.RepositoryID
+	// to resolve a valid checkRunRepo for org rulesets.
 	migrateRepositoryNames := map[int64]string{}
 	migrateRepositories := map[int64]*github.Repository{}
 	for id, r := range migrateConfig.Repositories {
@@ -490,51 +439,14 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 		}
 		migrateRepositories[id] = dstRepo
 	}
+	importRulesetConditions(repo, ruleset, migrateRepositoryNames, migrateRepositories)
+	importRulesetWorkflows(ruleset, migrateRepositories)
 
-	if ruleset.Conditions.RepositoryID != nil {
-		newRepoIDs := []int64{}
-		newRepoNames := []string{}
-		for _, id := range ruleset.Conditions.RepositoryID.RepositoryIDs {
-			newRepoNames = append(newRepoNames, migrateRepositoryNames[id])
-			r, ok := migrateRepositories[id]
-			if !ok {
-				logger.Warn("Repository ID condition not found in target repository, skipping...", "id", id)
-				continue
-			}
-			newRepoIDs = append(newRepoIDs, r.GetID())
-			logger.Info("Repository ID condition has been mapped to target repository", "name", r.GetName(), "id", r.GetID())
-		}
-		if len(newRepoIDs) == 0 {
-			ruleset.Conditions.RepositoryID = nil
-			ruleset.Conditions.RepositoryName = &github.RepositoryRulesetRepositoryNamesConditionParameters{
-				Include:   newRepoNames,
-				Exclude:   []string{},
-				Protected: nil,
-			}
-			logger.Warn("No valid repository ID conditions found in target repository, converting to repository name condition...")
-		} else {
-			ruleset.Conditions.RepositoryID.RepositoryIDs = newRepoIDs
-		}
+	if err := importRulesetRequiredStatusChecks(ctx, g, repo, ruleset, migrateConfig, org, gitHubActionsAppID); err != nil {
+		return nil, err
 	}
-
-	if ruleset.Rules.Workflows != nil {
-		newWorkflows := []*github.RuleWorkflow{}
-		for _, workflow := range ruleset.Rules.Workflows.Workflows {
-			r, ok := migrateRepositories[workflow.GetRepositoryID()]
-			if !ok {
-				logger.Warn("Workflow repository not found in target organization, skipping...", "id", workflow.GetRepositoryID())
-				continue
-			}
-			workflow.RepositoryID = r.ID
-			newWorkflows = append(newWorkflows, workflow)
-			logger.Info("Workflow repository has been mapped to target repository", "name", r.GetName(), "id", r.GetID())
-		}
-		if len(newWorkflows) == 0 {
-			ruleset.Rules.Workflows = nil
-			logger.Warn("No valid workflows found in target repository, removing workflows rule...")
-		} else {
-			ruleset.Rules.Workflows.Workflows = newWorkflows
-		}
+	if err := importRulesetRequiredDeployments(ctx, g, repo, ruleset); err != nil {
+		return nil, err
 	}
 
 	result, err := CreateOrUpdateRuleset(ctx, g, repo, ruleset)
@@ -543,6 +455,220 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 	}
 
 	return result, nil
+}
+
+// importRulesetRequiredStatusChecks remaps required status checks integration IDs for the destination repository.
+// It should be called after importRulesetConditions so that Conditions.RepositoryID already contains destination
+// repository IDs, allowing GetRulesetTargetRepository to resolve the correct checkRunRepo for org rulesets.
+func importRulesetRequiredStatusChecks(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset, migrateConfig *RepositoryRulesetMigrateConfig, org *OrganizationProfile, gitHubActionsAppID *int64) error {
+	if ruleset == nil || ruleset.Rules == nil || ruleset.Rules.RequiredStatusChecks == nil {
+		return nil
+	}
+
+	foundIntegrations := make(map[int64]*int64)
+
+	// Get the target repository for resolving check runs in the destination.
+	// For org rulesets, this is a repository where checks are actually run.
+	// For repo rulesets, this returns the repo itself.
+	checkRunRepo, err := GetRulesetTargetRepository(ctx, g, repo, ruleset)
+	if err != nil {
+		return err
+	}
+	if checkRunRepo == nil {
+		checkRunRepo = &repo
+	}
+	if checkRunRepo.Name == "" {
+		var integrationNames []string
+		for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
+			if check.IntegrationID != nil {
+				integrationNames = append(integrationNames, check.Context)
+				check.IntegrationID = nil
+			}
+		}
+		if len(integrationNames) > 0 {
+			logger.Warn("No target repository available for resolving required status check integrations, replaced to any-source", "count", len(integrationNames), "integrations", integrationNames)
+		}
+		return nil
+	}
+	ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, *checkRunRepo, ruleset)
+	if err != nil {
+		// Log the error before falling back to HEAD so operators can troubleshoot ref resolution issues
+		logger.Warn("Failed to resolve ref for required status check runs, falling back to HEAD", "error", err, "repository", checkRunRepo.Name)
+		ref = "HEAD"
+	}
+
+	for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
+		if check.IntegrationID == nil {
+			continue
+		}
+		id := *check.IntegrationID
+		if dstID, ok := foundIntegrations[id]; ok {
+			check.IntegrationID = dstID
+			continue
+		}
+
+		found, err := findIntegrationID(ctx, g, *checkRunRepo, ref, check.Context, check.IntegrationID, nil)
+		if err == nil && found != nil {
+			// cache successful no-op integration mapping to avoid duplicate lookups
+			foundIntegrations[id] = check.IntegrationID
+			continue
+		}
+
+		check.IntegrationID = nil
+		checkRun := migrateConfig.CheckRuns[id]
+		if checkRun != nil {
+			found, err = findIntegrationID(ctx, g, *checkRunRepo, ref, check.Context, nil, checkRun.App)
+			if err == nil {
+				if found != nil {
+					check.IntegrationID = found.App.ID
+					foundIntegrations[id] = found.App.ID
+					logger.Info("Mapped required status check integration to target repository", "integration", check.Context, "id", found.App.GetID())
+					continue
+				}
+
+				if checkRun.App != nil && checkRun.App.GetSlug() == "github-actions" {
+					actionAppID := gitHubActionsAppID
+					if actionAppID == nil && org.IsGitHubCom() {
+						actionAppID = &GitHubComGitHubActionsAppID
+					}
+					if actionAppID != nil {
+						check.IntegrationID = actionAppID
+						foundIntegrations[id] = actionAppID
+						logger.Info("Mapped required status check integration to GitHub Actions in target repository", "integration", check.Context)
+						continue
+					}
+				}
+			}
+		}
+		logger.Warn("Required status check integration not found in target repository, replacing with any-source", "integration", check.Context)
+	}
+
+	return nil
+}
+
+// importRulesetRequiredDeployments validates required deployment environments for repository rulesets.
+// Organization rulesets do not support required deployments and this rule will be removed.
+func importRulesetRequiredDeployments(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) error {
+	if ruleset == nil || ruleset.Rules == nil || ruleset.Rules.RequiredDeployments == nil {
+		return nil
+	}
+
+	if repo.Name == "" {
+		ruleset.Rules.RequiredDeployments = nil
+		logger.Warn("Required deployments rule is not supported for Organization rulesets, removing...")
+		return nil
+	}
+
+	newEnvironments := []string{}
+	for _, env := range ruleset.Rules.RequiredDeployments.RequiredDeploymentEnvironments {
+		deployments, err := ListEnvironmentDeployments(ctx, g, repo, env)
+		if err != nil || len(deployments) == 0 {
+			logger.Warn("Required deployment environment not found in target repository, skipping...", "environment", env)
+			continue
+		}
+		newEnvironments = append(newEnvironments, env)
+	}
+
+	if len(newEnvironments) == 0 {
+		ruleset.Rules.RequiredDeployments = nil
+		logger.Warn("No valid required deployment environments found in target repository, removing required deployments rule...")
+		return nil
+	}
+
+	ruleset.Rules.RequiredDeployments.RequiredDeploymentEnvironments = newEnvironments
+	return nil
+}
+
+// importRulesetWorkflows remaps workflow repository IDs for the destination organization.
+func importRulesetWorkflows(ruleset *github.RepositoryRuleset, migrateRepositories map[int64]*github.Repository) {
+	if ruleset == nil || ruleset.Rules == nil || ruleset.Rules.Workflows == nil {
+		return
+	}
+
+	newWorkflows := []*github.RuleWorkflow{}
+	for _, workflow := range ruleset.Rules.Workflows.Workflows {
+		r, ok := migrateRepositories[workflow.GetRepositoryID()]
+		if !ok {
+			logger.Warn("Workflow repository not found in target organization, skipping...", "id", workflow.GetRepositoryID())
+			continue
+		}
+		workflow.RepositoryID = r.ID
+		newWorkflows = append(newWorkflows, workflow)
+		logger.Info("Workflow repository has been mapped to target repository", "name", r.GetName(), "id", r.GetID())
+	}
+	if len(newWorkflows) == 0 {
+		ruleset.Rules.Workflows = nil
+		logger.Warn("No valid workflows found in target repository, removing workflows rule...")
+		return
+	}
+
+	ruleset.Rules.Workflows.Workflows = newWorkflows
+}
+
+// importRulesetConditions adjusts ruleset conditions to fit destination scope and maps repository IDs.
+func importRulesetConditions(repo repository.Repository, ruleset *github.RepositoryRuleset, migrateRepositoryNames map[int64]string, migrateRepositories map[int64]*github.Repository) {
+	if ruleset == nil || ruleset.Conditions == nil {
+		return
+	}
+
+	// Repository rulesets do not support RepositoryName, RepositoryID, or RepositoryProperty conditions.
+	// These conditions are only valid for Organization rulesets.
+	if repo.Name != "" {
+		if ruleset.Conditions.RepositoryName != nil {
+			ruleset.Conditions.RepositoryName = nil
+			logger.Warn("Repository name condition is not supported for Repository rulesets, removing...")
+		}
+		if ruleset.Conditions.RepositoryID != nil {
+			ruleset.Conditions.RepositoryID = nil
+			logger.Warn("Repository ID condition is not supported for Repository rulesets, removing...")
+		}
+		if ruleset.Conditions.RepositoryProperty != nil {
+			ruleset.Conditions.RepositoryProperty = nil
+			logger.Warn("Repository property condition is not supported for Repository rulesets, removing...")
+		}
+		return
+	}
+
+	if ruleset.Conditions.RepositoryID == nil {
+		return
+	}
+
+	newRepoIDs := []int64{}
+	newRepoNames := []string{}
+	for _, id := range ruleset.Conditions.RepositoryID.RepositoryIDs {
+		r, ok := migrateRepositories[id]
+		if ok {
+			newRepoIDs = append(newRepoIDs, r.GetID())
+			newRepoNames = append(newRepoNames, r.GetName())
+			logger.Info("Repository ID condition has been mapped to target repository", "name", r.GetName(), "id", r.GetID())
+			continue
+		}
+		if name, nameOk := migrateRepositoryNames[id]; nameOk && name != "" {
+			newRepoNames = append(newRepoNames, name)
+			logger.Warn("Repository ID condition not found in target organization, will use repository name as fallback...", "id", id, "name", name)
+		} else {
+			logger.Warn("Repository ID condition not found in target organization and name unknown, skipping...", "id", id)
+		}
+	}
+	if len(newRepoIDs) == 0 {
+		// When no repository IDs could be mapped, try to fall back to repository names if available.
+		ruleset.Conditions.RepositoryID = nil
+		if len(newRepoNames) == 0 {
+			// No repository names are available either; remove repository conditions entirely.
+			ruleset.Conditions.RepositoryName = nil
+			logger.Warn("No valid repository ID or repository name conditions found in target organization, removing repository conditions...")
+			return
+		}
+		ruleset.Conditions.RepositoryName = &github.RepositoryRulesetRepositoryNamesConditionParameters{
+			Include:   newRepoNames,
+			Exclude:   []string{},
+			Protected: nil,
+		}
+		logger.Warn("No valid repository ID conditions found in target organization, converting to repository name conditions...")
+		return
+	}
+
+	ruleset.Conditions.RepositoryID.RepositoryIDs = newRepoIDs
 }
 
 func GetRulesetActorsTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) map[int64]*github.Team {
@@ -810,7 +936,7 @@ func GetRulesetTargetRepositories(ctx context.Context, g *GitHubClient, repo rep
 		return repos, nil
 	}
 	if ruleset.Conditions.RepositoryID != nil {
-		repos, err := getRulesetTargetRepositoriesFromID(ctx, g, repo, ruleset.Conditions.RepositoryID)
+		repos, err := getRulesetTargetRepositoriesFromID(ctx, g, ruleset.Conditions.RepositoryID)
 		if err != nil {
 			return nil, err
 		}
@@ -938,7 +1064,7 @@ func matchPropertyPattern(repoProperties map[string]string, pattern *github.Repo
 	return false
 }
 
-func getRulesetTargetRepositoriesFromID(ctx context.Context, g *GitHubClient, repo repository.Repository, condition *github.RepositoryRulesetRepositoryIDsConditionParameters) ([]*repository.Repository, error) {
+func getRulesetTargetRepositoriesFromID(ctx context.Context, g *GitHubClient, condition *github.RepositoryRulesetRepositoryIDsConditionParameters) ([]*repository.Repository, error) {
 	if len(condition.RepositoryIDs) == 0 {
 		return []*repository.Repository{}, nil
 	}
