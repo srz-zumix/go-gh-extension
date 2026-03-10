@@ -3,13 +3,14 @@ package parser
 import (
 	"fmt"
 	"strings"
+
+	"github.com/cli/go-gh/v2/pkg/repository"
 )
 
 // PackageRef holds the parsed result of a package reference specification.
 type PackageRef struct {
-	Host    string
-	Owner   string
-	Package string
+	Repository repository.Repository
+	Package    string
 }
 
 // ParsePackageRef splits a package reference string into host, owner, and package name.
@@ -29,7 +30,7 @@ func ParsePackageRef(s, defaultPackage string) (PackageRef, error) {
 	firstSlash := strings.Index(s, "/")
 	if firstSlash == -1 {
 		// "owner" only
-		return PackageRef{Owner: s, Package: defaultPackage}, nil
+		return PackageRef{Repository: repository.Repository{Owner: s}, Package: defaultPackage}, nil
 	}
 
 	first := s[:firstSlash]
@@ -46,7 +47,7 @@ func ParsePackageRef(s, defaultPackage string) (PackageRef, error) {
 		nextSlash := strings.Index(rest, "/")
 		if nextSlash == -1 {
 			// "host/owner"
-			return PackageRef{Host: first, Owner: rest, Package: defaultPackage}, nil
+			return PackageRef{Repository: repository.Repository{Host: first, Owner: rest}, Package: defaultPackage}, nil
 		}
 		owner := rest[:nextSlash]
 		pkg := rest[nextSlash+1:]
@@ -56,7 +57,7 @@ func ParsePackageRef(s, defaultPackage string) (PackageRef, error) {
 		if pkg == "" {
 			return PackageRef{}, fmt.Errorf("invalid package reference %q: package name cannot be empty", s)
 		}
-		return PackageRef{Host: first, Owner: owner, Package: pkg}, nil
+		return PackageRef{Repository: repository.Repository{Host: first, Owner: owner}, Package: pkg}, nil
 	}
 
 	// first segment is an owner; rest (including any slashes) is the package name
@@ -64,5 +65,5 @@ func ParsePackageRef(s, defaultPackage string) (PackageRef, error) {
 	if pkg == "" {
 		pkg = defaultPackage
 	}
-	return PackageRef{Owner: first, Package: pkg}, nil
+	return PackageRef{Repository: repository.Repository{Owner: first}, Package: pkg}, nil
 }

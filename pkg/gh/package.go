@@ -9,6 +9,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
 // PackageTypes is a list of valid package types.
@@ -28,6 +29,49 @@ func ContainerRegistry(host string) string {
 // Owner and package are lowercased to comply with the OCI Distribution Spec.
 func ContainerImageBase(host, owner, pkg string) string {
 	return ContainerRegistry(host) + "/" + strings.ToLower(owner) + "/" + strings.ToLower(pkg)
+}
+
+// NuGetRegistryBase returns the NuGet registry base URL for the given GitHub host and owner.
+// For github.com, it returns "https://nuget.pkg.github.com/<owner>".
+// For GitHub Enterprise Server, it returns "https://<host>/_registry/nuget/<owner>".
+func NuGetRegistryBase(host, owner string) string {
+	return client.NuGetRegistryBase(host, owner)
+}
+
+// NuGetDownloadURL returns the URL to download a .nupkg file from the GitHub NuGet registry.
+// Package name is lowercased to comply with NuGet V3 API conventions.
+func NuGetDownloadURL(host, owner, packageName, version string) string {
+	return client.NuGetDownloadURL(host, owner, packageName, version)
+}
+
+// NuGetPushURL returns the URL to push a .nupkg file to the GitHub NuGet registry.
+func NuGetPushURL(host, owner string) string {
+	return client.NuGetPushURL(host, owner)
+}
+
+// RewriteNuPkgRepository rewrites the <repository> element in the .nuspec inside a .nupkg
+// to use the given repository URL. Required for publishing to GitHub Packages.
+func RewriteNuPkgRepository(data []byte, repoURL string) ([]byte, error) {
+	return client.RewriteNuPkgRepository(data, repoURL)
+}
+
+// DownloadNuGetPackage downloads a .nupkg file from the GitHub NuGet registry.
+// The host is derived from the GitHubClient's BaseURL.
+func DownloadNuGetPackage(ctx context.Context, g *GitHubClient, repo repository.Repository, packageName, version string) ([]byte, error) {
+	data, err := g.DownloadNuGetPackage(ctx, repo.Owner, packageName, version)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download NuGet package '%s' version '%s': %w", packageName, version, err)
+	}
+	return data, nil
+}
+
+// PushNuGetPackage pushes a .nupkg file to the GitHub NuGet registry.
+// The host is derived from the GitHubClient's BaseURL.
+func PushNuGetPackage(ctx context.Context, g *GitHubClient, repo repository.Repository, data []byte) error {
+	if err := g.PushNuGetPackage(ctx, repo.Owner, data); err != nil {
+		return fmt.Errorf("failed to push NuGet package: %w", err)
+	}
+	return nil
 }
 
 // ListOrgPackages lists packages in an organization.

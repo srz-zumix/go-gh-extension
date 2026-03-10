@@ -3,6 +3,7 @@ package parser
 import (
 	"testing"
 
+	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,37 +19,37 @@ func TestParsePackageRef(t *testing.T) {
 			name:           "owner only",
 			input:          "myowner",
 			defaultPackage: "defaultpkg",
-			expected:       PackageRef{Owner: "myowner", Package: "defaultpkg"},
+			expected:       PackageRef{Repository: repository.Repository{Owner: "myowner"}, Package: "defaultpkg"},
 		},
 		{
 			name:           "owner/pkg",
 			input:          "myowner/mypkg",
 			defaultPackage: "defaultpkg",
-			expected:       PackageRef{Owner: "myowner", Package: "mypkg"},
+			expected:       PackageRef{Repository: repository.Repository{Owner: "myowner"}, Package: "mypkg"},
 		},
 		{
 			name:           "owner/scope/pkg",
 			input:          "myowner/scope/mypkg",
 			defaultPackage: "defaultpkg",
-			expected:       PackageRef{Owner: "myowner", Package: "scope/mypkg"},
+			expected:       PackageRef{Repository: repository.Repository{Owner: "myowner"}, Package: "scope/mypkg"},
 		},
 		{
 			name:           "host/owner",
 			input:          "ghcr.io/myowner",
 			defaultPackage: "defaultpkg",
-			expected:       PackageRef{Host: "ghcr.io", Owner: "myowner", Package: "defaultpkg"},
+			expected:       PackageRef{Repository: repository.Repository{Host: "ghcr.io", Owner: "myowner"}, Package: "defaultpkg"},
 		},
 		{
 			name:           "host/owner/pkg",
 			input:          "ghcr.io/myowner/mypkg",
 			defaultPackage: "defaultpkg",
-			expected:       PackageRef{Host: "ghcr.io", Owner: "myowner", Package: "mypkg"},
+			expected:       PackageRef{Repository: repository.Repository{Host: "ghcr.io", Owner: "myowner"}, Package: "mypkg"},
 		},
 		{
 			name:           "host/owner/scope/pkg",
 			input:          "ghcr.io/myowner/scope/mypkg",
 			defaultPackage: "defaultpkg",
-			expected:       PackageRef{Host: "ghcr.io", Owner: "myowner", Package: "scope/mypkg"},
+			expected:       PackageRef{Repository: repository.Repository{Host: "ghcr.io", Owner: "myowner"}, Package: "scope/mypkg"},
 		},
 		{
 			name:           "empty input",
@@ -78,13 +79,13 @@ func TestParsePackageRef(t *testing.T) {
 			name:           "owner with trailing slash uses default",
 			input:          "myowner/",
 			defaultPackage: "defaultpkg",
-			expected:       PackageRef{Owner: "myowner", Package: "defaultpkg"},
+			expected:       PackageRef{Repository: repository.Repository{Owner: "myowner"}, Package: "defaultpkg"},
 		},
 		{
 			name:           "empty default package with owner only",
 			input:          "myowner",
 			defaultPackage: "",
-			expected:       PackageRef{Owner: "myowner", Package: ""},
+			expected:       PackageRef{Repository: repository.Repository{Owner: "myowner"}, Package: ""},
 		},
 	}
 
