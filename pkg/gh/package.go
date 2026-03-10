@@ -70,13 +70,13 @@ func RewriteNuPkgRepository(src *os.File, repoURL, destPath string) (_ *os.File,
 	}
 
 	if err := client.RewriteNuPkgRepository(src, info.Size(), tmp, repoURL); err != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
 		return nil, err
 	}
 	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
 		return nil, fmt.Errorf("failed to seek rewritten nupkg: %w", err)
 	}
 
@@ -85,10 +85,12 @@ func RewriteNuPkgRepository(src *os.File, repoURL, destPath string) (_ *os.File,
 		return tmp, nil
 	}
 
-	// Copy temp content to destPath, then remove temp regardless.
+	// Copy temp content to destPath, then close and remove temp regardless.
 	defer func() {
-		tmp.Close()
-		os.Remove(tmp.Name())
+		if err := tmp.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("failed to close temp nupkg: %w", err)
+		}
+		_ = os.Remove(tmp.Name())
 	}()
 
 	var dst *os.File
@@ -109,8 +111,8 @@ func RewriteNuPkgRepository(src *os.File, repoURL, destPath string) (_ *os.File,
 		}
 		defer func() {
 			if retErr != nil {
-				dst.Close()
-				os.Remove(dst.Name())
+				_ = dst.Close()
+				_ = os.Remove(dst.Name())
 			}
 		}()
 	}
@@ -142,8 +144,8 @@ func DownloadNuGetPackage(ctx context.Context, g *GitHubClient, repo repository.
 	}
 	defer func() {
 		if retErr != nil {
-			tmp.Close()
-			os.Remove(tmp.Name())
+			_ = tmp.Close()
+			_ = os.Remove(tmp.Name())
 		}
 	}()
 	if err := g.DownloadNuGetPackage(ctx, repo.Owner, packageName, version, tmp); err != nil {
