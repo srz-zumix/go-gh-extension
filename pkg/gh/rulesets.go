@@ -320,12 +320,7 @@ func exportRulesetCheckRuns(ctx context.Context, g *GitHubClient, repo repositor
 		logger.Warn("No target repository available for resolving required status check integrations, skipping check run collection...")
 		return checkRuns, nil
 	}
-	ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, *checkRunRepo, ruleset)
-	if err != nil {
-		// Log the error before falling back to HEAD so operators can troubleshoot ref resolution issues
-		logger.Warn("Failed to resolve ref for required status check runs, falling back to HEAD", "error", err, "repository", checkRunRepo.Name)
-		ref = "HEAD"
-	}
+	ref := resolveStatusCheckRunRef(ctx, g, *checkRunRepo, ruleset)
 	for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
 		if check.IntegrationID == nil {
 			continue
@@ -345,6 +340,18 @@ func exportRulesetCheckRuns(ctx context.Context, g *GitHubClient, repo repositor
 }
 
 var GitHubComGitHubActionsAppID int64 = 15368
+
+// resolveGitHubActionsAppID returns the effective GitHub Actions app ID for the destination,
+// falling back to the well-known GitHub.com app ID when no explicit ID is provided and on GitHub.com.
+func resolveGitHubActionsAppID(gitHubActionsAppID *int64, org *OrganizationProfile) *int64 {
+	if gitHubActionsAppID != nil {
+		return gitHubActionsAppID
+	}
+	if org.IsGitHubCom() {
+		return &GitHubComGitHubActionsAppID
+	}
+	return nil
+}
 
 func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, migrateConfig *RepositoryRulesetMigrateConfig, gitHubActionsAppID *int64) (*github.RepositoryRuleset, error) {
 	ruleset := migrateConfig.Ruleset
@@ -477,25 +484,8 @@ func importRulesetRequiredStatusChecks(ctx context.Context, g *GitHubClient, rep
 	if checkRunRepo == nil {
 		checkRunRepo = &repo
 	}
-	if checkRunRepo.Name == "" {
-		var integrationNames []string
-		for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
-			if check.IntegrationID != nil {
-				integrationNames = append(integrationNames, check.Context)
-				check.IntegrationID = nil
-			}
-		}
-		if len(integrationNames) > 0 {
-			logger.Warn("No target repository available for resolving required status check integrations, replaced to any-source", "count", len(integrationNames), "integrations", integrationNames)
-		}
-		return nil
-	}
-	ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, *checkRunRepo, ruleset)
-	if err != nil {
-		// Log the error before falling back to HEAD so operators can troubleshoot ref resolution issues
-		logger.Warn("Failed to resolve ref for required status check runs, falling back to HEAD", "error", err, "repository", checkRunRepo.Name)
-		ref = "HEAD"
-	}
+
+	ref := resolveStatusCheckRunRef(ctx, g, *checkRunRepo, ruleset)
 
 	for _, check := range ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks {
 		if check.IntegrationID == nil {
@@ -518,25 +508,19 @@ func importRulesetRequiredStatusChecks(ctx context.Context, g *GitHubClient, rep
 		checkRun := migrateConfig.CheckRuns[id]
 		if checkRun != nil {
 			found, err = findIntegrationID(ctx, g, *checkRunRepo, ref, check.Context, nil, checkRun.App)
-			if err == nil {
-				if found != nil {
-					check.IntegrationID = found.App.ID
-					foundIntegrations[id] = found.App.ID
-					logger.Info("Mapped required status check integration to target repository", "integration", check.Context, "id", found.App.GetID())
-					continue
-				}
+			if err == nil && found != nil {
+				check.IntegrationID = found.App.ID
+				foundIntegrations[id] = found.App.ID
+				logger.Info("Mapped required status check integration to target repository", "integration", check.Context, "id", found.App.GetID())
+				continue
+			}
 
-				if checkRun.App != nil && checkRun.App.GetSlug() == "github-actions" {
-					actionAppID := gitHubActionsAppID
-					if actionAppID == nil && org.IsGitHubCom() {
-						actionAppID = &GitHubComGitHubActionsAppID
-					}
-					if actionAppID != nil {
-						check.IntegrationID = actionAppID
-						foundIntegrations[id] = actionAppID
-						logger.Info("Mapped required status check integration to GitHub Actions in target repository", "integration", check.Context)
-						continue
-					}
+			if checkRun.App != nil && checkRun.App.GetSlug() == "github-actions" {
+				if actionAppID := resolveGitHubActionsAppID(gitHubActionsAppID, org); actionAppID != nil {
+					check.IntegrationID = actionAppID
+					foundIntegrations[id] = actionAppID
+					logger.Info("Mapped required status check integration to GitHub Actions in target repository", "integration", check.Context)
+					continue
 				}
 			}
 		}
@@ -697,6 +681,9 @@ func GetRulesetActorsTeams(ctx context.Context, g *GitHubClient, repo repository
 }
 
 func findIntegrationID(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, name string, appID *int64, app *github.App) (*CheckRun, error) {
+	if repo.Name == "" {
+		return nil, fmt.Errorf("cannot resolve check runs for organization ruleset without target repository")
+	}
 	checkRuns, err := ListCheckRunsForRef(ctx, g, repo, ref, &ListChecksRunFilterOptions{
 		AppID: appID,
 	})
@@ -724,6 +711,19 @@ func findIntegrationID(ctx context.Context, g *GitHubClient, repo repository.Rep
 		return nil, nil
 	}
 	return checkRuns.CheckRuns[0], nil
+}
+
+// resolveStatusCheckRunRef resolves the ref for required status check runs, falling back to HEAD on error.
+func resolveStatusCheckRunRef(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) string {
+	if repo.Name == "" {
+		return "HEAD"
+	}
+	ref, err := FindRulesetRequireStatusCheckRunRef(ctx, g, repo, ruleset)
+	if err != nil {
+		logger.Warn("Failed to resolve ref for required status check runs, falling back to HEAD", "error", err, "repository", repo.Name)
+		return "HEAD"
+	}
+	return ref
 }
 
 func FindRulesetRequireStatusCheckRunRef(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) (string, error) {
