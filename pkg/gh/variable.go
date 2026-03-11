@@ -37,6 +37,13 @@ func GetOrgVariable(ctx context.Context, g *GitHubClient, repo repository.Reposi
 	return g.GetOrgVariable(ctx, repo.Owner, name)
 }
 
+// GetVariable gets a single variable for a repository or organization depending on whether repo name is set (wrapper).
+func GetVariable(ctx context.Context, g *GitHubClient, repo repository.Repository, name string) (*github.ActionsVariable, error) {
+	if repo.Name == "" {
+		return GetOrgVariable(ctx, g, repo, name)
+	}
+	return GetRepoVariable(ctx, g, repo, name)
+}
 // isVariableNotFound returns true if the error is a GitHub 404 response.
 func isVariableNotFound(err error) bool {
 	var errResp *github.ErrorResponse
