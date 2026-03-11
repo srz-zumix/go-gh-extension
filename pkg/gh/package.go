@@ -128,7 +128,9 @@ func RewriteNuPkgRepository(src *os.File, repoURL, destPath string) (_ *os.File,
 
 // DownloadNuGetPackage downloads a .nupkg file from the GitHub NuGet registry.
 // If destPath is empty, a temporary file is created; otherwise the file at destPath is
-// created (or truncated). The caller is responsible for closing and removing the file.
+// created (or truncated). The caller is responsible for closing the returned file and for
+// removing it when destPath is empty (temporary file). For a non-empty destPath, the file
+// is created at the specified location and is not treated as a temporary file by default.
 func DownloadNuGetPackage(ctx context.Context, g *GitHubClient, repo repository.Repository, packageName, version, destPath string) (_ *os.File, retErr error) {
 	var (tmp *os.File; err error)
 	if destPath == "" {
