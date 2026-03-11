@@ -29,21 +29,21 @@ type UnityPackage struct {
 }
 
 // GetUnityManifest fetches and parses the Unity Packages/manifest.json from the given repository.
-// The path defaults to "Packages/manifest.json" if empty.
-func GetUnityManifest(ctx context.Context, g *client.GitHubClient, repo repository.Repository, path string, ref string) (*UnityManifest, error) {
-	if path == "" {
-		path = "Packages/manifest.json"
+// The manifestPath defaults to "Packages/manifest.json" if empty.
+func GetUnityManifest(ctx context.Context, g *client.GitHubClient, repo repository.Repository, manifestPath string, ref string) (*UnityManifest, error) {
+	if manifestPath == "" {
+		manifestPath = "Packages/manifest.json"
 	}
 	var refPtr *string
 	if ref != "" {
 		refPtr = &ref
 	}
-	fileContent, _, err := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, path, refPtr)
+	fileContent, _, err := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, manifestPath, refPtr)
 	if err != nil {
 		return nil, err
 	}
 	if fileContent == nil {
-		return nil, fmt.Errorf("file not found: %s", path)
+		return nil, fmt.Errorf("file not found: %s", manifestPath)
 	}
 	content, err := fileContent.GetContent()
 	if err != nil {
