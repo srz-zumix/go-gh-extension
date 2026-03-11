@@ -39,8 +39,8 @@ func TestGetObjectName(t *testing.T) {
 			expected: "user-login",
 		},
 		{
-			name: "RepositoryPermissionLevel (custom type)",
-			item: &RepositoryPermissionLevel{Repository: repository.Repository{Owner: "owner", Name: "repo"}},
+			name:     "RepositoryPermissionLevel (custom type)",
+			item:     &RepositoryPermissionLevel{Repository: repository.Repository{Owner: "owner", Name: "repo"}},
 			expected: "owner/repo",
 		},
 		{

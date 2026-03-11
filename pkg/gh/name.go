@@ -7,6 +7,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
+	"github.com/srz-zumix/go-gh-extension/pkg/unity"
 )
 
 func GetObjectName(item any) string {
@@ -48,6 +49,8 @@ func GetObjectName(item any) string {
 			return ""
 		}
 		return v.Name()
+	case unity.UnityPackage:
+		return v.Name
 	default:
 		return ""
 	}
@@ -134,6 +137,12 @@ func GetObjectNames(items any) []string {
 		}
 		return names
 	case []parser.ActionReference:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []unity.UnityPackage:
 		names := make([]string, len(v))
 		for i, item := range v {
 			names[i] = GetObjectName(item)

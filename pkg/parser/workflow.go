@@ -10,12 +10,12 @@ import (
 
 // ActionReference represents a parsed reference to a GitHub Action or reusable workflow
 type ActionReference struct {
-	Raw     string `json:"raw" yaml:"raw"`                       // Original uses string, e.g. "actions/checkout@v4"
-	Owner   string `json:"owner" yaml:"owner"`                   // e.g. "actions"
-	Repo    string `json:"repo" yaml:"repo"`                     // e.g. "checkout"
-	Path    string `json:"path" yaml:"path"`                     // Subdirectory path, e.g. "subdir" for "owner/repo/subdir@v1"
-	Ref     string `json:"ref" yaml:"ref"`                       // Version/ref, e.g. "v4"
-	IsLocal bool   `json:"isLocal" yaml:"isLocal"`               // true for "./local-action" references
+	Raw     string `json:"raw" yaml:"raw"`                         // Original uses string, e.g. "actions/checkout@v4"
+	Owner   string `json:"owner" yaml:"owner"`                     // e.g. "actions"
+	Repo    string `json:"repo" yaml:"repo"`                       // e.g. "checkout"
+	Path    string `json:"path" yaml:"path"`                       // Subdirectory path, e.g. "subdir" for "owner/repo/subdir@v1"
+	Ref     string `json:"ref" yaml:"ref"`                         // Version/ref, e.g. "v4"
+	IsLocal bool   `json:"isLocal" yaml:"isLocal"`                 // true for "./local-action" references
 	Using   string `json:"using,omitempty" yaml:"using,omitempty"` // runs.using value of the referenced action, e.g. "node20", "composite"
 	Host    string `json:"host,omitempty" yaml:"host,omitempty"`   // GitHub host, e.g. "github.com" or GHES hostname
 }
@@ -125,9 +125,9 @@ func ResolveActionDepSource(action ActionReference, hasSource func(string) bool)
 
 // WorkflowDependency represents dependencies found in a single workflow or action file
 type WorkflowDependency struct {
-	Source     string                `json:"source"`              // File path, e.g. ".github/workflows/ci.yml"
-	Name       string                `json:"name"`                // Workflow name from the YAML name field
-	Actions    []ActionReference     `json:"actions"`             // Action references found in the file
+	Source     string                `json:"source"`               // File path, e.g. ".github/workflows/ci.yml"
+	Name       string                `json:"name"`                 // Workflow name from the YAML name field
+	Actions    []ActionReference     `json:"actions"`              // Action references found in the file
 	Repository repository.Repository `json:"repository,omitempty"` // Repository context for the source file
 }
 
@@ -151,8 +151,8 @@ type workflowStep struct {
 // This is used to resolve local action references (e.g. "./my-tool") that depend on
 // a repository checked out to a specific path via actions/checkout.
 type CheckoutPath struct {
-	Repository string `json:"repository" yaml:"repository"`             // e.g. "owner/repo"
-	Path       string `json:"path" yaml:"path"`                         // checkout destination path relative to workspace root
+	Repository string `json:"repository" yaml:"repository"`       // e.g. "owner/repo"
+	Path       string `json:"path" yaml:"path"`                   // checkout destination path relative to workspace root
 	Ref        string `json:"ref,omitempty" yaml:"ref,omitempty"` // git ref for checkout
 }
 
