@@ -148,30 +148,32 @@ func (g *GitHubClient) PushNuGetPackage(ctx context.Context, owner string, r io.
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
-	go func() {
-		part, err := writer.CreateFormFile("package", "package.nupkg")
-		if err != nil {
-			pw.CloseWithError(fmt.Errorf("failed to create multipart form: %w", err))
-			return
-		}
-		if _, err := io.Copy(part, r); err != nil {
-			pw.CloseWithError(fmt.Errorf("failed to write package data: %w", err))
-			return
-		}
-		if err := writer.Close(); err != nil {
-			pw.CloseWithError(fmt.Errorf("failed to close multipart writer: %w", err))
-			return
-		}
-		if err := pw.Close(); err != nil {
-			pw.CloseWithError(err)
-		}
-	}()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, pr)
 	if err != nil {
-		pr.CloseWithError(err)
+		// Close PipeWriter so that the writer goroutine cannot block
+		_ = pw.CloseWithError(err)
 		return err
 	}
+
+	go func() {
+		part, err := writer.CreateFormFile("package", "package.nupkg")
+		if err != nil {
+			_ = pw.CloseWithError(fmt.Errorf("failed to create multipart form: %w", err))
+			return
+		}
+		if _, err := io.Copy(part, r); err != nil {
+			_ = pw.CloseWithError(fmt.Errorf("failed to write package data: %w", err))
+			return
+		}
+		if err := writer.Close(); err != nil {
+			_ = pw.CloseWithError(fmt.Errorf("failed to close multipart writer: %w", err))
+			return
+		}
+		if err := pw.Close(); err != nil {
+			_ = pw.CloseWithError(err)
+		}
+	}()
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := g.client.Client().Do(req)
