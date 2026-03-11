@@ -1,13 +1,18 @@
 package unity
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
+	"github.com/google/go-github/v79/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
@@ -80,11 +85,9 @@ func (m *UnityManifest) ToPackages() []UnityPackage {
 		packages = append(packages, pkg)
 	}
 	// Sort by name for consistent output
-	for i := 1; i < len(packages); i++ {
-		for j := i; j > 0 && packages[j].Name < packages[j-1].Name; j-- {
-			packages[j], packages[j-1] = packages[j-1], packages[j]
-		}
-	}
+	slices.SortFunc(packages, func(a, b UnityPackage) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 	return packages
 }
 
@@ -114,16 +117,30 @@ func isCompressedFile(p string) bool {
 	return false
 }
 
+// isNotFoundError returns true if err is a GitHub 404 response.
+func isNotFoundError(err error) bool {
+	var errResp *github.ErrorResponse
+	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusNotFound
+}
+
 // resolvePathGitInfo walks up the directory tree from dir toward the repository root,
 // checking each level. If dir itself or any ancestor is a git submodule entry,
 // it returns that submodule's commit SHA and remote git URL.
 // When no submodule is found, it falls back to the latest commit SHA for the path
 // via GetLatestCommitForPath. The submoduleURL is empty in the fallback case.
-func resolvePathGitInfo(ctx context.Context, g *client.GitHubClient, repo repository.Repository, dir string, ref *string) (sha, submoduleURL string) {
+// Non-404 API errors (including context cancellation) are returned immediately.
+func resolvePathGitInfo(ctx context.Context, g *client.GitHubClient, repo repository.Repository, dir string, ref *string) (sha, submoduleURL string, err error) {
 	for d := dir; ; {
-		content, _, err := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, d, ref)
-		if err == nil && content != nil && content.GetType() == "submodule" {
-			return content.GetSHA(), content.GetSubmoduleGitURL()
+		if err := ctx.Err(); err != nil {
+			return "", "", err
+		}
+		content, _, apiErr := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, d, ref)
+		if apiErr != nil {
+			if !isNotFoundError(apiErr) {
+				return "", "", apiErr
+			}
+		} else if content != nil && content.GetType() == "submodule" {
+			return content.GetSHA(), content.GetSubmoduleGitURL(), nil
 		}
 		parent := path.Dir(d)
 		if parent == d {
@@ -136,11 +153,14 @@ func resolvePathGitInfo(ctx context.Context, g *client.GitHubClient, repo reposi
 	if ref != nil {
 		refStr = *ref
 	}
-	commit, err := g.GetLatestCommitForPath(ctx, repo.Owner, repo.Name, dir, refStr)
-	if err == nil && commit != nil {
+	commit, commitErr := g.GetLatestCommitForPath(ctx, repo.Owner, repo.Name, dir, refStr)
+	if commitErr != nil && !isNotFoundError(commitErr) {
+		return "", "", commitErr
+	}
+	if commit != nil {
 		sha = commit.GetSHA()
 	}
-	return sha, ""
+	return sha, "", nil
 }
 
 // ResolveFilePackages enriches UnityPackage entries that have a local file path
@@ -180,8 +200,15 @@ func ResolveFilePackages(ctx context.Context, g *client.GitHubClient, repo repos
 		// Resolve the package directory path relative to the repository root
 		pkgDir := path.Clean(path.Join(manifestDir, pkg.Path))
 
+		if path.IsAbs(pkgDir) || strings.HasPrefix(pkgDir, "..") {
+			continue
+		}
+
 		// Resolve the git SHA and optional submodule remote URL for this path
-		sha, submoduleURL := resolvePathGitInfo(ctx, g, repo, pkgDir, refPtr)
+		sha, submoduleURL, err := resolvePathGitInfo(ctx, g, repo, pkgDir, refPtr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve git info for %s: %w", pkgDir, err)
+		}
 		if submoduleURL != "" {
 			result[i].URL = submoduleURL
 		}
@@ -192,7 +219,15 @@ func ResolveFilePackages(ctx context.Context, g *client.GitHubClient, repo repos
 		// Try to read package.json for the version field
 		var pkgVersion string
 		pkgJSONPath := pkgDir + "/package.json"
-		if fc, _, ferr := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, pkgJSONPath, refPtr); ferr == nil && fc != nil {
+		fc, _, ferr := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, pkgJSONPath, refPtr)
+		if ferr != nil {
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("failed to fetch package.json for %s: %w", pkgDir, ctx.Err())
+			}
+			if !isNotFoundError(ferr) {
+				return nil, fmt.Errorf("failed to fetch package.json for %s: %w", pkgDir, ferr)
+			}
+		} else if fc != nil {
 			if rawContent, cerr := fc.GetContent(); cerr == nil {
 				var pkgJSON packageJSON
 				if json.Unmarshal([]byte(rawContent), &pkgJSON) == nil {
