@@ -144,13 +144,15 @@ func resolvePathGitInfo(ctx context.Context, g *client.GitHubClient, repo reposi
 }
 
 // ResolveFilePackages enriches UnityPackage entries that have a local file path
-// by reading their version from the repository. The resolution strategy is:
+// by reading their version and git metadata from the repository. The resolution strategy is:
 //  1. Skip compressed archive files (tgz, zip, etc.).
 //  2. Walk up the directory tree to detect a git submodule ancestor.
 //     If found, the submodule remote URL is recorded in the URL field.
-//  3. Read package.json inside the directory for the version string.
-//  4. If both a version and a submodule SHA are found, combine them as
-//     "<version> (<sha[:8]>)". If only one is available, use that alone.
+//  3. Resolve the git SHA for the path (from the submodule or latest commit) and
+//     store it in the SHA field when available.
+//  4. Read package.json inside the directory for the version string and store it
+//     in the Version field when available.
+//     Version and SHA are kept in separate fields and are not combined.
 //
 // manifestPath is the path to manifest.json within the repository and is used to
 // resolve relative file: paths to repository-root-relative paths.
