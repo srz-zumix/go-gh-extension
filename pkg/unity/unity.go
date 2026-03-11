@@ -47,11 +47,14 @@ func GetUnityManifest(ctx context.Context, g *client.GitHubClient, repo reposito
 	if ref != "" {
 		refPtr = &ref
 	}
-	fileContent, _, err := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, manifestPath, refPtr)
+	fileContent, dirContent, err := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, manifestPath, refPtr)
 	if err != nil {
 		return nil, err
 	}
 	if fileContent == nil {
+		if dirContent != nil {
+			return nil, fmt.Errorf("path is a directory: %s", manifestPath)
+		}
 		return nil, fmt.Errorf("file not found: %s", manifestPath)
 	}
 	content, err := fileContent.GetContent()
