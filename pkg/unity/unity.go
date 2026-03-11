@@ -204,7 +204,7 @@ func ResolveFilePackages(ctx context.Context, g *client.GitHubClient, repo repos
 		// Resolve the package directory path relative to the repository root
 		pkgDir := path.Clean(path.Join(manifestDir, pkg.Path))
 
-		if path.IsAbs(pkgDir) || strings.HasPrefix(pkgDir, "..") {
+		if path.IsAbs(pkgDir) || pkgDir == ".." || strings.HasPrefix(pkgDir, "../") {
 			continue
 		}
 
