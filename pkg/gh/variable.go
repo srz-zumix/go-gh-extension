@@ -43,36 +43,62 @@ func isVariableNotFound(err error) bool {
 	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusNotFound
 }
 
+// isVariableConflict returns true if the error is a GitHub 409 response.
+func isVariableConflict(err error) bool {
+	var errResp *github.ErrorResponse
+	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusConflict
+}
+
 // CreateOrUpdateRepoVariable creates or updates a repository variable.
 // Returns true if the variable was written, false if it was skipped (already exists and overwrite is false).
 func CreateOrUpdateRepoVariable(ctx context.Context, g *GitHubClient, repo repository.Repository, variable *github.ActionsVariable, overwrite bool) (bool, error) {
-	_, err := GetRepoVariable(ctx, g, repo, variable.Name)
-	if err != nil {
+	if overwrite {
+		// Try updating first; if the variable does not exist, fall back to creation.
+		err := g.UpdateRepoVariable(ctx, repo.Owner, repo.Name, variable)
+		if err == nil {
+			return true, nil
+		}
 		if isVariableNotFound(err) {
 			return true, g.CreateRepoVariable(ctx, repo.Owner, repo.Name, variable)
 		}
 		return false, err
 	}
-	if !overwrite {
+
+	// When not overwriting, try to create and treat conflicts as "already exists".
+	err := g.CreateRepoVariable(ctx, repo.Owner, repo.Name, variable)
+	if err == nil {
+		return true, nil
+	}
+	if isVariableConflict(err) {
 		return false, nil
 	}
-	return true, g.UpdateRepoVariable(ctx, repo.Owner, repo.Name, variable)
+	return false, err
 }
 
 // CreateOrUpdateOrgVariable creates or updates an organization variable.
 // Returns true if the variable was written, false if it was skipped (already exists and overwrite is false).
 func CreateOrUpdateOrgVariable(ctx context.Context, g *GitHubClient, repo repository.Repository, variable *github.ActionsVariable, overwrite bool) (bool, error) {
-	_, err := GetOrgVariable(ctx, g, repo, variable.Name)
-	if err != nil {
+	if overwrite {
+		// Try updating first; if the variable does not exist, fall back to creation.
+		err := g.UpdateOrgVariable(ctx, repo.Owner, variable)
+		if err == nil {
+			return true, nil
+		}
 		if isVariableNotFound(err) {
 			return true, g.CreateOrgVariable(ctx, repo.Owner, variable)
 		}
 		return false, err
 	}
-	if !overwrite {
+
+	// When not overwriting, try to create and treat conflicts as "already exists".
+	err := g.CreateOrgVariable(ctx, repo.Owner, variable)
+	if err == nil {
+		return true, nil
+	}
+	if isVariableConflict(err) {
 		return false, nil
 	}
-	return true, g.UpdateOrgVariable(ctx, repo.Owner, variable)
+	return false, err
 }
 
 // CreateOrUpdateVariable creates or updates a variable for a repository or organization depending on whether repo name is set (wrapper).
