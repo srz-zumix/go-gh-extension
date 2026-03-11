@@ -131,12 +131,18 @@ func CreateOrUpdateEnvVariable(ctx context.Context, g *GitHubClient, repo reposi
 	_, err := GetEnvVariable(ctx, g, repo, env, variable.Name)
 	if err != nil {
 		if isVariableNotFound(err) {
-			return true, g.CreateEnvVariable(ctx, repo.Owner, repo.Name, env, variable)
+			if err := g.CreateEnvVariable(ctx, repo.Owner, repo.Name, env, variable); err != nil {
+				return false, err
+			}
+			return true, nil
 		}
 		return false, err
 	}
 	if !overwrite {
 		return false, nil
 	}
-	return true, g.UpdateEnvVariable(ctx, repo.Owner, repo.Name, env, variable)
+	if err := g.UpdateEnvVariable(ctx, repo.Owner, repo.Name, env, variable); err != nil {
+		return false, err
+	}
+	return true, nil
 }
