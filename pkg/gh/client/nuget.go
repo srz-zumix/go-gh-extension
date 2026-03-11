@@ -180,6 +180,8 @@ func (g *GitHubClient) PushNuGetPackage(ctx context.Context, owner string, r io.
 
 	resp, err := g.client.Client().Do(req)
 	if err != nil {
+		// Close PipeWriter so that the writer goroutine cannot block if the HTTP request fails early
+		_ = pw.CloseWithError(err)
 		return err
 	}
 	defer func() {
