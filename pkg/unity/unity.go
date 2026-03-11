@@ -21,10 +21,14 @@ type UnityManifest struct {
 	Dependencies map[string]string `json:"dependencies"`
 }
 
-// UnityPackage represents a single dependency entry in a Unity manifest.
-// Version holds the raw value from manifest.json.
-// If the value starts with "file:", Path is set to the local path.
-// If the value looks like a URL (http/https/git+https etc.), URL is set.
+// UnityPackage represents a normalized dependency entry in a Unity manifest.
+// Version holds the parsed version or reference:
+//   - for standard dependencies, it is the version string from manifest.json
+//   - for URL dependencies with a fragment, it is the fragment part after '#'
+//   - for file: dependencies or URL dependencies without a fragment, it is empty
+// Path is set to the local path when the manifest value starts with "file:".
+// URL is set when the manifest value is recognized as a URL; for values with a
+// fragment, URL stores the base URL without the fragment.
 type UnityPackage struct {
 	Name    string `json:"name,omitempty"`
 	Version string `json:"version,omitempty"`
