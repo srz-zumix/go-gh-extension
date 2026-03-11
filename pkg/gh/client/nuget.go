@@ -62,13 +62,18 @@ func rewriteNuspecRepository(nuspec []byte, repoURL string) []byte {
 // and writing the rewritten archive to dst.
 // This is required when pushing to GitHub Packages, which mandates a repository
 // association via the <repository url="..." /> element in the .nuspec.
-func RewriteNuPkgRepository(src io.ReaderAt, size int64, dst io.Writer, repoURL string) error {
+func RewriteNuPkgRepository(src io.ReaderAt, size int64, dst io.Writer, repoURL string) (retErr error) {
 	r, err := zip.NewReader(src, size)
 	if err != nil {
 		return fmt.Errorf("failed to open nupkg: %w", err)
 	}
 
 	w := zip.NewWriter(dst)
+	defer func() {
+		if err := w.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("failed to finalize nupkg: %w", err)
+		}
+	}()
 
 	for _, f := range r.File {
 		fhCopy := f.FileHeader
@@ -105,9 +110,6 @@ func RewriteNuPkgRepository(src io.ReaderAt, size int64, dst io.Writer, repoURL 
 		}
 	}
 
-	if err := w.Close(); err != nil {
-		return fmt.Errorf("failed to finalize nupkg: %w", err)
-	}
 	return nil
 }
 
