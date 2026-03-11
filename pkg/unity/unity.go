@@ -60,7 +60,7 @@ func GetUnityManifest(ctx context.Context, g *client.GitHubClient, repo reposito
 	}
 	var manifest UnityManifest
 	if err := json.Unmarshal([]byte(content), &manifest); err != nil {
-		return nil, fmt.Errorf("failed to parse manifest.json: %w", err)
+		return nil, fmt.Errorf("failed to parse %q: %w", manifestPath, err)
 	}
 	return &manifest, nil
 }
