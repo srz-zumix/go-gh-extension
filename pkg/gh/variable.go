@@ -64,7 +64,11 @@ func CreateOrUpdateRepoVariable(ctx context.Context, g *GitHubClient, repo repos
 			return true, nil
 		}
 		if isVariableNotFound(err) {
-			return true, g.CreateRepoVariable(ctx, repo.Owner, repo.Name, variable)
+			createErr := g.CreateRepoVariable(ctx, repo.Owner, repo.Name, variable)
+			if createErr != nil {
+				return false, createErr
+			}
+			return true, nil
 		}
 		return false, err
 	}
