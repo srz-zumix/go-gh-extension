@@ -73,7 +73,6 @@ func CreateOrUpdateRepoVariable(ctx context.Context, g *GitHubClient, repo repos
 		return false, err
 	}
 
-	// When not overwriting, try to create and treat conflicts as "already exists".
 	err := g.CreateRepoVariable(ctx, repo.Owner, repo.Name, variable)
 	if err == nil {
 		return true, nil
@@ -103,7 +102,6 @@ func CreateOrUpdateOrgVariable(ctx context.Context, g *GitHubClient, repo reposi
 		return false, err
 	}
 
-	// When not overwriting, try to create and treat conflicts as "already exists".
 	err := g.CreateOrgVariable(ctx, repo.Owner, variable)
 	if err == nil {
 		return true, nil
@@ -152,7 +150,6 @@ func CreateOrUpdateEnvVariable(ctx context.Context, g *GitHubClient, repo reposi
 		return false, err
 	}
 
-	// When not overwriting, try to create and treat conflicts as "already exists".
 	err := g.CreateEnvVariable(ctx, repo.Owner, repo.Name, env, variable)
 	if err == nil {
 		return true, nil
