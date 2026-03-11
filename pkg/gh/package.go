@@ -132,7 +132,10 @@ func RewriteNuPkgRepository(src *os.File, repoURL, destPath string) (_ *os.File,
 // removing it when destPath is empty (temporary file). For a non-empty destPath, the file
 // is created at the specified location and is not treated as a temporary file by default.
 func DownloadNuGetPackage(ctx context.Context, g *GitHubClient, repo repository.Repository, packageName, version, destPath string) (_ *os.File, retErr error) {
-	var (tmp *os.File; err error)
+	var (
+		tmp *os.File
+		err error
+	)
 	if destPath == "" {
 		tmp, err = os.CreateTemp("", "nupkg-*")
 		if err != nil {
