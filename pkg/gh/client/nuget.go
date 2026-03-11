@@ -96,7 +96,7 @@ func RewriteNuPkgRepository(src io.ReaderAt, size int64, dst io.Writer, repoURL 
 			}
 		} else {
 			if _, err := io.Copy(fw, rc); err != nil {
-				rc.Close()
+				_ = rc.Close()
 				return fmt.Errorf("failed to copy zip entry %s: %w", f.Name, err)
 			}
 			if err := rc.Close(); err != nil {
@@ -162,7 +162,9 @@ func (g *GitHubClient) PushNuGetPackage(ctx context.Context, owner string, r io.
 			pw.CloseWithError(fmt.Errorf("failed to close multipart writer: %w", err))
 			return
 		}
-		pw.Close()
+		if err := pw.Close(); err != nil {
+			pw.CloseWithError(err)
+		}
 	}()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, pr)
