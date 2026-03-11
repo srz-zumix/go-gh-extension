@@ -56,7 +56,7 @@ func NuGetPushURL(host, owner string) string {
 // If destPath is empty, a new temporary file is created and returned.
 // If destPath equals src.Name(), the file is rewritten in place (truncate + overwrite).
 // Otherwise the result is written to a new file at destPath.
-// The caller is responsible for closing and removing the returned file.
+// The caller is responsible for closing the returned file. When destPath is empty, the caller is also responsible for removing the temporary file.
 func RewriteNuPkgRepository(src *os.File, repoURL, destPath string) (_ *os.File, retErr error) {
 	info, err := src.Stat()
 	if err != nil {
