@@ -133,18 +133,27 @@ func isNotFoundError(err error) bool {
 // When no submodule is found, it falls back to the latest commit SHA for the path
 // via GetLatestCommitForPath. The submoduleURL is empty in the fallback case.
 // Non-404 API errors (including context cancellation) are returned immediately.
-func resolvePathGitInfo(ctx context.Context, g *client.GitHubClient, repo repository.Repository, dir string, ref *string) (sha, submoduleURL string, err error) {
+// cache is keyed by directory path; submodule ancestors are stored so that sibling
+// packages sharing the same submodule root skip redundant API walks.
+func resolvePathGitInfo(ctx context.Context, g *client.GitHubClient, repo repository.Repository, dir string, ref *string, cache map[string]gitInfoResult) (gitInfoResult, error) {
 	for d := dir; ; {
 		if err := ctx.Err(); err != nil {
-			return "", "", err
+			return gitInfoResult{}, err
+		}
+		// Return immediately if this ancestor directory is already cached.
+		if cached, ok := cache[d]; ok {
+			return cached, nil
 		}
 		content, _, apiErr := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, d, ref)
 		if apiErr != nil {
 			if !isNotFoundError(apiErr) {
-				return "", "", apiErr
+				return gitInfoResult{}, apiErr
 			}
 		} else if content != nil && content.GetType() == "submodule" {
-			return content.GetSHA(), content.GetSubmoduleGitURL(), nil
+			result := gitInfoResult{sha: content.GetSHA(), submoduleURL: content.GetSubmoduleGitURL()}
+			// Cache the submodule ancestor so sibling pkgDirs skip the walk.
+			cache[d] = result
+			return result, nil
 		}
 		parent := path.Dir(d)
 		if parent == d {
@@ -159,12 +168,19 @@ func resolvePathGitInfo(ctx context.Context, g *client.GitHubClient, repo reposi
 	}
 	commit, commitErr := g.GetLatestCommitForPath(ctx, repo.Owner, repo.Name, dir, refStr)
 	if commitErr != nil && !isNotFoundError(commitErr) {
-		return "", "", commitErr
+		return gitInfoResult{}, commitErr
 	}
+	var result gitInfoResult
 	if commit != nil {
-		sha = commit.GetSHA()
+		result.sha = commit.GetSHA()
 	}
-	return sha, "", nil
+	return result, nil
+}
+
+// gitInfoResult caches the result of resolvePathGitInfo for a given pkgDir.
+type gitInfoResult struct {
+	sha          string
+	submoduleURL string
 }
 
 // ResolveFilePackages enriches UnityPackage entries that have a local file path
@@ -181,6 +197,7 @@ func resolvePathGitInfo(ctx context.Context, g *client.GitHubClient, repo reposi
 // manifestPath is the path to manifest.json within the repository and is used to
 // resolve relative file: paths to repository-root-relative paths.
 // Packages that cannot be resolved are returned as-is.
+// Results are cached per pkgDir to avoid redundant API calls for duplicate paths.
 func ResolveFilePackages(ctx context.Context, g *client.GitHubClient, repo repository.Repository, manifestPath string, ref string, packages []UnityPackage) ([]UnityPackage, error) {
 	if manifestPath == "" {
 		manifestPath = "Packages/manifest.json"
@@ -190,6 +207,9 @@ func ResolveFilePackages(ctx context.Context, g *client.GitHubClient, repo repos
 		refPtr = &ref
 	}
 	manifestDir := path.Dir(manifestPath)
+
+	gitInfoCache := make(map[string]gitInfoResult)
+	pkgVersionCache := make(map[string]string)
 
 	result := make([]UnityPackage, len(packages))
 	copy(result, packages)
@@ -208,36 +228,44 @@ func ResolveFilePackages(ctx context.Context, g *client.GitHubClient, repo repos
 			continue
 		}
 
-		// Resolve the git SHA and optional submodule remote URL for this path
-		sha, submoduleURL, err := resolvePathGitInfo(ctx, g, repo, pkgDir, refPtr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve git info for %s: %w", pkgDir, err)
+		// Resolve the git SHA and optional submodule remote URL for this path (with cache)
+		gi, cached := gitInfoCache[pkgDir]
+		if !cached {
+			var err error
+			gi, err = resolvePathGitInfo(ctx, g, repo, pkgDir, refPtr, gitInfoCache)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve git info for %s: %w", pkgDir, err)
+			}
+			gitInfoCache[pkgDir] = gi
 		}
-		if submoduleURL != "" {
-			result[i].URL = submoduleURL
+		if gi.submoduleURL != "" {
+			result[i].URL = gi.submoduleURL
 		}
-		if sha != "" {
-			result[i].SHA = sha
+		if gi.sha != "" {
+			result[i].SHA = gi.sha
 		}
 
-		// Try to read package.json for the version field
-		var pkgVersion string
-		pkgJSONPath := pkgDir + "/package.json"
-		fc, _, ferr := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, pkgJSONPath, refPtr)
-		if ferr != nil {
-			if ctx.Err() != nil {
-				return nil, fmt.Errorf("failed to fetch package.json for %s: %w", pkgDir, ctx.Err())
-			}
-			if !isNotFoundError(ferr) {
-				return nil, fmt.Errorf("failed to fetch package.json for %s: %w", pkgDir, ferr)
-			}
-		} else if fc != nil {
-			if rawContent, cerr := fc.GetContent(); cerr == nil {
-				var pkgJSON packageJSON
-				if json.Unmarshal([]byte(rawContent), &pkgJSON) == nil {
-					pkgVersion = pkgJSON.Version
+		// Try to read package.json for the version field (with cache)
+		pkgVersion, vCached := pkgVersionCache[pkgDir]
+		if !vCached {
+			pkgJSONPath := pkgDir + "/package.json"
+			fc, _, ferr := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, pkgJSONPath, refPtr)
+			if ferr != nil {
+				if ctx.Err() != nil {
+					return nil, fmt.Errorf("failed to fetch package.json for %s: %w", pkgDir, ctx.Err())
+				}
+				if !isNotFoundError(ferr) {
+					return nil, fmt.Errorf("failed to fetch package.json for %s: %w", pkgDir, ferr)
+				}
+			} else if fc != nil {
+				if rawContent, cerr := fc.GetContent(); cerr == nil {
+					var pkgJSON packageJSON
+					if json.Unmarshal([]byte(rawContent), &pkgJSON) == nil {
+						pkgVersion = pkgJSON.Version
+					}
 				}
 			}
+			pkgVersionCache[pkgDir] = pkgVersion
 		}
 		if pkgVersion != "" {
 			result[i].Version = pkgVersion
