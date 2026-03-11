@@ -94,7 +94,11 @@ func CreateOrUpdateOrgVariable(ctx context.Context, g *GitHubClient, repo reposi
 			return true, nil
 		}
 		if isVariableNotFound(err) {
-			return true, g.CreateOrgVariable(ctx, repo.Owner, variable)
+			createErr := g.CreateOrgVariable(ctx, repo.Owner, variable)
+			if createErr != nil {
+				return false, createErr
+			}
+			return true, nil
 		}
 		return false, err
 	}
@@ -132,21 +136,26 @@ func CreateOrUpdateEnvVariable(ctx context.Context, g *GitHubClient, repo reposi
 	if variable == nil || variable.Name == "" {
 		return false, errors.New("variable must not be nil and must have a non-empty name")
 	}
-	_, err := GetEnvVariable(ctx, g, repo, env, variable.Name)
-	if err != nil {
+	if overwrite {
+		// Try updating first; if the variable does not exist, fall back to creation.
+		err := g.UpdateEnvVariable(ctx, repo.Owner, repo.Name, env, variable)
+		if err == nil {
+			return true, nil
+		}
 		if isVariableNotFound(err) {
-			if err := g.CreateEnvVariable(ctx, repo.Owner, repo.Name, env, variable); err != nil {
-				return false, err
+			createErr := g.CreateEnvVariable(ctx, repo.Owner, repo.Name, env, variable)
+			if createErr != nil {
+				return false, createErr
 			}
 			return true, nil
 		}
 		return false, err
 	}
-	if !overwrite {
-		return false, nil
+
+	// When not overwriting, try to create and treat conflicts as "already exists".
+	err := g.CreateEnvVariable(ctx, repo.Owner, repo.Name, env, variable)
+	if err == nil {
+		return true, nil
 	}
-	if err := g.UpdateEnvVariable(ctx, repo.Owner, repo.Name, env, variable); err != nil {
-		return false, err
-	}
-	return true, nil
+	return false, err
 }
