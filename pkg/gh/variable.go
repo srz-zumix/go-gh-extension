@@ -44,21 +44,19 @@ func GetVariable(ctx context.Context, g *GitHubClient, repo repository.Repositor
 	}
 	return GetRepoVariable(ctx, g, repo, name)
 }
+
 // isVariableNotFound returns true if the error is a GitHub 404 response.
 func isVariableNotFound(err error) bool {
 	var errResp *github.ErrorResponse
 	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusNotFound
 }
 
-// isVariableConflict returns true if the error is a GitHub 409 response.
-func isVariableConflict(err error) bool {
-	var errResp *github.ErrorResponse
-	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusConflict
-}
-
 // CreateOrUpdateRepoVariable creates or updates a repository variable.
 // Returns true if the variable was written, false if it was skipped (already exists and overwrite is false).
 func CreateOrUpdateRepoVariable(ctx context.Context, g *GitHubClient, repo repository.Repository, variable *github.ActionsVariable, overwrite bool) (bool, error) {
+	if variable == nil || variable.Name == "" {
+		return false, errors.New("variable must not be nil and must have a non-empty name")
+	}
 	if overwrite {
 		// Try updating first; if the variable does not exist, fall back to creation.
 		err := g.UpdateRepoVariable(ctx, repo.Owner, repo.Name, variable)
@@ -76,15 +74,15 @@ func CreateOrUpdateRepoVariable(ctx context.Context, g *GitHubClient, repo repos
 	if err == nil {
 		return true, nil
 	}
-	if isVariableConflict(err) {
-		return false, nil
-	}
 	return false, err
 }
 
 // CreateOrUpdateOrgVariable creates or updates an organization variable.
 // Returns true if the variable was written, false if it was skipped (already exists and overwrite is false).
 func CreateOrUpdateOrgVariable(ctx context.Context, g *GitHubClient, repo repository.Repository, variable *github.ActionsVariable, overwrite bool) (bool, error) {
+	if variable == nil || variable.Name == "" {
+		return false, errors.New("variable must not be nil and must have a non-empty name")
+	}
 	if overwrite {
 		// Try updating first; if the variable does not exist, fall back to creation.
 		err := g.UpdateOrgVariable(ctx, repo.Owner, variable)
@@ -101,9 +99,6 @@ func CreateOrUpdateOrgVariable(ctx context.Context, g *GitHubClient, repo reposi
 	err := g.CreateOrgVariable(ctx, repo.Owner, variable)
 	if err == nil {
 		return true, nil
-	}
-	if isVariableConflict(err) {
-		return false, nil
 	}
 	return false, err
 }
@@ -130,6 +125,9 @@ func GetEnvVariable(ctx context.Context, g *GitHubClient, repo repository.Reposi
 // CreateOrUpdateEnvVariable creates or updates an environment variable.
 // Returns true if the variable was written, false if it was skipped (already exists and overwrite is false).
 func CreateOrUpdateEnvVariable(ctx context.Context, g *GitHubClient, repo repository.Repository, env string, variable *github.ActionsVariable, overwrite bool) (bool, error) {
+	if variable == nil || variable.Name == "" {
+		return false, errors.New("variable must not be nil and must have a non-empty name")
+	}
 	_, err := GetEnvVariable(ctx, g, repo, env, variable.Name)
 	if err != nil {
 		if isVariableNotFound(err) {
