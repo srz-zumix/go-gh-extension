@@ -52,7 +52,9 @@ func isVariableNotFound(err error) bool {
 }
 
 // CreateOrUpdateRepoVariable creates or updates a repository variable.
-// Returns true if the variable was written, false if it was skipped (already exists and overwrite is false).
+// If overwrite is true, it attempts to update first and falls back to creation if the variable does not exist.
+// If overwrite is false, it attempts to create the variable and returns (false, err) if it already exists or another error occurs.
+// Returns (true, nil) if the variable was written successfully.
 func CreateOrUpdateRepoVariable(ctx context.Context, g *GitHubClient, repo repository.Repository, variable *github.ActionsVariable, overwrite bool) (bool, error) {
 	if variable == nil || variable.Name == "" {
 		return false, errors.New("variable must not be nil and must have a non-empty name")
@@ -81,7 +83,9 @@ func CreateOrUpdateRepoVariable(ctx context.Context, g *GitHubClient, repo repos
 }
 
 // CreateOrUpdateOrgVariable creates or updates an organization variable.
-// Returns true if the variable was written, false if it was skipped (already exists and overwrite is false).
+// If overwrite is true, it attempts to update first and falls back to creation if the variable does not exist.
+// If overwrite is false, it attempts to create the variable and returns (false, err) if it already exists or another error occurs.
+// Returns (true, nil) if the variable was written successfully.
 func CreateOrUpdateOrgVariable(ctx context.Context, g *GitHubClient, repo repository.Repository, variable *github.ActionsVariable, overwrite bool) (bool, error) {
 	if variable == nil || variable.Name == "" {
 		return false, errors.New("variable must not be nil and must have a non-empty name")
@@ -109,8 +113,10 @@ func CreateOrUpdateOrgVariable(ctx context.Context, g *GitHubClient, repo reposi
 	return false, err
 }
 
-// CreateOrUpdateVariable creates or updates a variable for a repository or organization depending on whether repo name is set (wrapper).
-// Returns true if the variable was written, false if it was skipped (already exists and overwrite is false).
+// CreateOrUpdateVariable creates or updates a variable for a repository or organization depending on whether repo name is set.
+// If overwrite is true, it attempts to update first and falls back to creation if the variable does not exist.
+// If overwrite is false, it attempts to create the variable and returns (false, err) if it already exists or another error occurs.
+// Returns (true, nil) if the variable was written successfully.
 func CreateOrUpdateVariable(ctx context.Context, g *GitHubClient, repo repository.Repository, variable *github.ActionsVariable, overwrite bool) (bool, error) {
 	if repo.Name == "" {
 		return CreateOrUpdateOrgVariable(ctx, g, repo, variable, overwrite)
@@ -129,7 +135,9 @@ func GetEnvVariable(ctx context.Context, g *GitHubClient, repo repository.Reposi
 }
 
 // CreateOrUpdateEnvVariable creates or updates an environment variable.
-// Returns true if the variable was written, false if it was skipped (already exists and overwrite is false).
+// If overwrite is true, it attempts to update first and falls back to creation if the variable does not exist.
+// If overwrite is false, it attempts to create the variable and returns (false, err) if it already exists or another error occurs.
+// Returns (true, nil) if the variable was written successfully.
 func CreateOrUpdateEnvVariable(ctx context.Context, g *GitHubClient, repo repository.Repository, env string, variable *github.ActionsVariable, overwrite bool) (bool, error) {
 	if variable == nil || variable.Name == "" {
 		return false, errors.New("variable must not be nil and must have a non-empty name")
