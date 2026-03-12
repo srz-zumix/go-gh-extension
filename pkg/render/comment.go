@@ -1,6 +1,10 @@
 package render
 
-import "github.com/google/go-github/v79/github"
+import (
+	"strings"
+
+	"github.com/google/go-github/v79/github"
+)
 
 type commentFieldGetters struct {
 	issueCommentGetter       *issueCommentFieldGetters
@@ -22,6 +26,7 @@ func (g *commentFieldGetters) GetField(comment any, field string) string {
 		return g.pullRequestCommentGetter.GetField(v, field)
 	}
 	if v, ok := comment.(*github.Comment); ok {
+		field = strings.ToUpper(field)
 		if field == "BODY" {
 			return ToString(v.Body)
 		}

@@ -80,6 +80,7 @@ func NewIssueFieldGetters(enableColor bool) *issueFieldGetters {
 
 // GetField returns the string value for the given field
 func (g *issueFieldGetters) GetField(issue *github.Issue, field string) string {
+	field = strings.ToUpper(field)
 	if getter, ok := g.Func[field]; ok {
 		return getter(issue)
 	}
@@ -96,6 +97,10 @@ func (r *Renderer) RenderIssues(issues []*github.Issue, headers []string) {
 	if len(issues) == 0 {
 		r.writeLine("No issues.")
 		return
+	}
+
+	if len(headers) == 0 {
+		headers = []string{"NUMBER", "TITLE", "AUTHOR", "STATE", "LABELS"}
 	}
 
 	getter := NewIssueFieldGetters(r.Color)
@@ -116,6 +121,5 @@ func (r *Renderer) RenderIssues(issues []*github.Issue, headers []string) {
 
 // RenderIssuesDefault renders issues with default columns
 func (r *Renderer) RenderIssuesDefault(issues []*github.Issue) {
-	headers := []string{"NUMBER", "TITLE", "AUTHOR", "STATE", "LABELS"}
-	r.RenderIssues(issues, headers)
+	r.RenderIssues(issues, nil)
 }

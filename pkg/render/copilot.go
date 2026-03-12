@@ -1,6 +1,8 @@
 package render
 
 import (
+	"strings"
+
 	"github.com/google/go-github/v79/github"
 )
 
@@ -27,6 +29,7 @@ func NewCopilotMetricsFieldGetters() *copilotMetricsFieldGetters {
 }
 
 func (g *copilotMetricsFieldGetters) GetField(m *github.CopilotMetrics, field string) string {
+	field = strings.ToUpper(field)
 	if getter, ok := g.Func[field]; ok {
 		return getter(m)
 	}
@@ -45,6 +48,10 @@ func (r *Renderer) RenderCopilotMetrics(metrics []*github.CopilotMetrics, header
 		return
 	}
 
+	if len(headers) == 0 {
+		headers = []string{"DATE", "TOTAL_ACTIVE_USERS", "TOTAL_ENGAGED_USERS"}
+	}
+
 	getter := NewCopilotMetricsFieldGetters()
 	table := r.newTableWriter(headers)
 
@@ -60,6 +67,5 @@ func (r *Renderer) RenderCopilotMetrics(metrics []*github.CopilotMetrics, header
 
 // RenderCopilotMetricsDefault renders Copilot metrics with default columns
 func (r *Renderer) RenderCopilotMetricsDefault(metrics []*github.CopilotMetrics) {
-	headers := []string{"DATE", "TOTAL_ACTIVE_USERS", "TOTAL_ENGAGED_USERS"}
-	r.RenderCopilotMetrics(metrics, headers)
+	r.RenderCopilotMetrics(metrics, nil)
 }

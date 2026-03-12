@@ -47,6 +47,7 @@ func NewUserFieldGetters() *userFiledGetters {
 }
 
 func (u *userFiledGetters) GetField(user *github.User, field string) string {
+	field = strings.ToUpper(field)
 	if getter, ok := u.Func[field]; ok {
 		return getter(user)
 	}
@@ -61,6 +62,10 @@ func (r *Renderer) RenderUsers(users []*github.User, headers []string) {
 
 	getter := NewUserFieldGetters()
 	table := r.newTableWriter(headers)
+
+	if len(headers) == 0 {
+		headers = []string{"USERNAME", "ROLE"}
+	}
 
 	for _, user := range users {
 		row := make([]string, len(headers))

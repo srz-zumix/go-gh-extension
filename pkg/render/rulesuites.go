@@ -50,6 +50,7 @@ func NewRuleSuiteFieldGetters() *ruleSuiteFieldGetters {
 }
 
 func (u *ruleSuiteFieldGetters) GetField(ruleSuite *client.RuleSuite, field string) string {
+	field = strings.ToUpper(field)
 	if getter, ok := u.Func[field]; ok {
 		return getter(ruleSuite)
 	}
@@ -68,6 +69,10 @@ func (r *Renderer) RenderRuleSuites(ruleSuites []*client.RuleSuite, headers []st
 		return
 	}
 
+	if len(headers) == 0 {
+		headers = []string{"ID", "ACTOR_NAME", "REF", "RESULT", "EVALUATED", "PUSHED_AT"}
+	}
+
 	getter := NewRuleSuiteFieldGetters()
 	table := r.newTableWriter(headers)
 
@@ -84,8 +89,7 @@ func (r *Renderer) RenderRuleSuites(ruleSuites []*client.RuleSuite, headers []st
 
 // RenderRuleSuitesDefault renders rule suites with default headers
 func (r *Renderer) RenderRuleSuitesDefault(ruleSuites []*client.RuleSuite) {
-	headers := []string{"ID", "ACTOR_NAME", "REF", "RESULT", "EVALUATED", "PUSHED_AT"}
-	r.RenderRuleSuites(ruleSuites, headers)
+	r.RenderRuleSuites(ruleSuites, nil)
 }
 
 // RenderRuleSuiteDetail renders detailed information about a single rule suite

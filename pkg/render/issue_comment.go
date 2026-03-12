@@ -1,6 +1,8 @@
 package render
 
 import (
+	"strings"
+
 	"github.com/google/go-github/v79/github"
 )
 
@@ -32,6 +34,7 @@ func NewIssueCommentFieldGetters() *issueCommentFieldGetters {
 }
 
 func (g *issueCommentFieldGetters) GetField(comment *github.IssueComment, field string) string {
+	field = strings.ToUpper(field)
 	if getter, ok := g.Func[field]; ok {
 		return getter(comment)
 	}
@@ -46,6 +49,10 @@ func (r *Renderer) RenderIssueComments(comments []*github.IssueComment, headers 
 	getter := NewIssueCommentFieldGetters()
 	table := r.newTableWriter(headers)
 
+	if len(headers) == 0 {
+		headers = []string{"ID", "BODY", "USER", "CREATED_AT", "UPDATED_AT"}
+	}
+
 	for _, comment := range comments {
 		row := make([]string, len(headers))
 		for i, header := range headers {
@@ -57,6 +64,5 @@ func (r *Renderer) RenderIssueComments(comments []*github.IssueComment, headers 
 }
 
 func (r *Renderer) RenderIssueCommentsDefault(comments []*github.IssueComment) {
-	headers := []string{"ID", "BODY", "USER", "CREATED_AT", "UPDATED_AT"}
-	r.RenderIssueComments(comments, headers)
+	r.RenderIssueComments(comments, nil)
 }
