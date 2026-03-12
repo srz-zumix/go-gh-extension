@@ -46,10 +46,11 @@ func (r *Renderer) RenderIssueComments(comments []*github.IssueComment, headers 
 		r.RenderExportedData(comments)
 		return
 	}
-	getter := NewIssueCommentFieldGetters()
 	if len(headers) == 0 {
 		headers = []string{"ID", "BODY", "USER", "CREATED_AT", "UPDATED_AT"}
 	}
+
+	getter := NewIssueCommentFieldGetters()
 	table := r.newTableWriter(headers)
 
 	for _, comment := range comments {
