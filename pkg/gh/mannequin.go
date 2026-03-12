@@ -2,8 +2,8 @@ package gh
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/shurcooL/githubv4"
@@ -33,7 +33,7 @@ func CreateAttributionInvitation(ctx context.Context, g *GitHubClient, repo repo
 func ReattributeMannequinToUser(ctx context.Context, g *GitHubClient, repo repository.Repository, ownerID, sourceID, targetID string) error {
 	err := g.ReattributeMannequinToUser(ctx, ownerID, sourceID, targetID)
 	if err != nil {
-		if strings.Contains(err.Error(), "Field 'reattributeMannequinToUser' doesn't exist on type 'Mutation'") {
+		if errors.Is(err, client.ErrMutationUnavailable) {
 			return fmt.Errorf("reattributeMannequinToUser is not enabled for organization '%s': contact GitHub Support to enable this feature: %w", repo.Owner, err)
 		}
 		return fmt.Errorf("failed to reattribute mannequin to user in organization '%s': %w", repo.Owner, err)

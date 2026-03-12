@@ -1,10 +1,23 @@
 package client
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/shurcooL/githubv4"
 )
+
+// ErrMutationUnavailable is returned when a GraphQL mutation field does not exist on the server schema.
+// This typically means the feature is not yet enabled or requires GitHub Support to activate.
+var ErrMutationUnavailable = errors.New("graphql mutation is not available")
+
+// isMutationFieldNotFoundError reports whether err indicates that the named mutation field
+// is absent from the server's Mutation type. The check is string-based because
+// github.com/shurcooL/graphql returns an unexported error type whose only public surface is
+// its Error() string.
+func isMutationFieldNotFoundError(err error, mutationName string) bool {
+	return strings.Contains(err.Error(), "Field '"+mutationName+"' doesn't exist on type")
+}
 
 // GraphQLOrderByOption represents ordering options for GraphQL queries.
 type GraphQLOrderByOption struct {

@@ -1,7 +1,6 @@
 package gh
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
@@ -26,7 +25,7 @@ func GetObjectName(item any) string {
 	case *github.RepositoryPermissionLevel:
 		return *v.User.Login
 	case *RepositoryPermissionLevel:
-		return fmt.Sprintf("%s/%s", v.Repository.Owner, v.Repository.Name)
+		return parser.GetRepositoryFullName(v.Repository)
 	case *github.Label:
 		return *v.Name
 	case *github.RepoDependencies:
@@ -42,7 +41,7 @@ func GetObjectName(item any) string {
 	case *github.SBOMInfo:
 		return *v.Name
 	case RepositorySubmodule:
-		return fmt.Sprintf("%s/%s", v.Repository.Owner, v.Repository.Name)
+		return parser.GetRepositoryFullName(v.Repository)
 	case parser.ActionReference:
 		return v.Name()
 	case *parser.ActionReference:

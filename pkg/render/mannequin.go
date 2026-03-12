@@ -55,6 +55,11 @@ func (r *Renderer) RenderMannequins(mannequins []client.Mannequin, headers []str
 		r.writeLine("No mannequins.")
 		return
 	}
+
+	if len(headers) == 0 {
+		headers = []string{"LOGIN", "EMAIL", "CLAIMANT"}
+	}
+
 	getter := NewMannequinFieldGetters()
 	table := r.newTableWriter(headers)
 	for _, m := range mannequins {
@@ -70,6 +75,5 @@ func (r *Renderer) RenderMannequins(mannequins []client.Mannequin, headers []str
 
 // RenderMannequinsDefault renders mannequins with default columns.
 func (r *Renderer) RenderMannequinsDefault(mannequins []client.Mannequin) {
-	headers := []string{"LOGIN", "EMAIL", "CLAIMANT"}
-	r.RenderMannequins(mannequins, headers)
+	r.RenderMannequins(mannequins, nil)
 }

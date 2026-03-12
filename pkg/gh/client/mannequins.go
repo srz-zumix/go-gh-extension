@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/shurcooL/githubv4"
 )
@@ -156,7 +157,13 @@ func (g *GitHubClient) ReattributeMannequinToUser(ctx context.Context, ownerID, 
 		TargetID: githubv4.ID(targetID),
 	}
 
-	return graphqlClient.Mutate(ctx, &mutation, input, nil)
+	if err := graphqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
+		if isMutationFieldNotFoundError(err, "reattributeMannequinToUser") {
+			return fmt.Errorf("%w: %w", ErrMutationUnavailable, err)
+		}
+		return err
+	}
+	return nil
 }
 
 // CreateAttributionInvitation creates an attribution invitation to claim a mannequin.
