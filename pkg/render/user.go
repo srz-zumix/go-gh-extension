@@ -60,13 +60,12 @@ func (r *Renderer) RenderUsers(users []*github.User, headers []string) {
 		return
 	}
 
-	getter := NewUserFieldGetters()
-	table := r.newTableWriter(headers)
-
 	if len(headers) == 0 {
 		headers = []string{"USERNAME", "ROLE"}
 	}
 
+	getter := NewUserFieldGetters()
+	table := r.newTableWriter(headers)
 	for _, user := range users {
 		row := make([]string, len(headers))
 		for i, header := range headers {
