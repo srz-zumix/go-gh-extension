@@ -19,9 +19,9 @@ func TestExtractNodeVersion(t *testing.T) {
 		{"composite", ""},
 		{"docker", ""},
 		{"", ""},
-		{"node", ""},     // no version digits
-		{"nodeXX", ""},   // non-numeric suffix
-		{"node20a", ""},  // non-numeric suffix
+		{"node", ""},    // no version digits
+		{"nodeXX", ""},  // non-numeric suffix
+		{"node20a", ""}, // non-numeric suffix
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
@@ -132,8 +132,8 @@ func TestRenderDrawioWorkflowDependencies(t *testing.T) {
 	sr := NewStringRenderer(nil)
 	deps := []parser.WorkflowDependency{
 		{
-			Source: ".github/workflows/ci.yml",
-			Name:   "CI",
+			Source:     ".github/workflows/ci.yml",
+			Name:       "CI",
 			Repository: repository.Repository{Host: "github.com", Owner: "myorg", Name: "myrepo"},
 			Actions: []parser.ActionReference{
 				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Host: "github.com"},
@@ -159,8 +159,8 @@ func TestRenderDrawioWorkflowDependencies_GHES(t *testing.T) {
 	sr := NewStringRenderer(nil)
 	deps := []parser.WorkflowDependency{
 		{
-			Source: ".github/workflows/ci.yml",
-			Name:   "CI",
+			Source:     ".github/workflows/ci.yml",
+			Name:       "CI",
 			Repository: repository.Repository{Host: "ghes.example.com", Owner: "myorg", Name: "myrepo"},
 			Actions: []parser.ActionReference{
 				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Host: "ghes.example.com"},
@@ -180,8 +180,8 @@ func TestRenderDrawioWorkflowDependencies_FallbackMixedHosts(t *testing.T) {
 	sr := NewStringRenderer(nil)
 	deps := []parser.WorkflowDependency{
 		{
-			Source: ".github/workflows/ci.yml",
-			Name:   "CI",
+			Source:     ".github/workflows/ci.yml",
+			Name:       "CI",
 			Repository: repository.Repository{Host: "ghes.example.com", Owner: "myorg", Name: "myrepo"},
 			Actions: []parser.ActionReference{
 				// This action was resolved on GHES

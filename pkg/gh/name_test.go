@@ -5,6 +5,9 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
+	"github.com/srz-zumix/go-gh-extension/pkg/parser"
+	"github.com/srz-zumix/go-gh-extension/pkg/unity"
 )
 
 func TestGetObjectName(t *testing.T) {
@@ -39,8 +42,8 @@ func TestGetObjectName(t *testing.T) {
 			expected: "user-login",
 		},
 		{
-			name: "RepositoryPermissionLevel (custom type)",
-			item: &RepositoryPermissionLevel{Repository: repository.Repository{Owner: "owner", Name: "repo"}},
+			name:     "RepositoryPermissionLevel (custom type)",
+			item:     &RepositoryPermissionLevel{Repository: repository.Repository{Owner: "owner", Name: "repo"}},
 			expected: "owner/repo",
 		},
 		{
@@ -62,6 +65,51 @@ func TestGetObjectName(t *testing.T) {
 			name:     "SBOMInfo",
 			item:     &github.SBOMInfo{Name: github.Ptr("sbom-info-name")},
 			expected: "sbom-info-name",
+		},
+		{
+			name:     "Secret",
+			item:     &github.Secret{Name: "MY_SECRET"},
+			expected: "MY_SECRET",
+		},
+		{
+			name:     "RepositorySubmodule",
+			item:     RepositorySubmodule{Repository: repository.Repository{Owner: "owner", Name: "sub"}},
+			expected: "owner/sub",
+		},
+		{
+			name:     "ActionReference",
+			item:     parser.ActionReference{Owner: "actions", Repo: "checkout", Ref: "v4"},
+			expected: "actions/checkout",
+		},
+		{
+			name:     "ActionReference (ptr)",
+			item:     &parser.ActionReference{Owner: "actions", Repo: "setup-go", Ref: "v5"},
+			expected: "actions/setup-go",
+		},
+		{
+			name:     "ActionReference ptr nil",
+			item:     (*parser.ActionReference)(nil),
+			expected: "",
+		},
+		{
+			name:     "UnityPackage",
+			item:     unity.UnityPackage{Name: "com.example.pkg"},
+			expected: "com.example.pkg",
+		},
+		{
+			name:     "Mannequin",
+			item:     client.Mannequin{Login: "mona-ghost"},
+			expected: "mona-ghost",
+		},
+		{
+			name:     "Mannequin (ptr)",
+			item:     &client.Mannequin{Login: "mona-ghost"},
+			expected: "mona-ghost",
+		},
+		{
+			name:     "Mannequin ptr nil",
+			item:     (*client.Mannequin)(nil),
+			expected: "",
 		},
 		{
 			name:     "Unknown type",

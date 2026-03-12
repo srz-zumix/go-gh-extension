@@ -54,7 +54,6 @@ func (g *SBOMPackageFieldGetters) GetField(pkg *github.RepoDependencies, field s
 	return ""
 }
 
-
 func (r *Renderer) RenderRepositoryDependencies(deps []*github.RepoDependencies, headers []string) {
 	if r.exporter != nil {
 		r.RenderExportedData(deps)

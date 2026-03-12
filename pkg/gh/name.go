@@ -1,12 +1,13 @@
 package gh
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
+	"github.com/srz-zumix/go-gh-extension/pkg/unity"
 )
 
 func GetObjectName(item any) string {
@@ -24,7 +25,7 @@ func GetObjectName(item any) string {
 	case *github.RepositoryPermissionLevel:
 		return *v.User.Login
 	case *RepositoryPermissionLevel:
-		return fmt.Sprintf("%s/%s", v.Repository.Owner, v.Repository.Name)
+		return parser.GetRepositoryFullName(v.Repository)
 	case *github.Label:
 		return *v.Name
 	case *github.RepoDependencies:
@@ -40,7 +41,7 @@ func GetObjectName(item any) string {
 	case *github.SBOMInfo:
 		return *v.Name
 	case RepositorySubmodule:
-		return fmt.Sprintf("%s/%s", v.Repository.Owner, v.Repository.Name)
+		return parser.GetRepositoryFullName(v.Repository)
 	case parser.ActionReference:
 		return v.Name()
 	case *parser.ActionReference:
@@ -48,6 +49,15 @@ func GetObjectName(item any) string {
 			return ""
 		}
 		return v.Name()
+	case unity.UnityPackage:
+		return v.Name
+	case client.Mannequin:
+		return string(v.Login)
+	case *client.Mannequin:
+		if v == nil {
+			return ""
+		}
+		return string(v.Login)
 	default:
 		return ""
 	}
@@ -134,6 +144,18 @@ func GetObjectNames(items any) []string {
 		}
 		return names
 	case []parser.ActionReference:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []unity.UnityPackage:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []client.Mannequin:
 		names := make([]string, len(v))
 		for i, item := range v {
 			names[i] = GetObjectName(item)

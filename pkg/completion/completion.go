@@ -114,9 +114,9 @@ Automatically detects the calling context and generates the appropriate completi
 // GenerateExtensionCompletionPatch generates a completion patch script for gh extensions
 func GenerateExtensionCompletionPatch(shell string) error {
 	var script string
-	extName := GetExtensionName()                      // e.g., "team-kit"
-	execName := GetExecutableName()                    // e.g., "gh-team-kit"
-	funcName := strings.ReplaceAll(extName, "-", "_")  // e.g., "team_kit"
+	extName := GetExtensionName()                     // e.g., "team-kit"
+	execName := GetExecutableName()                   // e.g., "gh-team-kit"
+	funcName := strings.ReplaceAll(extName, "-", "_") // e.g., "team_kit"
 
 	switch shell {
 	case "bash":

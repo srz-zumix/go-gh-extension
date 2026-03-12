@@ -434,12 +434,12 @@ func GetFileContent(ctx context.Context, g *GitHubClient, repo repository.Reposi
 // SHA is required for update and delete operations.
 // Branch, Author, and Committer are optional.
 type RepositoryContentFileOptions struct {
-	Message   string         // required
-	Content   []byte         // required
-	Branch    *string        // optional: defaults to the repository's default branch
-	SHA       *string        // optional: required for update/delete
-	Author    *CommitAuthor  // optional
-	Committer *CommitAuthor  // optional
+	Message   string        // required
+	Content   []byte        // required
+	Branch    *string       // optional: defaults to the repository's default branch
+	SHA       *string       // optional: required for update/delete
+	Author    *CommitAuthor // optional
+	Committer *CommitAuthor // optional
 }
 
 // toGitHubRepositoryContentFileOptions converts RepositoryContentFileOptions to github.RepositoryContentFileOptions.

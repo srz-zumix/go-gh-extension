@@ -90,6 +90,12 @@ func ListCommits(ctx context.Context, g *GitHubClient, repo repository.Repositor
 	return g.ListCommits(ctx, repo.Owner, repo.Name, options)
 }
 
+// GetLatestCommitForPath returns the most recent commit that touched filePath in the given repository.
+// ref is the branch/tag/SHA to start from; an empty string uses the default branch.
+func GetLatestCommitForPath(ctx context.Context, g *GitHubClient, repo repository.Repository, filePath, ref string) (*github.RepositoryCommit, error) {
+	return g.GetLatestCommitForPath(ctx, repo.Owner, repo.Name, filePath, ref)
+}
+
 func ListBranchesHeadCommit(ctx context.Context, g *GitHubClient, repo repository.Repository, sha string) ([]*github.BranchCommit, error) {
 	return g.ListBranchesHeadCommit(ctx, repo.Owner, repo.Name, sha)
 }

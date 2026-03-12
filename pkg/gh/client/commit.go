@@ -29,6 +29,27 @@ func (g *GitHubClient) ListCommits(ctx context.Context, owner, repo string, opti
 	return allCommits, nil
 }
 
+// GetLatestCommitForPath returns the most recent commit that touched the given path.
+// ref is the branch/tag/SHA to start from; an empty string uses the default branch.
+// Returns nil without an error when no commits are found.
+func (g *GitHubClient) GetLatestCommitForPath(ctx context.Context, owner, repo, filePath, ref string) (*github.RepositoryCommit, error) {
+	opt := &github.CommitsListOptions{
+		Path:        filePath,
+		ListOptions: github.ListOptions{PerPage: 1},
+	}
+	if ref != "" {
+		opt.SHA = ref
+	}
+	commits, _, err := g.client.Repositories.ListCommits(ctx, owner, repo, opt)
+	if err != nil {
+		return nil, err
+	}
+	if len(commits) == 0 {
+		return nil, nil
+	}
+	return commits[0], nil
+}
+
 func (g *GitHubClient) ListBranchesHeadCommit(ctx context.Context, owner, repo, sha string) ([]*github.BranchCommit, error) {
 	c, _, err := g.client.Repositories.ListBranchesHeadCommit(ctx, owner, repo, sha)
 	return c, err
