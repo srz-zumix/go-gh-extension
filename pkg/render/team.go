@@ -68,6 +68,10 @@ func (r *Renderer) RenderTeams(teams []*github.Team, headers []string) {
 		return
 	}
 
+	if len(headers) == 0 {
+		headers = []string{"NAME", "DESCRIPTION", "MEMBER_COUNT", "REPOS_COUNT", "PRIVACY", "PARENT_SLUG"}
+	}
+
 	headers = slices.DeleteFunc(headers, func(s string) bool {
 		switch s {
 		case "MEMBER_COUNT":
@@ -93,8 +97,7 @@ func (r *Renderer) RenderTeams(teams []*github.Team, headers []string) {
 }
 
 func (r *Renderer) RenderTeamsDefault(teams []*github.Team) {
-	headers := []string{"NAME", "DESCRIPTION", "MEMBER_COUNT", "REPOS_COUNT", "PRIVACY", "PARENT_SLUG"}
-	r.RenderTeams(teams, headers)
+	r.RenderTeams(teams, nil)
 }
 
 func (r *Renderer) RenderTeamsWithPermission(teams []*github.Team) {
@@ -145,13 +148,14 @@ func NewTeamCodeReviewFieldGetters() *teamCodeReviewFiledGetters {
 }
 
 func (u *teamCodeReviewFiledGetters) GetField(s *gh.TeamCodeReviewSettings, field string) string {
+	field = strings.ToUpper(field)
 	if getter, ok := u.Func[field]; ok {
 		return getter(s)
 	}
 	return ""
 }
 
-func (r *Renderer) RenderTeamCodeReviewSettings(codeReviewSettings *gh.TeamCodeReviewSettings, headers []string) {
+func (r *Renderer) RenderTeamCodeReviewSettings(codeReviewSettings *gh.TeamCodeReviewSettings, fields []string) {
 	if r.exporter != nil {
 		r.RenderExportedData(codeReviewSettings)
 		return
@@ -160,15 +164,15 @@ func (r *Renderer) RenderTeamCodeReviewSettings(codeReviewSettings *gh.TeamCodeR
 	getter := NewTeamCodeReviewFieldGetters()
 	table := r.newTableWriter([]string{"FIELD", "VALUE"})
 
-	for _, header := range headers {
-		value := getter.GetField(codeReviewSettings, header)
-		table.Append([]string{header, value})
+	for _, field := range fields {
+		value := getter.GetField(codeReviewSettings, field)
+		table.Append([]string{field, value})
 	}
 
 	table.Render()
 }
 
 func (r *Renderer) RenderTeamCodeReviewSettingsDefault(codeReviewSettings *gh.TeamCodeReviewSettings) {
-	headers := []string{"TEAM_SLUG", "AUTO_ASSIGNMENT", "MEMBER_COUNT", "ALGORITHM", "NOTIFY_TEAM"}
-	r.RenderTeamCodeReviewSettings(codeReviewSettings, headers)
+	fields := []string{"TEAM_SLUG", "AUTO_ASSIGNMENT", "MEMBER_COUNT", "ALGORITHM", "NOTIFY_TEAM"}
+	r.RenderTeamCodeReviewSettings(codeReviewSettings, fields)
 }

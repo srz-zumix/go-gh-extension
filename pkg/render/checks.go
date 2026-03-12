@@ -125,6 +125,10 @@ func (r *Renderer) RenderCheckRuns(checkRuns []*gh.CheckRun, headers []string) {
 		return
 	}
 
+	if len(headers) == 0 {
+		headers = []string{"_", "NAME", "ELAPSED", "DETAILS_URL"}
+	}
+
 	getter := NewCheckRunFieldGetters(r.Color)
 	table := r.newTableWriter(headers)
 	table.Configure(func(cfg *tablewriter.Config) {
@@ -143,8 +147,7 @@ func (r *Renderer) RenderCheckRuns(checkRuns []*gh.CheckRun, headers []string) {
 
 // RenderCheckRunsDefault renders check runs with default columns
 func (r *Renderer) RenderCheckRunsDefault(checkRuns []*gh.CheckRun) {
-	headers := []string{"_", "NAME", "ELAPSED", "DETAILS_URL"}
-	r.RenderCheckRuns(checkRuns, headers)
+	r.RenderCheckRuns(checkRuns, nil)
 }
 
 // RenderCheckRunsDetails renders check runs with detailed columns
@@ -248,6 +251,10 @@ func (r *Renderer) RenderCheckSuites(checkSuites []*github.CheckSuite, headers [
 		return
 	}
 
+	if len(headers) == 0 {
+		headers = []string{"_", "ID", "HEAD_BRANCH", "STATUS", "APP"}
+	}
+
 	getter := NewCheckSuiteFieldGetters(r.Color)
 	table := r.newTableWriter(headers)
 	table.Configure(func(cfg *tablewriter.Config) {
@@ -266,6 +273,5 @@ func (r *Renderer) RenderCheckSuites(checkSuites []*github.CheckSuite, headers [
 
 // RenderCheckSuitesDefault renders check suites with default columns
 func (r *Renderer) RenderCheckSuitesDefault(checkSuites []*github.CheckSuite) {
-	headers := []string{"_", "ID", "HEAD_BRANCH", "STATUS", "APP"}
-	r.RenderCheckSuites(checkSuites, headers)
+	r.RenderCheckSuites(checkSuites, nil)
 }
