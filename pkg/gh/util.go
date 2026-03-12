@@ -1,6 +1,8 @@
 package gh
 
 import (
+	"errors"
+	"net/http"
 	"strings"
 
 	"slices"
@@ -49,4 +51,10 @@ func FilterTeamByNames(teams []*github.Team, slugs []string) []*github.Team {
 		}
 	}
 	return filteredTeams
+}
+
+// IsHTTPNotFound returns true if err is a GitHub API 404 Not Found response.
+func IsHTTPNotFound(err error) bool {
+	var errResp *github.ErrorResponse
+	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusNotFound
 }
