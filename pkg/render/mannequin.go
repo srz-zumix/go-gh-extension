@@ -6,6 +6,9 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
+// MannequinFieldList is the list of valid field names for mannequin display.
+var MannequinFieldList = []string{"ID", "LOGIN", "EMAIL", "URL", "CREATED_AT", "CLAIMANT"}
+
 type mannequinFieldGetter func(m *client.Mannequin) string
 type mannequinFieldGetters struct {
 	Func map[string]mannequinFieldGetter

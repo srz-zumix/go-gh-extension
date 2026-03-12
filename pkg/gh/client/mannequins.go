@@ -3,8 +3,11 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
 
 	"github.com/shurcooL/githubv4"
+	"github.com/shurcooL/graphql"
 )
 
 // Mannequin represents a placeholder account for unclaimed users in GitHub.
@@ -24,6 +27,11 @@ type MannequinClaimant struct {
 	ID    githubv4.ID
 	Login githubv4.String
 	URL   githubv4.String `graphql:"url"`
+}
+
+// NodeID returns the node ID of the mannequin as a string.
+func (m *Mannequin) NodeID() string {
+	return fmt.Sprintf("%v", m.ID)
 }
 
 type mannequinConnectionResult struct {
@@ -47,6 +55,14 @@ type mannequinsQueryDefault struct {
 	} `graphql:"organization(login: $org)"`
 }
 
+type mannequinByLoginQuery struct {
+	Organization struct {
+		Mannequins struct {
+			Nodes []Mannequin
+		} `graphql:"mannequins(login: $login, first: 1)"`
+	} `graphql:"organization(login: $org)"`
+}
+
 type createAttributionInvitationMutation struct {
 	CreateAttributionInvitation struct {
 		Owner struct {
@@ -60,11 +76,36 @@ type createAttributionInvitationMutation struct {
 			} `graphql:"... on Mannequin"`
 		}
 		Target struct {
-			ID    githubv4.ID
-			Login githubv4.String
+			User struct {
+				ID    githubv4.ID
+				Login githubv4.String
+			} `graphql:"... on User"`
 		}
 		ClientMutationID githubv4.String
 	} `graphql:"createAttributionInvitation(input: $input)"`
+}
+
+// FindMannequinByLogin retrieves a single mannequin by login for the given organization.
+// Returns nil if not found.
+func (g *GitHubClient) FindMannequinByLogin(ctx context.Context, org, login string) (*Mannequin, error) {
+	graphqlClient, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var query mannequinByLoginQuery
+	variables := map[string]any{
+		"org":   githubv4.String(org),
+		"login": githubv4.String(login),
+	}
+	if err := graphqlClient.Query(ctx, &query, variables); err != nil {
+		return nil, err
+	}
+	if len(query.Organization.Mannequins.Nodes) == 0 {
+		return nil, nil
+	}
+	m := query.Organization.Mannequins.Nodes[0]
+	return &m, nil
 }
 
 // ListMannequins retrieves all mannequins for an organization using GraphQL with cursor-based pagination.
@@ -116,14 +157,22 @@ func (g *GitHubClient) ListMannequins(ctx context.Context, org string, orderBy *
 	return allMannequins, nil
 }
 
-// ReattributeMannequinToUserInput is the input type for reattributeMannequinToUser mutation.
-// This is an undocumented mutation; see https://github.com/github/gh-gei for reference.
-type ReattributeMannequinToUserInput struct {
-	OwnerID  githubv4.ID `json:"ownerId"`
-	SourceID githubv4.ID `json:"sourceId"`
-	TargetID githubv4.ID `json:"targetId"`
+// featuresTransport is an http.RoundTripper that injects GraphQL feature-flag headers into every request.
+type featuresTransport struct {
+	base     http.RoundTripper
+	features string
 }
 
+func (t *featuresTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.Header.Set("GraphQL-Features", t.features)
+	return t.base.RoundTrip(req)
+}
+
+// reattributeMannequinToUserMutation defines the mutation used to directly reattribute
+// a mannequin to a user without sending an invitation.
+// Individual ID variables are used because the server does not accept a typed
+// input variable for this undocumented mutation.
 type reattributeMannequinToUserMutation struct {
 	ReattributeMannequinToUser struct {
 		Source struct {
@@ -138,26 +187,46 @@ type reattributeMannequinToUserMutation struct {
 				Login githubv4.String
 			} `graphql:"... on User"`
 		}
-	} `graphql:"reattributeMannequinToUser(input: $input)"`
+	} `graphql:"reattributeMannequinToUser(input: {ownerId: $orgId, sourceId: $sourceId, targetId: $targetId})"`
+}
+
+// newGraphQLClientWithFeatures creates a graphql.Client that sends the given
+// GraphQL feature-flag header. Used for undocumented mutations that require
+// feature flags to be enabled on the server.
+func (g *GitHubClient) newGraphQLClientWithFeatures(features string) *graphql.Client {
+	baseClient := g.client.Client()
+	transport := baseClient.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	httpClient := &http.Client{
+		Transport: &featuresTransport{
+			base:     transport,
+			features: features,
+		},
+		Timeout: baseClient.Timeout,
+	}
+	host := g.client.BaseURL.Host
+	v4ep := defaultV4Endpoint
+	if host != "api.github.com" {
+		v4ep = fmt.Sprintf("https://%s/api/graphql", host)
+	} else if ep := os.Getenv("GITHUB_GRAPHQL_URL"); ep != "" {
+		v4ep = ep
+	}
+	return graphql.NewClient(v4ep, httpClient)
 }
 
 // ReattributeMannequinToUser directly reclaims a mannequin to a user without sending an invitation.
 // This mutation is undocumented and requires the feature to be enabled for the organization by GitHub Support.
 func (g *GitHubClient) ReattributeMannequinToUser(ctx context.Context, ownerID, sourceID, targetID string) error {
-	graphqlClient, err := g.GetOrCreateGraphQLClient()
-	if err != nil {
-		return err
-	}
-
+	graphqlClient := g.newGraphQLClientWithFeatures("import_api,mannequin_claiming_emu,org_import_api")
 	var mutation reattributeMannequinToUserMutation
-
-	input := ReattributeMannequinToUserInput{
-		OwnerID:  githubv4.ID(ownerID),
-		SourceID: githubv4.ID(sourceID),
-		TargetID: githubv4.ID(targetID),
+	variables := map[string]interface{}{
+		"orgId":    githubv4.ID(ownerID),
+		"sourceId": githubv4.ID(sourceID),
+		"targetId": githubv4.ID(targetID),
 	}
-
-	if err := graphqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
+	if err := graphqlClient.Mutate(ctx, &mutation, variables); err != nil {
 		if isMutationFieldNotFoundError(err, "reattributeMannequinToUser") {
 			return fmt.Errorf("%w: %v", ErrMutationUnavailable, err)
 		}
