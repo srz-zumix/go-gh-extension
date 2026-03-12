@@ -3,11 +3,8 @@ package client
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"os"
 
 	"github.com/shurcooL/githubv4"
-	"github.com/shurcooL/graphql"
 )
 
 // Mannequin represents a placeholder account for unclaimed users in GitHub.
@@ -157,18 +154,6 @@ func (g *GitHubClient) ListMannequins(ctx context.Context, org string, orderBy *
 	return allMannequins, nil
 }
 
-// featuresTransport is an http.RoundTripper that injects GraphQL feature-flag headers into every request.
-type featuresTransport struct {
-	base     http.RoundTripper
-	features string
-}
-
-func (t *featuresTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = req.Clone(req.Context())
-	req.Header.Set("GraphQL-Features", t.features)
-	return t.base.RoundTrip(req)
-}
-
 // reattributeMannequinToUserMutation defines the mutation used to directly reattribute
 // a mannequin to a user without sending an invitation.
 // Individual ID variables are used because the server does not accept a typed
@@ -188,32 +173,6 @@ type reattributeMannequinToUserMutation struct {
 			} `graphql:"... on User"`
 		}
 	} `graphql:"reattributeMannequinToUser(input: {ownerId: $orgId, sourceId: $sourceId, targetId: $targetId})"`
-}
-
-// newGraphQLClientWithFeatures creates a graphql.Client that sends the given
-// GraphQL feature-flag header. Used for undocumented mutations that require
-// feature flags to be enabled on the server.
-func (g *GitHubClient) newGraphQLClientWithFeatures(features string) *graphql.Client {
-	baseClient := g.client.Client()
-	transport := baseClient.Transport
-	if transport == nil {
-		transport = http.DefaultTransport
-	}
-	httpClient := &http.Client{
-		Transport: &featuresTransport{
-			base:     transport,
-			features: features,
-		},
-		Timeout: baseClient.Timeout,
-	}
-	host := g.client.BaseURL.Host
-	v4ep := defaultV4Endpoint
-	if host != "api.github.com" {
-		v4ep = fmt.Sprintf("https://%s/api/graphql", host)
-	} else if ep := os.Getenv("GITHUB_GRAPHQL_URL"); ep != "" {
-		v4ep = ep
-	}
-	return graphql.NewClient(v4ep, httpClient)
 }
 
 // ReattributeMannequinToUser directly reclaims a mannequin to a user without sending an invitation.
