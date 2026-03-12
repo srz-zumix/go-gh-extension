@@ -1,6 +1,8 @@
 package render
 
 import (
+	"strings"
+
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
@@ -29,9 +31,6 @@ func NewMannequinFieldGetters() *mannequinFieldGetters {
 				return ToString(m.CreatedAt)
 			},
 			"CLAIMANT": func(m *client.Mannequin) string {
-				if string(m.Claimant.Login) == "" {
-					return ""
-				}
 				return ToString(m.Claimant.Login)
 			},
 		},
@@ -39,6 +38,7 @@ func NewMannequinFieldGetters() *mannequinFieldGetters {
 }
 
 func (g *mannequinFieldGetters) GetField(m *client.Mannequin, field string) string {
+	field = strings.ToUpper(field)
 	if getter, ok := g.Func[field]; ok {
 		return getter(m)
 	}
