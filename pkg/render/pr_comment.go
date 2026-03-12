@@ -97,12 +97,12 @@ func (r *Renderer) RenderPullRequestComments(comments []*github.PullRequestComme
 		return
 	}
 	getter := NewPullRequestCommentFieldGetters()
-	table := r.newTableWriter(headers)
 
 	if len(headers) == 0 {
 		headers = PullRequestCommentDefaultHeaders
 	}
 
+	table := r.newTableWriter(headers)
 	for _, comment := range comments {
 		row := make([]string, len(headers))
 		for i, header := range headers {
