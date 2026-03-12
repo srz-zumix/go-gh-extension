@@ -91,6 +91,7 @@ func (r *Renderer) renderActionReferencesWithGetter(refs []parser.ActionReferenc
 	if len(headers) == 0 {
 		headers = []string{"Name", "Version"}
 	}
+
 	table := r.newTableWriter(headers)
 	for i := range refs {
 		row := make([]string, len(headers))

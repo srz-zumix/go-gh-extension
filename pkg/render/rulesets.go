@@ -58,6 +58,7 @@ func NewRepositoryRulesetFieldGetters() *repositoryRulesetFieldGetters {
 }
 
 func (u *repositoryRulesetFieldGetters) GetField(ruleset *github.RepositoryRuleset, field string) string {
+	field = strings.ToUpper(field)
 	if getter, ok := u.Func[field]; ok {
 		return getter(ruleset)
 	}
@@ -76,6 +77,10 @@ func (r *Renderer) RenderRepositoryRulesets(rulesets []*github.RepositoryRuleset
 		return
 	}
 
+	if len(headers) == 0 {
+		headers = []string{"ID", "NAME", "TARGET", "ENFORCEMENT", "SOURCE"}
+	}
+
 	getter := NewRepositoryRulesetFieldGetters()
 	table := r.newTableWriter(headers)
 
@@ -92,8 +97,7 @@ func (r *Renderer) RenderRepositoryRulesets(rulesets []*github.RepositoryRuleset
 
 // RenderRepositoryRulesetsDefault renders repository rulesets with default headers
 func (r *Renderer) RenderRepositoryRulesetsDefault(rulesets []*github.RepositoryRuleset) {
-	headers := []string{"ID", "NAME", "TARGET", "ENFORCEMENT", "SOURCE"}
-	r.RenderRepositoryRulesets(rulesets, headers)
+	r.RenderRepositoryRulesets(rulesets, nil)
 }
 
 // RenderRepositoryRulesetDetail renders detailed information about a single repository ruleset

@@ -71,6 +71,7 @@ func NewDiscussionFieldGetters(enableColor bool) *discussionFieldGetters {
 
 // GetField returns the string value for the given field
 func (g *discussionFieldGetters) GetField(discussion *client.Discussion, field string) string {
+	field = strings.ToUpper(field)
 	if getter, ok := g.Func[field]; ok {
 		return getter(discussion)
 	}
@@ -87,6 +88,10 @@ func (r *Renderer) RenderDiscussions(discussions []client.Discussion, headers []
 	if len(discussions) == 0 {
 		r.writeLine("No discussions.")
 		return
+	}
+
+	if len(headers) == 0 {
+		headers = []string{"NUMBER", "TITLE", "AUTHOR", "CATEGORY", "LABELS"}
 	}
 
 	getter := NewDiscussionFieldGetters(r.Color)
@@ -107,6 +112,5 @@ func (r *Renderer) RenderDiscussions(discussions []client.Discussion, headers []
 
 // RenderDiscussionsDefault renders discussions with default columns
 func (r *Renderer) RenderDiscussionsDefault(discussions []client.Discussion) {
-	headers := []string{"NUMBER", "TITLE", "AUTHOR", "CATEGORY", "LABELS"}
-	r.RenderDiscussions(discussions, headers)
+	r.RenderDiscussions(discussions, nil)
 }

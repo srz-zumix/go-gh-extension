@@ -1,10 +1,8 @@
 package render
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
+	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
 // RenderSubmodules renders repository submodules as a table
@@ -19,25 +17,9 @@ func (r *Renderer) RenderSubmodules(submodules []client.RepositorySubmodule) {
 		table.Append([]string{
 			sub.Name,
 			sub.Path,
-			fmt.Sprintf("%s/%s", sub.Repository.Owner, sub.Repository.Name),
+			parser.GetRepositoryFullName(sub.Repository),
 			sub.Branch,
 		})
 	}
 	table.Render()
-}
-
-// RenderSubmoduleNames renders only the names of submodules
-func (r *Renderer) RenderSubmoduleNames(submodules []client.RepositorySubmodule) {
-	names := make([]string, len(submodules))
-	for i, sub := range submodules {
-		names[i] = sub.Name
-	}
-	if r.exporter != nil {
-		r.RenderExportedData(names)
-		return
-	}
-	if len(names) == 0 {
-		return
-	}
-	r.writeLine(strings.Join(names, "\n"))
 }

@@ -1,6 +1,8 @@
 package render
 
 import (
+	"strings"
+
 	"github.com/fatih/color"
 	"github.com/google/go-github/v79/github"
 )
@@ -53,6 +55,7 @@ func NewLabelFieldGetters() *labelFieldGetters {
 
 // GetField returns the string value for the given field
 func (g *labelFieldGetters) GetField(label *github.Label, field string) string {
+	field = strings.ToUpper(field)
 	if getter, ok := g.Func[field]; ok {
 		return getter(label)
 	}
@@ -69,6 +72,10 @@ func (r *Renderer) RenderLabels(labels []*github.Label, headers []string) {
 	if len(labels) == 0 {
 		r.writeLine("No labels.")
 		return
+	}
+
+	if len(headers) == 0 {
+		headers = []string{"NAME", "COLOR", "DESCRIPTION", "DEFAULT"}
 	}
 
 	getter := NewLabelFieldGetters()
@@ -94,6 +101,5 @@ func (r *Renderer) RenderLabels(labels []*github.Label, headers []string) {
 
 // RenderLabelsDefault renders labels with default columns
 func (r *Renderer) RenderLabelsDefault(labels []*github.Label) {
-	headers := []string{"NAME", "COLOR", "DESCRIPTION", "DEFAULT"}
-	r.RenderLabels(labels, headers)
+	r.RenderLabels(labels, nil)
 }

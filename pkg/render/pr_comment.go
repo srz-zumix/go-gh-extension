@@ -1,6 +1,8 @@
 package render
 
 import (
+	"strings"
+
 	"github.com/google/go-github/v79/github"
 )
 
@@ -80,11 +82,14 @@ func NewPullRequestCommentFieldGetters() *prCommentFieldGetters {
 }
 
 func (g *prCommentFieldGetters) GetField(comment *github.PullRequestComment, field string) string {
+	field = strings.ToUpper(field)
 	if getter, ok := g.Func[field]; ok {
 		return getter(comment)
 	}
 	return ""
 }
+
+var PullRequestCommentDefaultHeaders = []string{"ID", "BODY", "USER", "PATH", "HTML_URL"}
 
 func (r *Renderer) RenderPullRequestComments(comments []*github.PullRequestComment, headers []string) {
 	if r.exporter != nil {
@@ -92,8 +97,12 @@ func (r *Renderer) RenderPullRequestComments(comments []*github.PullRequestComme
 		return
 	}
 	getter := NewPullRequestCommentFieldGetters()
-	table := r.newTableWriter(headers)
 
+	if len(headers) == 0 {
+		headers = PullRequestCommentDefaultHeaders
+	}
+
+	table := r.newTableWriter(headers)
 	for _, comment := range comments {
 		row := make([]string, len(headers))
 		for i, header := range headers {
@@ -104,8 +113,6 @@ func (r *Renderer) RenderPullRequestComments(comments []*github.PullRequestComme
 	table.Render()
 }
 
-var PullRequestCommentDefaultHeaders = []string{"ID", "BODY", "USER", "PATH", "HTML_URL"}
-
 func (r *Renderer) RenderPullRequestCommentsDefault(comments []*github.PullRequestComment) {
-	r.RenderPullRequestComments(comments, PullRequestCommentDefaultHeaders)
+	r.RenderPullRequestComments(comments, nil)
 }

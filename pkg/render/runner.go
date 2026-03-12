@@ -45,6 +45,7 @@ func NewRunnerFieldGetters() *runnerFieldGetters {
 }
 
 func (g *runnerFieldGetters) GetField(runner *github.Runner, field string) string {
+	field = strings.ToUpper(field)
 	if getter, ok := g.Func[field]; ok {
 		return getter(runner)
 	}
@@ -63,6 +64,10 @@ func (r *Renderer) RenderRunners(runners []*github.Runner, headers []string) {
 		return
 	}
 
+	if len(headers) == 0 {
+		headers = []string{"ID", "NAME", "OS", "STATUS", "LABELS"}
+	}
+
 	getter := NewRunnerFieldGetters()
 	table := r.newTableWriter(headers)
 
@@ -78,6 +83,5 @@ func (r *Renderer) RenderRunners(runners []*github.Runner, headers []string) {
 
 // RenderRunnersDefault renders runners with default columns
 func (r *Renderer) RenderRunnersDefault(runners []*github.Runner) {
-	headers := []string{"ID", "NAME", "OS", "STATUS", "LABELS"}
-	r.RenderRunners(runners, headers)
+	r.RenderRunners(runners, nil)
 }
