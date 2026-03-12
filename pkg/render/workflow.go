@@ -91,9 +91,6 @@ func (r *Renderer) renderActionReferencesWithGetter(refs []parser.ActionReferenc
 	if len(headers) == 0 {
 		headers = []string{"Name", "Version"}
 	}
-	if len(headers) == 0 {
-		headers = WorkflowDependencyFields
-	}
 
 	table := r.newTableWriter(headers)
 	for i := range refs {
