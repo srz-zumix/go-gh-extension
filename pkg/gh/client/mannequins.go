@@ -159,7 +159,7 @@ func (g *GitHubClient) ReattributeMannequinToUser(ctx context.Context, ownerID, 
 
 	if err := graphqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
 		if isMutationFieldNotFoundError(err, "reattributeMannequinToUser") {
-			return fmt.Errorf("%w: %w", ErrMutationUnavailable, err)
+			return fmt.Errorf("%w: %v", ErrMutationUnavailable, err)
 		}
 		return err
 	}
