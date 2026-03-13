@@ -260,6 +260,7 @@ func TestResolveLocalActionByCheckout_MatchesExactPath(t *testing.T) {
 
 	assert.Equal(t, "owner", ref.Owner)
 	assert.Equal(t, "tool", ref.Repo)
+	assert.Equal(t, "", ref.Host)
 	assert.Equal(t, "v1", ref.Ref)
 	assert.Equal(t, "", ref.Path)
 }
@@ -276,6 +277,7 @@ func TestResolveLocalActionByCheckout_MatchesSubpath(t *testing.T) {
 
 	assert.Equal(t, "owner", ref.Owner)
 	assert.Equal(t, "lint-tool", ref.Repo)
+	assert.Equal(t, "", ref.Host)
 	assert.Equal(t, "lint", ref.Path)
 }
 
@@ -292,6 +294,7 @@ func TestResolveLocalActionByCheckout_LongestPrefixWins(t *testing.T) {
 
 	assert.Equal(t, "owner", ref.Owner)
 	assert.Equal(t, "lint-repo", ref.Repo)
+	assert.Equal(t, "", ref.Host)
 	assert.Equal(t, "custom", ref.Path)
 }
 
@@ -307,6 +310,7 @@ func TestResolveLocalActionByCheckout_NoMatch(t *testing.T) {
 
 	assert.Equal(t, "", ref.Owner)
 	assert.Equal(t, "", ref.Repo)
+	assert.Equal(t, "", ref.Host)
 }
 
 func TestResolveLocalActionByCheckout_SkipsReusableWorkflow(t *testing.T) {
@@ -336,6 +340,7 @@ func TestResolveLocalActionByCheckout_SkipsNonLocal(t *testing.T) {
 
 	assert.Equal(t, "actions", ref.Owner, "should not modify non-local references")
 	assert.Equal(t, "checkout", ref.Repo)
+	assert.Equal(t, "", ref.Host)
 }
 
 func TestResolveLocalActionByCheckout_NoRefInCheckout(t *testing.T) {
@@ -350,6 +355,7 @@ func TestResolveLocalActionByCheckout_NoRefInCheckout(t *testing.T) {
 
 	assert.Equal(t, "owner", ref.Owner)
 	assert.Equal(t, "tool", ref.Repo)
+	assert.Equal(t, "", ref.Host)
 	assert.Equal(t, "", ref.Ref)
 }
 
@@ -382,6 +388,7 @@ jobs:
 	if assert.NotNil(t, localRef, "should find local action reference ./my-tool") {
 		assert.Equal(t, "owner", localRef.Owner)
 		assert.Equal(t, "my-tool", localRef.Repo)
+		assert.Equal(t, "", localRef.Host)
 		assert.Equal(t, "main", localRef.Ref)
 		assert.True(t, localRef.IsLocal)
 	}
@@ -411,6 +418,7 @@ jobs:
 	if assert.NotNil(t, localRef) {
 		assert.Equal(t, "", localRef.Owner)
 		assert.Equal(t, "", localRef.Repo)
+		assert.Equal(t, "", localRef.Host)
 	}
 }
 
@@ -439,6 +447,7 @@ jobs:
 	}
 	if assert.NotNil(t, localRef) {
 		assert.Equal(t, "", localRef.Owner, "should not resolve: checkout without repository means self repo")
+		assert.Equal(t, "", localRef.Host)
 	}
 }
 
@@ -471,6 +480,7 @@ jobs:
 	}
 	if assert.NotNil(t, localRef) {
 		assert.Equal(t, "", localRef.Owner, "checkout in different job should not resolve")
+		assert.Equal(t, "", localRef.Host)
 	}
 }
 
@@ -487,6 +497,7 @@ func TestResolveLocalActionByCheckout_SelfRepoWinsLongestPrefix(t *testing.T) {
 
 	assert.Equal(t, "", ref.Owner, "self-repo checkout should win by longest prefix and skip resolution")
 	assert.Equal(t, "", ref.Repo)
+	assert.Equal(t, "", ref.Host)
 }
 
 func TestParseWorkflowYAML_SelfCheckoutPreventsExternalResolution(t *testing.T) {
@@ -519,6 +530,7 @@ jobs:
 	if assert.NotNil(t, localRef) {
 		assert.Equal(t, "", localRef.Owner, "self-repo checkout with longer prefix should prevent external resolution")
 		assert.Equal(t, "", localRef.Repo)
+		assert.Equal(t, "", localRef.Host)
 	}
 }
 
