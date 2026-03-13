@@ -58,7 +58,7 @@ func GetExternalGroupByName(ctx context.Context, g *GitHubClient, repo repositor
 		return nil, err
 	}
 	if group == nil {
-		return nil, fmt.Errorf("external group '%s' not found", groupName)
+		return nil, fmt.Errorf("external group %q not found in organization %q", groupName, repo.Owner)
 	}
 	return group, nil
 }
