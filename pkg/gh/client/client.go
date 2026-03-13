@@ -35,7 +35,7 @@ func (g *GitHubClient) GetClient() *github.Client {
 }
 
 // v4EndpointURL returns the GraphQL v4 endpoint URL for the client.
-// It uses GITHUB_GRAPHQL_URL env var when targetting github.com, and
+// It uses GITHUB_GRAPHQL_URL env var when targeting github.com, and
 // derives the GHES endpoint from the REST API base URL otherwise.
 func (g *GitHubClient) v4EndpointURL() string {
 	host := g.client.BaseURL.Host
