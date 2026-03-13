@@ -66,7 +66,7 @@ func GetExternalGroupTeams(ctx context.Context, g *GitHubClient, repo repository
 	}
 	var details []*ExternalGroupTeamDetail
 	for _, t := range group.Teams {
-		team, err := g.GetTeamBySlug(ctx, repo.Owner, t.GetTeamName())
+		team, err := g.GetTeamBySlug(ctx, repo.Owner, t.GetTeamSlug())
 		if err != nil {
 			return nil, err
 		}
