@@ -110,6 +110,16 @@ func DeleteBranch(ctx context.Context, g *GitHubClient, repo repository.Reposito
 	return g.DeleteRef(ctx, repo.Owner, repo.Name, "heads/"+branchName)
 }
 
+// DeleteBranchIfExists deletes a branch, silently skipping if it does not exist
+// (404 Not Found or 422 Unprocessable Entity).
+func DeleteBranchIfExists(ctx context.Context, g *GitHubClient, repo repository.Repository, branchName string) error {
+	err := DeleteBranch(ctx, g, repo, branchName)
+	if err != nil && !IsHTTPNotFound(err) && !IsHTTPUnprocessableEntity(err) {
+		return err
+	}
+	return nil
+}
+
 // ListBranches retrieves all branches for a repository (wrapper).
 func ListBranches(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Branch, error) {
 	return g.ListBranches(ctx, repo.Owner, repo.Name, nil)
