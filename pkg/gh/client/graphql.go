@@ -149,16 +149,20 @@ func (t *graphqlFeaturesTransport) RoundTrip(req *http.Request) (*http.Response,
 // feature flags to be enabled on the server.
 func (g *GitHubClient) newGraphQLClientWithFeatures(features string) *graphql.Client {
 	baseClient := g.client.Client()
-	transport := baseClient.Transport
-	if transport == nil {
-		transport = http.DefaultTransport
+
+	// Shallow-copy the base client to preserve its configuration such as
+	// Timeout, CheckRedirect, and Jar, and only wrap the transport.
+	httpClient := *baseClient
+
+	baseTransport := baseClient.Transport
+	if baseTransport == nil {
+		baseTransport = http.DefaultTransport
 	}
-	httpClient := &http.Client{
-		Transport: &graphqlFeaturesTransport{
-			base:     transport,
-			features: features,
-		},
-		Timeout: baseClient.Timeout,
+
+	httpClient.Transport = &graphqlFeaturesTransport{
+		base:     baseTransport,
+		features: features,
 	}
-	return graphql.NewClient(g.v4EndpointURL(), httpClient)
+
+	return graphql.NewClient(g.v4EndpointURL(), &httpClient)
 }
