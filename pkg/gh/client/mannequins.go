@@ -28,7 +28,7 @@ type MannequinClaimant struct {
 
 // NodeID returns the node ID of the mannequin as a string.
 func (m *Mannequin) NodeID() string {
-	return string(m.ID)
+	return fmt.Sprintf("%v", m.ID)
 }
 
 type mannequinConnectionResult struct {
