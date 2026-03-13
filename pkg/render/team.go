@@ -176,3 +176,4 @@ func (r *Renderer) RenderTeamCodeReviewSettingsDefault(codeReviewSettings *gh.Te
 	fields := []string{"TEAM_SLUG", "AUTO_ASSIGNMENT", "MEMBER_COUNT", "ALGORITHM", "NOTIFY_TEAM"}
 	r.RenderTeamCodeReviewSettings(codeReviewSettings, fields)
 }
+

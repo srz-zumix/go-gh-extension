@@ -493,3 +493,4 @@ func ListUserTeams(ctx context.Context, g *GitHubClient, repo repository.Reposit
 
 	return userTeams, nil
 }
+

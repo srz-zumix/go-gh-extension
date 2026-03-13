@@ -273,6 +273,109 @@ type UpdateTeamReviewAssignmentInput struct {
 	ClientMutationID             *githubv4.String  `json:"clientMutationId,omitempty"`
 }
 
+// ListIDPGroupsInOrganization lists all IDP groups available in an organization with cursor-based pagination.
+func (g *GitHubClient) ListIDPGroupsInOrganization(ctx context.Context, org string, query string) ([]*github.IDPGroup, error) {
+	var allGroups []*github.IDPGroup
+	opts := &github.ListIDPGroupsOptions{
+		Query: query,
+		ListCursorOptions: github.ListCursorOptions{
+			PerPage: defaultPerPage,
+		},
+	}
+
+	for {
+		groups, resp, err := g.client.Teams.ListIDPGroupsInOrganization(ctx, org, opts)
+		if err != nil {
+			return nil, err
+		}
+		allGroups = append(allGroups, groups.Groups...)
+		if resp.NextPageToken == "" {
+			break
+		}
+		opts.Page = resp.NextPageToken
+	}
+
+	return allGroups, nil
+}
+
+// ListIDPGroupsForTeamBySlug lists IDP groups connected to a team.
+func (g *GitHubClient) ListIDPGroupsForTeamBySlug(ctx context.Context, org string, teamSlug string) ([]*github.IDPGroup, error) {
+	groups, _, err := g.client.Teams.ListIDPGroupsForTeamBySlug(ctx, org, teamSlug)
+	if err != nil {
+		return nil, err
+	}
+	return groups.Groups, nil
+}
+
+// ListExternalGroupsInOrganization lists external groups available in an organization (EMU).
+func (g *GitHubClient) ListExternalGroupsInOrganization(ctx context.Context, org string, displayName string) ([]*github.ExternalGroup, error) {
+	var allGroups []*github.ExternalGroup
+	opts := &github.ListExternalGroupsOptions{
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
+	}
+	if displayName != "" {
+		opts.DisplayName = &displayName
+	}
+
+	for {
+		groups, resp, err := g.client.Teams.ListExternalGroups(ctx, org, opts)
+		if err != nil {
+			return nil, err
+		}
+		allGroups = append(allGroups, groups.Groups...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return allGroups, nil
+}
+
+// ListExternalGroupsForTeamBySlug lists external groups connected to a team (EMU).
+func (g *GitHubClient) ListExternalGroupsForTeamBySlug(ctx context.Context, org string, teamSlug string) ([]*github.ExternalGroup, error) {
+	groups, _, err := g.client.Teams.ListExternalGroupsForTeamBySlug(ctx, org, teamSlug)
+	if err != nil {
+		return nil, err
+	}
+	return groups.Groups, nil
+}
+
+// GetExternalGroup fetches a single external group by ID (EMU).
+func (g *GitHubClient) GetExternalGroup(ctx context.Context, org string, groupID int64) (*github.ExternalGroup, error) {
+	group, _, err := g.client.Teams.GetExternalGroup(ctx, org, groupID)
+	if err != nil {
+		return nil, err
+	}
+	return group, nil
+}
+
+// UpdateConnectedExternalGroup sets or updates the external group connected to a team (EMU).
+func (g *GitHubClient) UpdateConnectedExternalGroup(ctx context.Context, org string, teamSlug string, groupID int64) (*github.ExternalGroup, error) {
+	eg := &github.ExternalGroup{GroupID: &groupID}
+	result, _, err := g.client.Teams.UpdateConnectedExternalGroup(ctx, org, teamSlug, eg)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// RemoveConnectedExternalGroup removes the connection between an external group and a team (EMU).
+func (g *GitHubClient) RemoveConnectedExternalGroup(ctx context.Context, org string, teamSlug string) error {
+	_, err := g.client.Teams.RemoveConnectedExternalGroup(ctx, org, teamSlug)
+	return err
+}
+
+// CreateOrUpdateIDPGroupConnectionsBySlug creates, updates, or removes IDP group connections for a team.
+func (g *GitHubClient) CreateOrUpdateIDPGroupConnectionsBySlug(ctx context.Context, org string, teamSlug string, groups []*github.IDPGroup) ([]*github.IDPGroup, error) {
+	opts := github.IDPGroupList{Groups: groups}
+	result, _, err := g.client.Teams.CreateOrUpdateIDPGroupConnectionsBySlug(ctx, org, teamSlug, opts)
+	if err != nil {
+		return nil, err
+	}
+	return result.Groups, nil
+}
+
 // SetTeamCodeReviewSettings updates the code review assignment settings for a team using GraphQL mutation
 func (g *GitHubClient) SetTeamCodeReviewSettings(ctx context.Context, teamID any, settings *TeamCodeReviewSettings) error {
 	graphql, err := g.GetOrCreateGraphQLClient()
