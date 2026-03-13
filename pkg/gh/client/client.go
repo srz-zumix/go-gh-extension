@@ -44,14 +44,6 @@ func (g *GitHubClient) Host() string {
 	return host
 }
 
-// Host returns the GitHub hostname for this client.
-// For github.com, returns "github.com". For GitHub Enterprise Server, returns the GHES hostname.
-func (g *GitHubClient) Host() string {
-	host := g.client.BaseURL.Host
-	if host == "api.github.com" {
-		return "github.com"
-	}
-	return host
 // v4EndpointURL returns the GraphQL v4 endpoint URL for the client.
 // It uses GITHUB_GRAPHQL_URL env var when targeting github.com, and
 // derives the GHES endpoint from the REST API base URL otherwise.
