@@ -56,6 +56,11 @@ func ListWorkflowRunsByID(ctx context.Context, g *GitHubClient, repo repository.
 	return g.ListWorkflowRunsByID(ctx, repo.Owner, repo.Name, workflowID, toGitHubListWorkflowRunsOptions(options))
 }
 
+// GetWorkflowByFileName retrieves a workflow definition by its file name.
+func GetWorkflowByFileName(ctx context.Context, g *GitHubClient, repo repository.Repository, workflowFileName string) (*github.Workflow, error) {
+	return g.GetWorkflowByFileName(ctx, repo.Owner, repo.Name, workflowFileName)
+}
+
 // ListWorkflowRunsByFileName retrieves all workflow runs for a specific workflow by file name.
 func ListWorkflowRunsByFileName(ctx context.Context, g *GitHubClient, repo repository.Repository, workflowFileName string, options *ListWorkflowRunsOptions) ([]*github.WorkflowRun, error) {
 	return g.ListWorkflowRunsByFileName(ctx, repo.Owner, repo.Name, workflowFileName, toGitHubListWorkflowRunsOptions(options))

@@ -19,6 +19,16 @@ func ListMannequins(ctx context.Context, g *GitHubClient, repo repository.Reposi
 	return mannequins, nil
 }
 
+// FindMannequinByLogin retrieves a single mannequin by login from the organization associated with the repository.
+// Returns nil if not found.
+func FindMannequinByLogin(ctx context.Context, g *GitHubClient, repo repository.Repository, login string) (*client.Mannequin, error) {
+	m, err := g.FindMannequinByLogin(ctx, repo.Owner, login)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find mannequin '%s' in organization '%s': %w", login, repo.Owner, err)
+	}
+	return m, nil
+}
+
 // CreateAttributionInvitation creates an attribution invitation to claim a mannequin in the organization.
 func CreateAttributionInvitation(ctx context.Context, g *GitHubClient, repo repository.Repository, ownerID, sourceID, targetID string) error {
 	err := g.CreateAttributionInvitation(ctx, ownerID, sourceID, targetID)

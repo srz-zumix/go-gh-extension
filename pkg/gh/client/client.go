@@ -44,23 +44,33 @@ func (g *GitHubClient) Host() string {
 	return host
 }
 
+// Host returns the GitHub hostname for this client.
+// For github.com, returns "github.com". For GitHub Enterprise Server, returns the GHES hostname.
+func (g *GitHubClient) Host() string {
+	host := g.client.BaseURL.Host
+	if host == "api.github.com" {
+		return "github.com"
+	}
+	return host
+// v4EndpointURL returns the GraphQL v4 endpoint URL for the client.
+// It uses GITHUB_GRAPHQL_URL env var when targeting github.com, and
+// derives the GHES endpoint from the REST API base URL otherwise.
+func (g *GitHubClient) v4EndpointURL() string {
+	host := g.client.BaseURL.Host
+	if host != "api.github.com" {
+		return fmt.Sprintf("https://%s/api/graphql", host)
+	}
+	if ep := os.Getenv("GITHUB_GRAPHQL_URL"); ep != "" {
+		return ep
+	}
+	return defaultV4Endpoint
+}
+
 func (g *GitHubClient) GetOrCreateGraphQLClient() (*githubv4.Client, error) {
 	if g.graphql != nil {
 		return g.graphql, nil
 	}
-	httpClient := g.client.Client()
-	host := g.client.BaseURL.Host
-	v4ep := defaultV4Endpoint
-	if host != "api.github.com" {
-		// If the base URL is not the default GitHub API, we need to create a new HTTP client
-		// with the correct base URL for GraphQL.
-		v4ep = fmt.Sprintf("https://%s/api/graphql", host)
-	} else {
-		if os.Getenv("GITHUB_GRAPHQL_URL") != "" {
-			v4ep = os.Getenv("GITHUB_GRAPHQL_URL")
-		}
-	}
-	client := githubv4.NewEnterpriseClient(v4ep, httpClient)
+	client := githubv4.NewEnterpriseClient(g.v4EndpointURL(), g.client.Client())
 	g.graphql = client
 	return client, nil
 }
