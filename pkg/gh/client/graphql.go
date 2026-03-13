@@ -2,8 +2,10 @@ package client
 
 import (
 	"errors"
+	"net/http"
 	"strings"
 
+	graphql "github.com/cli/shurcooL-graphql"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -128,4 +130,39 @@ func ParsePullRequestState(state string) githubv4.PullRequestState {
 		return githubv4.PullRequestStateMerged
 	}
 	return githubv4.PullRequestStateOpen
+}
+
+// graphqlFeaturesTransport is an http.RoundTripper that injects GraphQL feature-flag headers into every request.
+type graphqlFeaturesTransport struct {
+	base     http.RoundTripper
+	features string
+}
+
+func (t *graphqlFeaturesTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.Header.Set("GraphQL-Features", t.features)
+	return t.base.RoundTrip(req)
+}
+
+// newGraphQLClientWithFeatures creates a graphql.Client that sends the given
+// GraphQL feature-flag header. Used for undocumented mutations that require
+// feature flags to be enabled on the server.
+func (g *GitHubClient) newGraphQLClientWithFeatures(features string) *graphql.Client {
+	baseClient := g.client.Client()
+
+	// Shallow-copy the base client to preserve its configuration such as
+	// Timeout, CheckRedirect, and Jar, and only wrap the transport.
+	httpClient := *baseClient
+
+	baseTransport := baseClient.Transport
+	if baseTransport == nil {
+		baseTransport = http.DefaultTransport
+	}
+
+	httpClient.Transport = &graphqlFeaturesTransport{
+		base:     baseTransport,
+		features: features,
+	}
+
+	return graphql.NewClient(g.v4EndpointURL(), &httpClient)
 }
