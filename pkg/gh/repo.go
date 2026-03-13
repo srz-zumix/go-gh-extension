@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
@@ -108,6 +109,38 @@ func CreateBranch(ctx context.Context, g *GitHubClient, repo repository.Reposito
 // DeleteBranch deletes a branch (wrapper).
 func DeleteBranch(ctx context.Context, g *GitHubClient, repo repository.Repository, branchName string) error {
 	return g.DeleteRef(ctx, repo.Owner, repo.Name, "heads/"+branchName)
+}
+
+// DeleteBranchIfExists deletes a branch, silently skipping if it does not exist.
+// It ignores 404 Not Found and specific 422 Unprocessable Entity responses that
+// indicate the reference does not exist. Invalid or empty branch names return an error.
+func DeleteBranchIfExists(ctx context.Context, g *GitHubClient, repo repository.Repository, branchName string) error {
+	if branchName == "" {
+		return fmt.Errorf("branch name must not be empty")
+	}
+
+	err := DeleteBranch(ctx, g, repo, branchName)
+	if err == nil {
+		return nil
+	}
+
+	if IsHTTPNotFound(err) {
+		// Branch does not exist
+		return nil
+	}
+
+	if IsHTTPUnprocessableEntity(err) {
+		// Some "reference does not exist" errors are returned as 422; only
+		// treat those specific cases as "branch does not exist".
+		var ghErr *github.ErrorResponse
+		if errors.As(err, &ghErr) {
+			if strings.Contains(ghErr.Message, "Reference does not exist") {
+				return nil
+			}
+		}
+	}
+
+	return err
 }
 
 // ListBranches retrieves all branches for a repository (wrapper).

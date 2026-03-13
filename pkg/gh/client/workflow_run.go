@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/google/go-github/v79/github"
 )
@@ -172,10 +174,40 @@ func (g *GitHubClient) DeleteWorkflowRunLogs(ctx context.Context, owner string, 
 	return err
 }
 
+// handleWorkflowAcceptedError normalizes github.AcceptedError as a non-fatal success.
+// This helper keeps workflow cancellation behavior consistent across call sites.
+func handleWorkflowAcceptedError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var aerr *github.AcceptedError
+	if errors.As(err, &aerr) {
+		return nil
+	}
+
+	return err
+}
+
 // CancelWorkflowRunByID cancels a specific workflow run.
+// github.AcceptedError (HTTP 202) means the cancellation was accepted; treat as success.
 func (g *GitHubClient) CancelWorkflowRunByID(ctx context.Context, owner string, repo string, runID int64) error {
 	_, err := g.client.Actions.CancelWorkflowRunByID(ctx, owner, repo, runID)
-	return err
+	return handleWorkflowAcceptedError(err)
+}
+
+// ForceCancelWorkflowRunByID force-cancels a specific workflow run.
+// This calls the force-cancel endpoint which can cancel runs that are
+// in a state where the normal cancel returns an error.
+// github.AcceptedError (HTTP 202) means the cancellation was accepted; treat as success.
+func (g *GitHubClient) ForceCancelWorkflowRunByID(ctx context.Context, owner string, repo string, runID int64) error {
+	u := fmt.Sprintf("repos/%v/%v/actions/runs/%v/force-cancel", owner, repo, runID)
+	req, err := g.client.NewRequest("POST", u, nil)
+	if err != nil {
+		return err
+	}
+	_, err = g.client.Do(ctx, req, nil)
+	return handleWorkflowAcceptedError(err)
 }
 
 // RerunWorkflowByID re-runs a specific workflow run.

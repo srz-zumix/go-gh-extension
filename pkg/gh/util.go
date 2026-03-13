@@ -58,3 +58,15 @@ func IsHTTPNotFound(err error) bool {
 	var errResp *github.ErrorResponse
 	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusNotFound
 }
+
+// IsHTTPForbidden returns true if err is a GitHub API 403 Forbidden response.
+func IsHTTPForbidden(err error) bool {
+	var errResp *github.ErrorResponse
+	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusForbidden
+}
+
+// IsHTTPUnprocessableEntity returns true if err is a GitHub API 422 Unprocessable Entity response.
+func IsHTTPUnprocessableEntity(err error) bool {
+	var errResp *github.ErrorResponse
+	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusUnprocessableEntity
+}
