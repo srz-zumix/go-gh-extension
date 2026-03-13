@@ -103,6 +103,11 @@ func CancelWorkflowRunByID(ctx context.Context, g *GitHubClient, repo repository
 	return g.CancelWorkflowRunByID(ctx, repo.Owner, repo.Name, runID)
 }
 
+// ForceCancelWorkflowRunByID force-cancels a specific workflow run.
+func ForceCancelWorkflowRunByID(ctx context.Context, g *GitHubClient, repo repository.Repository, runID int64) error {
+	return g.ForceCancelWorkflowRunByID(ctx, repo.Owner, repo.Name, runID)
+}
+
 // RerunWorkflowByID re-runs a specific workflow run.
 func RerunWorkflowByID(ctx context.Context, g *GitHubClient, repo repository.Repository, runID int64) error {
 	return g.RerunWorkflowByID(ctx, repo.Owner, repo.Name, runID)
