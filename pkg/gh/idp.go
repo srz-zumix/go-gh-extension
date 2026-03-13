@@ -48,7 +48,19 @@ func FindExternalGroupByName(ctx context.Context, g *GitHubClient, repo reposito
 			return grp, nil
 		}
 	}
-	return nil, fmt.Errorf("external group '%s' not found", groupName)
+	return nil, nil
+}
+
+// GetExternalGroupByName retrieves an external group by name, returning an error if not found (EMU).
+func GetExternalGroupByName(ctx context.Context, g *GitHubClient, repo repository.Repository, groupName string) (*github.ExternalGroup, error) {
+	group, err := FindExternalGroupByName(ctx, g, repo, groupName)
+	if err != nil {
+		return nil, err
+	}
+	if group == nil {
+		return nil, fmt.Errorf("external group '%s' not found", groupName)
+	}
+	return group, nil
 }
 
 // ExternalGroupTeamDetail holds an external group and a connected team.
@@ -60,13 +72,13 @@ type ExternalGroupTeamDetail struct {
 // GetExternalGroupTeams fetches the teams connected to an external group identified by name.
 // For each ExternalGroupTeam entry the corresponding github.Team is fetched by slug.
 func GetExternalGroupTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, groupName string) ([]*ExternalGroupTeamDetail, error) {
-	group, err := FindExternalGroupByName(ctx, g, repo, groupName)
+	group, err := GetExternalGroupByName(ctx, g, repo, groupName)
 	if err != nil {
 		return nil, err
 	}
 	var details []*ExternalGroupTeamDetail
 	for _, t := range group.Teams {
-		team, err := g.GetTeamBySlug(ctx, repo.Owner, t.GetTeamSlug())
+		team, err := g.GetTeamBySlug(ctx, repo.Owner, t.GetTeamName())
 		if err != nil {
 			return nil, err
 		}
@@ -80,7 +92,7 @@ func GetExternalGroupTeams(ctx context.Context, g *GitHubClient, repo repository
 
 // SetExternalGroupForTeam connects an external group (identified by name) to a team (EMU).
 func SetExternalGroupForTeam(ctx context.Context, g *GitHubClient, repo repository.Repository, groupName string, teamSlug string) (*github.ExternalGroup, error) {
-	group, err := FindExternalGroupByName(ctx, g, repo, groupName)
+	group, err := GetExternalGroupByName(ctx, g, repo, groupName)
 	if err != nil {
 		return nil, err
 	}
