@@ -29,7 +29,7 @@ func ListExternalGroups(ctx context.Context, g *GitHubClient, repo repository.Re
 }
 
 // HasExternalGroupsInOrganization returns true if the organization has any external groups (EMU).
-// Returns false on 404/403 or when the result is empty.
+// Returns false on 404/403/400 (for example when EMU is not configured) or when the result is empty.
 func HasExternalGroupsInOrganization(ctx context.Context, g *GitHubClient, repo repository.Repository) (bool, error) {
 	groups, err := g.ListExternalGroupsInOrganization(ctx, repo.Owner, "")
 	if err != nil {
