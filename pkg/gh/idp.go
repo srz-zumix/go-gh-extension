@@ -33,7 +33,7 @@ func ListExternalGroups(ctx context.Context, g *GitHubClient, repo repository.Re
 func HasExternalGroupsInOrganization(ctx context.Context, g *GitHubClient, repo repository.Repository) (bool, error) {
 	groups, err := g.ListExternalGroupsInOrganization(ctx, repo.Owner, "")
 	if err != nil {
-		if IsHTTPNotFound(err) || IsHTTPForbidden(err) {
+		if IsHTTPNotFound(err) || IsHTTPForbidden(err) || IsHTTPBadRequest(err) {
 			return false, nil
 		}
 		return false, err

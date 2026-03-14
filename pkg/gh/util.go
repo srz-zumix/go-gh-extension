@@ -65,6 +65,12 @@ func IsHTTPForbidden(err error) bool {
 	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusForbidden
 }
 
+// IsHTTPBadRequest returns true if err is a GitHub API 400 Bad Request response.
+func IsHTTPBadRequest(err error) bool {
+	var errResp *github.ErrorResponse
+	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusBadRequest
+}
+
 // IsHTTPUnprocessableEntity returns true if err is a GitHub API 422 Unprocessable Entity response.
 func IsHTTPUnprocessableEntity(err error) bool {
 	var errResp *github.ErrorResponse
