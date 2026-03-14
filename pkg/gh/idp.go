@@ -52,8 +52,8 @@ func FindExternalGroupByTeamSlug(ctx context.Context, g *GitHubClient, repo repo
 	groups, err := g.ListExternalGroupsForTeamBySlug(ctx, repo.Owner, teamSlug)
 	if err != nil {
 		if IsHTTPNotFound(err) {
- 			return nil, nil
- 		}
+			return nil, nil
+		}
 		return nil, err
 	}
 	if len(groups) == 0 {
