@@ -104,9 +104,9 @@ func (r *Renderer) writeLine(line string) {
 	}
 }
 
-// WriteError writes an error message to the error output stream
+// WriteError logs an error that occurred during rendering
 func (r *Renderer) WriteError(err error) {
-	logger.Warn("rendering error: %v", err)
+	logger.Warn("rendering error", "error", err)
 }
 
 // ToString converts various types to their string representation, handling pointers and nil values gracefully
