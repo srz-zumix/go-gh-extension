@@ -85,11 +85,14 @@ func ConvertBranchProtectionToRuleset(branch string, protection *github.Protecti
 				statusChecks = append(statusChecks, &github.RuleStatusCheck{Context: ctx})
 			}
 		}
-		if len(statusChecks) > 0 || protection.RequiredStatusChecks.Strict {
+		if len(statusChecks) > 0 {
 			rules.RequiredStatusChecks = &github.RequiredStatusChecksRuleParameters{
-				RequiredStatusChecks:            statusChecks,
+				RequiredStatusChecks:             statusChecks,
 				StrictRequiredStatusChecksPolicy: protection.RequiredStatusChecks.Strict,
 			}
+		} else if protection.RequiredStatusChecks.Strict {
+			// GitHub rulesets may reject a required-status-checks rule without any checks configured
+			logger.Warning("required status checks 'strict' is enabled but no checks or contexts are configured; skipping required-status-checks rule")
 		}
 	}
 
