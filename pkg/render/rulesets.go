@@ -99,7 +99,7 @@ func (r *Renderer) RenderRepositoryRulesetsDefault(rulesets []*github.Repository
 	return r.RenderRepositoryRulesets(rulesets, nil)
 }
 
-// RenderRepositoryRulesetDetail renders detailed information about a single repository ruleset
+// RenderRepositoryRuleset renders detailed information about a single repository ruleset
 func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, showConditionsAndRules bool) error {
 	if r.exporter != nil {
 		return r.RenderExportedData(ruleset)
