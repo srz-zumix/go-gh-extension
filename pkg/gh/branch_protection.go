@@ -31,6 +31,11 @@ func ConvertBranchProtectionToRuleset(branch string, protection *github.Protecti
 
 	rules := &github.RepositoryRulesetRules{}
 
+	// treat nil protection as empty protection to avoid panic on field access
+	if protection == nil {
+		protection = &github.Protection{}
+	}
+
 	// required_linear_history
 	if protection.RequireLinearHistory != nil && protection.RequireLinearHistory.Enabled {
 		rules.RequiredLinearHistory = &github.EmptyRuleParameters{}
