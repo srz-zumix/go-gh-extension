@@ -42,9 +42,16 @@ func GetObjectName(item any) string {
 	case client.Mannequin:
 		return string(v.Login)
 	case *github.RepoDependencies:
-		s := strings.Split(*v.Name, ":")
+		if v == nil {
+			return ""
+		}
+		name := v.GetName()
+		if name == "" {
+			return ""
+		}
+		s := strings.Split(name, ":")
 		if len(s) < 2 {
-			return *v.Name
+			return name
 		}
 		return s[1]
 	case *github.Repository:
