@@ -21,7 +21,8 @@ func RemoveBranchProtection(ctx context.Context, g *GitHubClient, repo repositor
 
 // ConvertBranchProtectionToRuleset converts a branch protection rule to a repository ruleset.
 // The generated ruleset targets the given branch name and includes rules equivalent to the
-// branch protection settings. Fields that have no direct ruleset equivalent are logged as warnings.
+// branch protection settings. Some unsupported or partially unsupported fields (such as certain
+// restrictions) are logged as warnings.
 func ConvertBranchProtectionToRuleset(branch string, protection *github.Protection) *github.RepositoryRuleset {
 	target := github.RulesetTargetBranch
 	enforcement := github.RulesetEnforcementActive
