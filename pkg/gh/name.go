@@ -58,7 +58,7 @@ func GetObjectName(item any) string {
 		if v == nil {
 			return ""
 		}
-		return *v.FullName
+		return v.GetFullName()
 	case repository.Repository:
 		return parser.GetRepositoryFullName(v)
 	case *github.RepositoryPermissionLevel:
