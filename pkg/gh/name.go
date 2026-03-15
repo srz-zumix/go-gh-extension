@@ -92,7 +92,7 @@ func GetObjectName(item any) string {
 		if v == nil {
 			return ""
 		}
-		return *v.Slug
+		return v.GetSlug()
 	case unity.UnityPackage:
 		return v.Name
 	case *github.User:
