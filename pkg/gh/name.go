@@ -20,7 +20,7 @@ func GetObjectName(item any) string {
 	case parser.ActionReference:
 		return v.Name()
 	case *github.App:
-		if v == nil {
+		if v == nil || v.Slug == nil {
 			return ""
 		}
 		return *v.Slug
