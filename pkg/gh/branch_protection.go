@@ -94,18 +94,22 @@ func ConvertBranchProtectionToRuleset(branch string, protection *github.Protecti
 	}
 
 	// pull_request
-	if protection.RequiredPullRequestReviews != nil {
-		pr := protection.RequiredPullRequestReviews
-		prParams := &github.PullRequestRuleParameters{
-			DismissStaleReviewsOnPush:    pr.DismissStaleReviews,
-			RequireCodeOwnerReview:       pr.RequireCodeOwnerReviews,
-			RequiredApprovingReviewCount: pr.RequiredApprovingReviewCount,
-			RequireLastPushApproval:      pr.RequireLastPushApproval,
+	if protection.RequiredPullRequestReviews != nil || protection.RequiredConversationResolution != nil {
+		prParams := &github.PullRequestRuleParameters{}
+
+		if protection.RequiredPullRequestReviews != nil {
+			pr := protection.RequiredPullRequestReviews
+			prParams.DismissStaleReviewsOnPush = pr.DismissStaleReviews
+			prParams.RequireCodeOwnerReview = pr.RequireCodeOwnerReviews
+			prParams.RequiredApprovingReviewCount = pr.RequiredApprovingReviewCount
+			prParams.RequireLastPushApproval = pr.RequireLastPushApproval
 		}
+
 		// required_conversation_resolution maps to RequiredReviewThreadResolution
 		if protection.RequiredConversationResolution != nil {
 			prParams.RequiredReviewThreadResolution = protection.RequiredConversationResolution.Enabled
 		}
+
 		rules.PullRequest = prParams
 	}
 
