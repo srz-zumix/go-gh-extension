@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -102,7 +103,9 @@ func RewriteNuPkgRepository(src io.ReaderAt, size int64, dst io.Writer, repoURL 
 			}
 		} else {
 			if _, err := io.Copy(fw, rc); err != nil {
-				_ = rc.Close()
+				if closeErr := rc.Close(); closeErr != nil {
+					return fmt.Errorf("failed to copy zip entry %s: %w", f.Name, errors.Join(err, closeErr))
+				}
 				return fmt.Errorf("failed to copy zip entry %s: %w", f.Name, err)
 			}
 			if err := rc.Close(); err != nil {
@@ -159,7 +162,9 @@ func (g *GitHubClient) fetchNuGetPackageBody(ctx context.Context, owner, package
 		return resp.Body, nil
 	case http.StatusFound, http.StatusMovedPermanently, http.StatusSeeOther,
 		http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
-		resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			return nil, fmt.Errorf("failed to close redirect response body: %w", err)
+		}
 		loc := resp.Header.Get("Location")
 		if loc == "" {
 			return nil, fmt.Errorf("redirect response missing Location header")
@@ -175,14 +180,14 @@ func (g *GitHubClient) fetchNuGetPackageBody(ctx context.Context, owner, package
 		}
 		if plainResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(io.LimitReader(plainResp.Body, 512))
-			plainResp.Body.Close()
-			return nil, fmt.Errorf("download failed with status %d: %s", plainResp.StatusCode, strings.TrimSpace(string(body)))
+			statusErr := fmt.Errorf("download failed with status %d: %s", plainResp.StatusCode, strings.TrimSpace(string(body)))
+			return nil, errors.Join(statusErr, plainResp.Body.Close())
 		}
 		return plainResp.Body, nil
 	default:
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		resp.Body.Close()
-		return nil, fmt.Errorf("download failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		statusErr := fmt.Errorf("download failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, errors.Join(statusErr, resp.Body.Close())
 	}
 }
 
