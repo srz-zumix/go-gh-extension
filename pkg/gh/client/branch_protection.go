@@ -17,24 +17,5 @@ func (g *GitHubClient) GetBranchProtection(ctx context.Context, owner, repo, bra
 
 // ListProtectedBranches retrieves all protected branches for a repository.
 func (g *GitHubClient) ListProtectedBranches(ctx context.Context, owner, repo string) ([]*github.Branch, error) {
-	protected := true
-	opt := &github.BranchListOptions{
-		Protected: &protected,
-		ListOptions: github.ListOptions{
-			PerPage: defaultPerPage,
-		},
-	}
-	var allBranches []*github.Branch
-	for {
-		branches, resp, err := g.client.Repositories.ListBranches(ctx, owner, repo, opt)
-		if err != nil {
-			return nil, err
-		}
-		allBranches = append(allBranches, branches...)
-		if resp.NextPage == 0 {
-			break
-		}
-		opt.Page = resp.NextPage
-	}
-	return allBranches, nil
+	return g.ListBranches(ctx, owner, repo, github.Ptr(true))
 }
