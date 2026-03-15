@@ -296,7 +296,7 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 		}
 	}
 
-	if *ruleset.Target == github.RulesetTargetPush {
+	if ruleset.Target != nil && *ruleset.Target == github.RulesetTargetPush {
 		r.writeLine("Push rules:")
 		table := r.newTableWriter([]string{"NAME", "VALUE"})
 		if rules.FilePathRestriction != nil {
