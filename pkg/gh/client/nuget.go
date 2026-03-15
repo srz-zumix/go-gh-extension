@@ -122,12 +122,16 @@ func RewriteNuPkgRepository(src io.ReaderAt, size int64, dst io.Writer, repoURL 
 // GitHub Packages may redirect the download to external storage (e.g. Azure Blob Storage).
 // To avoid forwarding the GitHub Authorization header to a different host, redirects are
 // followed manually using a plain HTTP client without auth headers.
-func (g *GitHubClient) DownloadNuGetPackage(ctx context.Context, owner, packageName, version string, dst io.Writer) error {
+func (g *GitHubClient) DownloadNuGetPackage(ctx context.Context, owner, packageName, version string, dst io.Writer) (retErr error) {
 	body, err := g.fetchNuGetPackageBody(ctx, owner, packageName, version)
 	if err != nil {
 		return err
 	}
-	defer body.Close()
+	defer func() {
+		if err := body.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("failed to close nupkg body: %w", err)
+		}
+	}()
 	if _, err := io.Copy(dst, body); err != nil {
 		return fmt.Errorf("failed to write nupkg: %w", err)
 	}

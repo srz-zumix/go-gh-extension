@@ -105,6 +105,99 @@ func TestRepositoryOwner(t *testing.T) {
 	}
 }
 
+func TestRepositoryOwnerOrRepo(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		initial   repository.Repository
+		expectErr bool
+		expected  repository.Repository
+	}{
+		{
+			name:      "Owner only",
+			input:     "owner",
+			initial:   repository.Repository{},
+			expectErr: false,
+			expected:  repository.Repository{Host: "github.com", Owner: "owner", Name: ""},
+		},
+		{
+			name:      "Owner and repo",
+			input:     "owner/repo",
+			initial:   repository.Repository{},
+			expectErr: false,
+			expected:  repository.Repository{Host: "github.com", Owner: "owner", Name: "repo"},
+		},
+		{
+			name:      "Host, owner and repo",
+			input:     "github.com/owner/repo",
+			initial:   repository.Repository{},
+			expectErr: false,
+			expected:  repository.Repository{Host: "github.com", Owner: "owner", Name: "repo"},
+		},
+		{
+			name:      "GHE host, owner and repo",
+			input:     "ghe.example.com/owner/repo",
+			initial:   repository.Repository{},
+			expectErr: false,
+			expected:  repository.Repository{Host: "ghe.example.com", Owner: "owner", Name: "repo"},
+		},
+		{
+			name:      "GHE host and owner only",
+			input:     "ghe.example.com/owner",
+			initial:   repository.Repository{},
+			expectErr: false,
+			expected:  repository.Repository{Host: "ghe.example.com", Owner: "owner", Name: ""},
+		},
+		{
+			name:      "Empty input",
+			input:     "",
+			initial:   repository.Repository{},
+			expectErr: false,
+			expected:  repository.Repository{},
+		},
+		{
+			name:      "Conflicting owner",
+			input:     "other-owner",
+			initial:   repository.Repository{Host: "github.com", Owner: "owner"},
+			expectErr: true,
+		},
+		{
+			name:      "Conflicting host",
+			input:     "gitlab.com/owner/repo",
+			initial:   repository.Repository{Host: "github.com"},
+			expectErr: true,
+		},
+		{
+			name:      "Conflicting repo name",
+			input:     "owner/other-repo",
+			initial:   repository.Repository{Host: "github.com", Owner: "owner", Name: "repo"},
+			expectErr: true,
+		},
+		{
+			name:      "Same owner no conflict",
+			input:     "owner",
+			initial:   repository.Repository{Host: "github.com", Owner: "owner"},
+			expectErr: false,
+			expected:  repository.Repository{Host: "github.com", Owner: "owner", Name: ""},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			op := RepositoryOwnerOrRepo(tt.input)
+			r := tt.initial
+			err := op(&r)
+
+			if tt.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, r)
+			}
+		})
+	}
+}
+
 func TestRepository(t *testing.T) {
 	tests := []struct {
 		name      string

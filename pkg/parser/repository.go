@@ -126,6 +126,26 @@ func RepositoryOwnerOrRepo(input string) RepositoryOption {
 		if input == "" {
 			return nil
 		}
+
+		// If input has exactly two segments and the first part contains a dot,
+		// treat it as HOST/OWNER rather than OWNER/REPO.
+		parts := strings.SplitN(input, "/", 3)
+		if len(parts) == 2 && strings.Contains(parts[0], ".") {
+			parsed, err := repository.Parse(input + "/dummy")
+			if err != nil {
+				return fmt.Errorf(`expected the "[HOST/]OWNER[/REPO]" format, got %q`, input)
+			}
+			if r.Owner != "" && r.Owner != parsed.Owner {
+				return errors.New("conflicting owner")
+			}
+			if r.Host != "" && r.Host != parsed.Host {
+				return errors.New("conflicting host")
+			}
+			r.Host = parsed.Host
+			r.Owner = parsed.Owner
+			return nil
+		}
+
 		// Try to parse as full repository first
 		parsed, err := repository.Parse(input)
 		if err == nil {
