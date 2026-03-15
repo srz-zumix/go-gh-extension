@@ -33,7 +33,7 @@ func GetObjectName(item any) string {
 		if v == nil {
 			return ""
 		}
-		return *v.Name
+		return v.GetName()
 	case *client.Mannequin:
 		if v == nil {
 			return ""
