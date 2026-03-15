@@ -28,7 +28,7 @@ func GetObjectName(item any) string {
 		if v == nil {
 			return ""
 		}
-		return *v.Name
+		return v.GetName()
 	case *github.Label:
 		if v == nil {
 			return ""
