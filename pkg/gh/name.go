@@ -20,10 +20,10 @@ func GetObjectName(item any) string {
 	case parser.ActionReference:
 		return v.Name()
 	case *github.App:
-		if v == nil || v.Slug == nil {
+		if v == nil {
 			return ""
 		}
-		return *v.Slug
+		return v.GetSlug()
 	case *github.CustomOrgRoles:
 		if v == nil {
 			return ""
@@ -77,12 +77,12 @@ func GetObjectName(item any) string {
 		if v == nil {
 			return ""
 		}
-		return *v.SBOM.Name
+		return GetObjectName(v.SBOM)
 	case *github.SBOMInfo:
 		if v == nil {
 			return ""
 		}
-		return *v.Name
+		return v.GetName()
 	case *github.Secret:
 		if v == nil {
 			return ""

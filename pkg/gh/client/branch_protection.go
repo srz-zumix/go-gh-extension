@@ -15,6 +15,12 @@ func (g *GitHubClient) GetBranchProtection(ctx context.Context, owner, repo, bra
 	return protection, nil
 }
 
+// RemoveBranchProtection removes the protection of a given branch.
+func (g *GitHubClient) RemoveBranchProtection(ctx context.Context, owner, repo, branch string) error {
+	_, err := g.client.Repositories.RemoveBranchProtection(ctx, owner, repo, branch)
+	return err
+}
+
 // ListProtectedBranches retrieves all protected branches for a repository.
 func (g *GitHubClient) ListProtectedBranches(ctx context.Context, owner, repo string) ([]*github.Branch, error) {
 	return g.ListBranches(ctx, owner, repo, github.Ptr(true))

@@ -14,6 +14,11 @@ func GetBranchProtection(ctx context.Context, g *GitHubClient, repo repository.R
 	return g.GetBranchProtection(ctx, repo.Owner, repo.Name, branch)
 }
 
+// RemoveBranchProtection removes the branch protection settings for the given branch.
+func RemoveBranchProtection(ctx context.Context, g *GitHubClient, repo repository.Repository, branch string) error {
+	return g.RemoveBranchProtection(ctx, repo.Owner, repo.Name, branch)
+}
+
 // ConvertBranchProtectionToRuleset converts a branch protection rule to a repository ruleset.
 // The generated ruleset targets the given branch name and includes rules equivalent to the
 // branch protection settings. Fields that have no direct ruleset equivalent are logged as warnings.
