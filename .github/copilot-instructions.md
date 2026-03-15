@@ -27,6 +27,7 @@
 * コード重複は避け、共通処理は関数化・ユーティリティ化する
 * Lint/Formatter（go fmt, go vet, staticcheck等）を通してからコミットする
 * 依存関係の循環(import cycle)が発生しないよう注意する
+* Close のエラー処理を忘れないようにする
 
 ### パッケージ詳細
 

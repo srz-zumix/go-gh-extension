@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,50 +39,6 @@ func TestContainerRegistry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, ContainerRegistry(tt.host))
-		})
-	}
-}
-
-func TestContainerImageBase(t *testing.T) {
-	tests := []struct {
-		name     string
-		host     string
-		owner    string
-		pkg      string
-		expected string
-	}{
-		{
-			name:     "github.com lowercase",
-			host:     "github.com",
-			owner:    "MyOwner",
-			pkg:      "MyPkg",
-			expected: "ghcr.io/myowner/mypkg",
-		},
-		{
-			name:     "empty host treated as github.com",
-			host:     "",
-			owner:    "Owner",
-			pkg:      "pkg",
-			expected: "ghcr.io/owner/pkg",
-		},
-		{
-			name:     "enterprise host",
-			host:     "ghe.internal",
-			owner:    "Owner",
-			pkg:      "Pkg",
-			expected: "containers.ghe.internal/owner/pkg",
-		},
-		{
-			name:     "scoped package lowercase",
-			host:     "github.com",
-			owner:    "Owner",
-			pkg:      "Scope/Pkg",
-			expected: "ghcr.io/owner/scope/pkg",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, ContainerImageBase(tt.host, tt.owner, tt.pkg))
 		})
 	}
 }
@@ -253,4 +210,108 @@ func TestFilterVersions_VersionIDsAndLatest(t *testing.T) {
 func TestFilterVersions_EmptyInput(t *testing.T) {
 	result := FilterVersions(nil, VersionFilter{Latest: 5, Since: &t1, Until: &t4})
 	assert.Empty(t, result)
+}
+
+func TestContainerImageBase(t *testing.T) {
+	tests := []struct {
+		name     string
+		repo     repository.Repository
+		pkg      string
+		expected string
+	}{
+		{
+			name: "github.com with lowercase",
+			repo: repository.Repository{
+				Host:  "github.com",
+				Owner: "myowner",
+			},
+			pkg:      "mypackage",
+			expected: "ghcr.io/myowner/mypackage",
+		},
+		{
+			name: "github.com with empty host",
+			repo: repository.Repository{
+				Owner: "myowner",
+			},
+			pkg:      "mypackage",
+			expected: "ghcr.io/myowner/mypackage",
+		},
+		{
+			name: "github.com with mixed case owner and package",
+			repo: repository.Repository{
+				Owner: "MyOwner",
+			},
+			pkg:      "MyPackage",
+			expected: "ghcr.io/myowner/mypackage",
+		},
+		{
+			name: "GHES with different host",
+			repo: repository.Repository{
+				Host:  "ghe.example.com",
+				Owner: "ghesowner",
+			},
+			pkg:      "ghespackage",
+			expected: "containers.ghe.example.com/ghesowner/ghespackage",
+		},
+		{
+			name: "GHES with mixed case",
+			repo: repository.Repository{
+				Host:  "GHE.Example.Com",
+				Owner: "GHESOwner",
+			},
+			pkg:      "GHESPackage",
+			expected: "containers.GHE.Example.Com/ghesowner/ghespackage",
+		},
+		{
+			name: "owner with hyphen",
+			repo: repository.Repository{
+				Owner: "my-owner",
+			},
+			pkg:      "my-package",
+			expected: "ghcr.io/my-owner/my-package",
+		},
+		{
+			name: "owner with underscore",
+			repo: repository.Repository{
+				Owner: "my_owner",
+			},
+			pkg:      "my_package",
+			expected: "ghcr.io/my_owner/my_package",
+		},
+		{
+			name: "with repository name set (owner only case)",
+			repo: repository.Repository{
+				Owner: "myowner",
+				Name:  "myrepo",
+			},
+			pkg:      "mypackage",
+			expected: "ghcr.io/myowner/mypackage",
+		},
+		{
+			name: "with repository name set and GHES",
+			repo: repository.Repository{
+				Host:  "ghe.example.com",
+				Owner: "ghesowner",
+				Name:  "ghesrepo",
+			},
+			pkg:      "ghespackage",
+			expected: "containers.ghe.example.com/ghesowner/ghespackage",
+		},
+		{
+			name: "with repository name set, different from package",
+			repo: repository.Repository{
+				Owner: "myowner",
+				Name:  "my-repo",
+			},
+			pkg:      "my-other-package",
+			expected: "ghcr.io/myowner/my-other-package",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ContainerImageBase(tt.repo, tt.pkg)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
 }

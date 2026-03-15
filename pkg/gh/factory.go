@@ -55,14 +55,14 @@ func NewGitHubClientWithRepo(repo repository.Repository) (*GitHubClient, error) 
 	if err != nil {
 		return nil, err
 	}
-	client, err := client.NewClient(c)
+	ghClient, err := client.NewClient(c)
 	if err != nil {
 		return nil, err
 	}
 	if host != "" {
-		cachedClients[host] = client
+		cachedClients[host] = ghClient
 	}
-	return client, nil
+	return ghClient, nil
 }
 
 // NewGitHubClientWith2Hosts creates two GitHubClient instances for the given hosts.
