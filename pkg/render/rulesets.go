@@ -260,7 +260,7 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 		}
 	}
 
-	{
+	if rules.CommitMessagePattern != nil || rules.CommitAuthorEmailPattern != nil || rules.CommitterEmailPattern != nil {
 		r.writeLine("Restrict commit metadata:")
 		table := r.newTableWriter([]string{"TYPE", "NAME", "NEGATE", "OPERATOR", "PATTERN"})
 		if rules.CommitMessagePattern != nil {
@@ -280,7 +280,7 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 		}
 	}
 
-	{
+	if rules.BranchNamePattern != nil || rules.TagNamePattern != nil {
 		r.writeLine("Restrict branch and tag names:")
 		table := r.newTableWriter([]string{"TYPE", "NAME", "NEGATE", "OPERATOR", "PATTERN"})
 		if rules.BranchNamePattern != nil {
