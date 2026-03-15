@@ -100,6 +100,7 @@ func ConvertBranchProtectionToRuleset(branch string, protection *github.Protecti
 	// pull_request
 	if protection.RequiredPullRequestReviews != nil || protection.RequiredConversationResolution != nil {
 		prParams := &github.PullRequestRuleParameters{}
+		hasPRRequirements := false
 
 		if protection.RequiredPullRequestReviews != nil {
 			pr := protection.RequiredPullRequestReviews
@@ -107,14 +108,18 @@ func ConvertBranchProtectionToRuleset(branch string, protection *github.Protecti
 			prParams.RequireCodeOwnerReview = pr.RequireCodeOwnerReviews
 			prParams.RequiredApprovingReviewCount = pr.RequiredApprovingReviewCount
 			prParams.RequireLastPushApproval = pr.RequireLastPushApproval
+			hasPRRequirements = true
 		}
 
 		// required_conversation_resolution maps to RequiredReviewThreadResolution
-		if protection.RequiredConversationResolution != nil {
-			prParams.RequiredReviewThreadResolution = protection.RequiredConversationResolution.Enabled
+		if protection.RequiredConversationResolution != nil && protection.RequiredConversationResolution.Enabled {
+			prParams.RequiredReviewThreadResolution = true
+			hasPRRequirements = true
 		}
 
-		rules.PullRequest = prParams
+		if hasPRRequirements {
+			rules.PullRequest = prParams
+		}
 	}
 
 	// bypass actors from EnforceAdmins and Restrictions
