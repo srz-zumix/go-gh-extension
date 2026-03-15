@@ -7,7 +7,8 @@ import (
 
 // TableWriter wraps *tablewriter.Table so that Append errors are logged
 // rather than returned, eliminating per-call error checks at the call site.
-// Render returns the first table-render error encountered.
+// Render returns the first error from the underlying table.Render call; Append
+// errors are only logged and are not returned by Render.
 type TableWriter struct {
 	table    *tablewriter.Table
 	renderer *Renderer
