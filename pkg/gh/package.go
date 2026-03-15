@@ -27,7 +27,7 @@ func ContainerRegistry(host string) string {
 	return "containers." + host
 }
 
-// ContainerImageBaseFromRepository returns the base image path for an OCI image using a repository definition.
+// ContainerImageBase returns the base image path for an OCI image using a repository definition.
 // Owner and package are lowercased to comply with the OCI Distribution Spec.
 func ContainerImageBase(repo repository.Repository, pkg string) string {
 	host := repo.Host
