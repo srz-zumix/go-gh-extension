@@ -9,6 +9,11 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
+// repositoryRoleIDAdmin represents the repository role ID for the "admin" role.
+// See GitHub documentation for repository rulesets and bypass actors for details:
+// https://docs.github.com/en/rest/repos/rules?apiVersion=2022-11-28
+const repositoryRoleIDAdmin = 5
+
 // GetBranchProtection retrieves the branch protection settings for the given branch.
 func GetBranchProtection(ctx context.Context, g *GitHubClient, repo repository.Repository, branch string) (*github.Protection, error) {
 	return g.GetBranchProtection(ctx, repo.Owner, repo.Name, branch)
@@ -130,8 +135,8 @@ func ConvertBranchProtectionToRuleset(branch string, protection *github.Protecti
 	if protection.EnforceAdmins != nil && !protection.EnforceAdmins.Enabled {
 		bypassMode := github.BypassModeAlways
 		actorType := github.BypassActorTypeRepositoryRole
-		// Repository Role ID 5 = admin
-		adminRoleID := int64(5)
+		// Repository Role ID for repository admins
+		adminRoleID := int64(repositoryRoleIDAdmin)
 		bypassActors = append(bypassActors, &github.BypassActor{
 			ActorID:    &adminRoleID,
 			ActorType:  &actorType,
