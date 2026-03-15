@@ -30,11 +30,11 @@ func (r *Renderer) RenderBranchProtection(branch string, protection *github.Prot
 		return r.RenderExportedData(protection)
 	}
 
- 	if protection == nil {
- 		// Branch protection is not configured or not found
- 		r.writeLine("Branch protection not found.")
- 		return nil
- 	}
+	if protection == nil {
+		// Branch protection is not configured or not found
+		r.writeLine("Branch protection not found.")
+		return nil
+	}
 
 	r.writeLine(fmt.Sprintf("Branch: %s", branch))
 	r.writeLine("")
