@@ -99,7 +99,7 @@ func GetObjectName(item any) string {
 		if v == nil {
 			return ""
 		}
-		return *v.Login
+		return v.GetLogin()
 	default:
 		return ""
 	}
