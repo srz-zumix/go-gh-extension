@@ -12,52 +12,94 @@ import (
 
 func GetObjectName(item any) string {
 	switch v := item.(type) {
-	case *github.Repository:
-		return *v.FullName
-	case repository.Repository:
-		return parser.GetRepositoryFullName(v)
-	case *github.Team:
-		return *v.Slug
-	case *github.User:
-		return *v.Login
-	case *github.CustomOrgRoles:
-		return *v.Name
-	case *github.RepositoryPermissionLevel:
-		return *v.User.Login
-	case *RepositoryPermissionLevel:
-		return parser.GetRepositoryFullName(v.Repository)
-	case *github.Label:
-		return *v.Name
-	case *github.RepoDependencies:
-		s := strings.Split(*v.Name, ":")
-		if len(s) < 2 {
-			return *v.Name
-		}
-		return s[1]
-	case *github.Secret:
-		return v.Name
-	case *github.SBOM:
-		return *v.SBOM.Name
-	case *github.SBOMInfo:
-		return *v.Name
-	case RepositorySubmodule:
-		return parser.GetRepositoryFullName(v.Repository)
-	case parser.ActionReference:
-		return v.Name()
 	case *parser.ActionReference:
 		if v == nil {
 			return ""
 		}
 		return v.Name()
-	case unity.UnityPackage:
-		return v.Name
-	case client.Mannequin:
-		return string(v.Login)
+	case parser.ActionReference:
+		return v.Name()
+	case *github.App:
+		if v == nil {
+			return ""
+		}
+		return v.GetSlug()
+	case *github.CustomOrgRoles:
+		if v == nil {
+			return ""
+		}
+		return v.GetName()
+	case *github.Label:
+		if v == nil {
+			return ""
+		}
+		return v.GetName()
 	case *client.Mannequin:
 		if v == nil {
 			return ""
 		}
 		return string(v.Login)
+	case client.Mannequin:
+		return string(v.Login)
+	case *github.RepoDependencies:
+		if v == nil {
+			return ""
+		}
+		name := v.GetName()
+		if name == "" {
+			return ""
+		}
+		s := strings.Split(name, ":")
+		if len(s) < 2 {
+			return name
+		}
+		return s[1]
+	case *github.Repository:
+		if v == nil {
+			return ""
+		}
+		return v.GetFullName()
+	case repository.Repository:
+		return parser.GetRepositoryFullName(v)
+	case *github.RepositoryPermissionLevel:
+		if v == nil {
+			return ""
+		}
+		return GetObjectName(v.User)
+	case *RepositoryPermissionLevel:
+		if v == nil {
+			return ""
+		}
+		return parser.GetRepositoryFullName(v.Repository)
+	case RepositorySubmodule:
+		return parser.GetRepositoryFullName(v.Repository)
+	case *github.SBOM:
+		if v == nil {
+			return ""
+		}
+		return GetObjectName(v.SBOM)
+	case *github.SBOMInfo:
+		if v == nil {
+			return ""
+		}
+		return v.GetName()
+	case *github.Secret:
+		if v == nil {
+			return ""
+		}
+		return v.Name
+	case *github.Team:
+		if v == nil {
+			return ""
+		}
+		return v.GetSlug()
+	case unity.UnityPackage:
+		return v.Name
+	case *github.User:
+		if v == nil {
+			return ""
+		}
+		return v.GetLogin()
 	default:
 		return ""
 	}
@@ -65,6 +107,42 @@ func GetObjectName(item any) string {
 
 func GetObjectNames(items any) []string {
 	switch v := items.(type) {
+	case []parser.ActionReference:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*github.App:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*github.CustomOrgRoles:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*github.Label:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []client.Mannequin:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*github.RepoDependencies:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
 	case []*github.Repository:
 		names := make([]string, len(v))
 		for i, item := range v {
@@ -72,24 +150,6 @@ func GetObjectNames(items any) []string {
 		}
 		return names
 	case []repository.Repository:
-		names := make([]string, len(v))
-		for i, item := range v {
-			names[i] = GetObjectName(item)
-		}
-		return names
-	case []*github.Team:
-		names := make([]string, len(v))
-		for i, item := range v {
-			names[i] = GetObjectName(item)
-		}
-		return names
-	case []*github.User:
-		names := make([]string, len(v))
-		for i, item := range v {
-			names[i] = GetObjectName(item)
-		}
-		return names
-	case []*github.CustomOrgRoles:
 		names := make([]string, len(v))
 		for i, item := range v {
 			names[i] = GetObjectName(item)
@@ -107,19 +167,7 @@ func GetObjectNames(items any) []string {
 			names[i] = GetObjectName(item)
 		}
 		return names
-	case []*github.Label:
-		names := make([]string, len(v))
-		for i, item := range v {
-			names[i] = GetObjectName(item)
-		}
-		return names
-	case []*github.RepoDependencies:
-		names := make([]string, len(v))
-		for i, item := range v {
-			names[i] = GetObjectName(item)
-		}
-		return names
-	case []*github.Secret:
+	case []RepositorySubmodule:
 		names := make([]string, len(v))
 		for i, item := range v {
 			names[i] = GetObjectName(item)
@@ -137,13 +185,13 @@ func GetObjectNames(items any) []string {
 			names[i] = GetObjectName(item)
 		}
 		return names
-	case []RepositorySubmodule:
+	case []*github.Secret:
 		names := make([]string, len(v))
 		for i, item := range v {
 			names[i] = GetObjectName(item)
 		}
 		return names
-	case []parser.ActionReference:
+	case []*github.Team:
 		names := make([]string, len(v))
 		for i, item := range v {
 			names[i] = GetObjectName(item)
@@ -155,7 +203,7 @@ func GetObjectNames(items any) []string {
 			names[i] = GetObjectName(item)
 		}
 		return names
-	case []client.Mannequin:
+	case []*github.User:
 		names := make([]string, len(v))
 		for i, item := range v {
 			names[i] = GetObjectName(item)

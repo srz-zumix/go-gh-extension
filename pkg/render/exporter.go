@@ -9,9 +9,6 @@ func (r *Renderer) renderExportedData(data any) error {
 	return r.exporter.Write(r.IO, data)
 }
 
-func (r *Renderer) RenderExportedData(data any) {
-	err := r.renderExportedData(data)
-	if err != nil {
-		r.WriteError(err)
-	}
+func (r *Renderer) RenderExportedData(data any) error {
+	return r.renderExportedData(data)
 }
