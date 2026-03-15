@@ -222,7 +222,7 @@ func GetRepositoryFullNameWithHost(repo repository.Repository) string {
 	return name
 }
 
-// RepositoryURL returns the HTTPS URL for a repository.
+// GetRepositoryURL returns the HTTPS URL for a repository.
 // For github.com, it returns "https://github.com/owner/repo".
 // For GitHub Enterprise Server, it returns "https://host/owner/repo".
 func GetRepositoryURL(repo repository.Repository) string {
