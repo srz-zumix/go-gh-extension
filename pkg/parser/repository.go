@@ -12,6 +12,8 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/actions"
 )
 
+const defaultHost = "github.com"
+
 type RepositoryOption func(*repository.Repository) error
 
 func RepositoryInput(input string) RepositoryOption {
@@ -117,6 +119,50 @@ func RepositoryOwnerWithHost(input string) RepositoryOption {
 	}
 }
 
+// RepositoryOwnerOrRepo parses a "[HOST/]OWNER[/REPO]" format, setting owner and optionally name on the repository.
+// This is used for destination specifications where the repo name may be optional.
+func RepositoryOwnerOrRepo(input string) RepositoryOption {
+	return func(r *repository.Repository) error {
+		if input == "" {
+			return nil
+		}
+		// Try to parse as full repository first
+		parsed, err := repository.Parse(input)
+		if err == nil {
+			// Successfully parsed as full [HOST/]OWNER/REPO format
+			if r.Owner != "" && r.Owner != parsed.Owner {
+				return errors.New("conflicting owner")
+			}
+			if r.Host != "" && r.Host != parsed.Host {
+				return errors.New("conflicting host")
+			}
+			if r.Name != "" && r.Name != parsed.Name {
+				return errors.New("conflicting repo name")
+			}
+			r.Host = parsed.Host
+			r.Owner = parsed.Owner
+			r.Name = parsed.Name
+			return nil
+		}
+
+		// If parsing as full repo fails, try parsing as [HOST/]OWNER only
+		parsed, err = repository.Parse(input + "/dummy")
+		if err != nil {
+			return fmt.Errorf(`expected the "[HOST/]OWNER[/REPO]" format, got %q`, input)
+		}
+		if r.Owner != "" && r.Owner != parsed.Owner {
+			return errors.New("conflicting owner")
+		}
+		if r.Host != "" && r.Host != parsed.Host {
+			return errors.New("conflicting host")
+		}
+		r.Host = parsed.Host
+		r.Owner = parsed.Owner
+		// Do not set r.Name - it remains unset since repo name is optional
+		return nil
+	}
+}
+
 func RepositoryOwners(inputs []string) RepositoryOption {
 	return func(r *repository.Repository) error {
 		for _, input := range inputs {
@@ -156,14 +202,42 @@ func Repository(opts ...RepositoryOption) (r repository.Repository, err error) {
 }
 
 func GetRepositoryFullName(repo repository.Repository) string {
+	if repo.Name == "" {
+		return repo.Owner
+	}
 	return fmt.Sprintf("%s/%s", repo.Owner, repo.Name)
 }
 
 func GetRepositoryFullNameWithHost(repo repository.Repository) string {
+	name := ""
 	if repo.Host != "" {
-		return fmt.Sprintf("%s/%s/%s", repo.Host, repo.Owner, repo.Name)
+		name += repo.Host + "/"
 	}
-	return fmt.Sprintf("%s/%s", repo.Owner, repo.Name)
+	if repo.Owner != "" {
+		name += repo.Owner
+		if repo.Name != "" {
+			name += "/" + repo.Name
+		}
+	}
+	return name
+}
+
+// RepositoryURL returns the HTTPS URL for a repository.
+// For github.com, it returns "https://github.com/owner/repo".
+// For GitHub Enterprise Server, it returns "https://host/owner/repo".
+func GetRepositoryURL(repo repository.Repository) string {
+	host := repo.Host
+	if host == "" {
+		host = defaultHost
+	}
+	url := "https://" + host
+	if repo.Owner != "" {
+		url += "/" + repo.Owner
+		if repo.Name != "" {
+			url += "/" + repo.Name
+		}
+	}
+	return url
 }
 
 func parseFilePath(input string) (repo repository.Repository, err error) {

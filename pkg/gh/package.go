@@ -27,10 +27,14 @@ func ContainerRegistry(host string) string {
 	return "containers." + host
 }
 
-// ContainerImageBase returns the base image path for an OCI image: "registry/owner/package".
+// ContainerImageBaseFromRepository returns the base image path for an OCI image using a repository definition.
 // Owner and package are lowercased to comply with the OCI Distribution Spec.
-func ContainerImageBase(host, owner, pkg string) string {
-	return ContainerRegistry(host) + "/" + strings.ToLower(owner) + "/" + strings.ToLower(pkg)
+func ContainerImageBase(repo repository.Repository, pkg string) string {
+	host := repo.Host
+	if host == "" {
+		host = defaultHost
+	}
+	return ContainerRegistry(host) + "/" + strings.ToLower(repo.Owner) + "/" + strings.ToLower(pkg)
 }
 
 // NuGetRegistryBase returns the NuGet registry base URL for the given GitHub host and owner.

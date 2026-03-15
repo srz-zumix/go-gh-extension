@@ -7,6 +7,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -115,36 +116,106 @@ func RewriteNuPkgRepository(src io.ReaderAt, size int64, dst io.Writer, repoURL 
 
 // DownloadNuGetPackage downloads a .nupkg file from the GitHub NuGet registry and
 // streams it to dst.
-func (g *GitHubClient) DownloadNuGetPackage(ctx context.Context, owner, packageName, version string, dst io.Writer) (retErr error) {
-	url := NuGetDownloadURL(g.Host(), owner, packageName, version)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+// GitHub Packages may redirect the download to external storage (e.g. Azure Blob Storage).
+// To avoid forwarding the GitHub Authorization header to a different host, redirects are
+// followed manually using a plain HTTP client without auth headers.
+func (g *GitHubClient) DownloadNuGetPackage(ctx context.Context, owner, packageName, version string, dst io.Writer) error {
+	body, err := g.fetchNuGetPackageBody(ctx, owner, packageName, version)
 	if err != nil {
 		return err
 	}
-
-	resp, err := g.client.Client().Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil && retErr == nil {
-			retErr = err
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("download failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	if _, err := io.Copy(dst, resp.Body); err != nil {
+	defer body.Close()
+	if _, err := io.Copy(dst, body); err != nil {
 		return fmt.Errorf("failed to write nupkg: %w", err)
 	}
 	return nil
 }
 
+// fetchNuGetPackageBody resolves the final download URL and returns the response body.
+// It stops before following any redirect so the GitHub token is not forwarded to
+// third-party storage, then re-issues the request without auth headers.
+func (g *GitHubClient) fetchNuGetPackageBody(ctx context.Context, owner, packageName, version string) (io.ReadCloser, error) {
+	url := NuGetDownloadURL(g.Host(), owner, packageName, version)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Do not follow redirects so the GitHub auth token is not sent elsewhere.
+	noRedirect := &http.Client{
+		Transport: g.client.Client().Transport,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := noRedirect.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return resp.Body, nil
+	case http.StatusFound, http.StatusMovedPermanently, http.StatusSeeOther,
+		http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
+		resp.Body.Close()
+		loc := resp.Header.Get("Location")
+		if loc == "" {
+			return nil, fmt.Errorf("redirect response missing Location header")
+		}
+		// Follow the redirect without auth headers.
+		plainReq, err := http.NewRequestWithContext(ctx, http.MethodGet, loc, nil)
+		if err != nil {
+			return nil, err
+		}
+		plainResp, err := http.DefaultClient.Do(plainReq)
+		if err != nil {
+			return nil, err
+		}
+		if plainResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(io.LimitReader(plainResp.Body, 512))
+			plainResp.Body.Close()
+			return nil, fmt.Errorf("download failed with status %d: %s", plainResp.StatusCode, strings.TrimSpace(string(body)))
+		}
+		return plainResp.Body, nil
+	default:
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		resp.Body.Close()
+		return nil, fmt.Errorf("download failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+}
+
+// nugetBasicAuthTransport wraps an existing RoundTripper and converts
+// "Authorization: token X" or "Authorization: Bearer X" headers to
+// Basic auth as required by the GitHub NuGet registry.
+type nugetBasicAuthTransport struct {
+	base http.RoundTripper
+}
+
+func (t *nugetBasicAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r2 := r.Clone(r.Context())
+	if auth := r2.Header.Get("Authorization"); auth != "" {
+		var token string
+		switch {
+		case strings.HasPrefix(auth, "token "):
+			token = strings.TrimPrefix(auth, "token ")
+		case strings.HasPrefix(auth, "Bearer "):
+			token = strings.TrimPrefix(auth, "Bearer ")
+		}
+		if token != "" {
+			creds := base64.StdEncoding.EncodeToString([]byte("x-token:" + token))
+			r2.Header.Set("Authorization", "Basic "+creds)
+		}
+	}
+	return t.base.RoundTrip(r2)
+}
+
 // PushNuGetPackage pushes a .nupkg file to the GitHub NuGet registry, streaming
 // the contents of r via a multipart request without buffering the full payload in memory.
+// GitHub NuGet registry requires Basic auth (username + PAT); the go-github OAuth
+// transport sends "Authorization: token <TOKEN>" which is rejected by nuget.pkg.github.com.
+// nugetBasicAuthTransport converts the token auth to Basic auth transparently.
 func (g *GitHubClient) PushNuGetPackage(ctx context.Context, owner string, r io.Reader) (retErr error) {
 	url := NuGetPushURL(g.Host(), owner)
 
@@ -178,7 +249,13 @@ func (g *GitHubClient) PushNuGetPackage(ctx context.Context, owner string, r io.
 	}()
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	resp, err := g.client.Client().Do(req)
+	// Wrap the existing transport to convert bearer/token auth to Basic auth
+	// as required by the GitHub NuGet registry.
+	httpClient := &http.Client{
+		Transport: &nugetBasicAuthTransport{base: g.client.Client().Transport},
+	}
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		// Close PipeWriter so that the writer goroutine cannot block if the HTTP request fails early
 		_ = pw.CloseWithError(err)
