@@ -11,9 +11,8 @@ import (
 	"github.com/cli/cli/v2/pkg/iostreams"
 	"github.com/fatih/color"
 	"github.com/google/go-github/v79/github"
-	"github.com/olekukonko/tablewriter"
-	"github.com/olekukonko/tablewriter/tw"
 	"github.com/shurcooL/githubv4"
+	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
 type Renderer struct {
@@ -107,7 +106,7 @@ func (r *Renderer) writeLine(line string) {
 
 // WriteError writes an error message to the error output stream
 func (r *Renderer) WriteError(err error) {
-	fmt.Fprintf(r.IO.ErrOut, "%v\n", err) // nolint
+	logger.Warn("rendering error: %v", err)
 }
 
 // ToString converts various types to their string representation, handling pointers and nil values gracefully
@@ -330,48 +329,6 @@ func ToRGB(c string) (int, int, int, error) {
 		return 0, 0, 0, err
 	}
 	return int(r), int(g), int(b), nil
-}
-
-func (r *Renderer) newTableWriter(header []string) *tablewriter.Table {
-	table := tablewriter.NewTable(r.IO.Out)
-	table.Configure(func(config *tablewriter.Config) {
-		config.Row.Alignment.Global = tw.AlignLeft
-	})
-
-	anyHeader := make([]any, len(header))
-	for i, h := range header {
-		anyHeader[i] = h
-	}
-	table.Header(anyHeader...)
-
-	return table
-}
-
-// stickyTableWriter wraps *tablewriter.Table with a sticky error.
-// Once Append returns an error, subsequent Append calls become no-ops.
-// Render returns the first error encountered, or the render error if none.
-// This follows the "errors are values" pattern to eliminate per-call error checks.
-type stickyTableWriter struct {
-	table *tablewriter.Table
-	err   error
-}
-
-func newStickyTable(table *tablewriter.Table) *stickyTableWriter {
-	return &stickyTableWriter{table: table}
-}
-
-func (s *stickyTableWriter) Append(row []string) {
-	if s.err != nil {
-		return
-	}
-	s.err = s.table.Append(row)
-}
-
-func (s *stickyTableWriter) Render() error {
-	if s.err != nil {
-		return s.err
-	}
-	return s.table.Render()
 }
 
 // truncateString truncates a string to the specified length

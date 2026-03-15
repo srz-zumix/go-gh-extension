@@ -17,7 +17,7 @@ func (r *Renderer) RenderBranchProtections(branches []*github.Branch) error {
 		return nil
 	}
 
-	table := newStickyTable(r.newTableWriter([]string{"BRANCH"}))
+	table := r.newTableWriter([]string{"BRANCH"})
 	for _, b := range branches {
 		table.Append([]string{ToString(b.Name)})
 	}
@@ -30,10 +30,16 @@ func (r *Renderer) RenderBranchProtection(branch string, protection *github.Prot
 		return r.RenderExportedData(protection)
 	}
 
+ 	if protection == nil {
+ 		// Branch protection is not configured or not found
+ 		r.writeLine("Branch protection not found.")
+ 		return nil
+ 	}
+
 	r.writeLine(fmt.Sprintf("Branch: %s", branch))
 	r.writeLine("")
 
-	table := newStickyTable(r.newTableWriter([]string{"SETTING", "VALUE"}))
+	table := r.newTableWriter([]string{"SETTING", "VALUE"})
 
 	// EnforceAdmins
 	if protection.EnforceAdmins != nil {
@@ -88,7 +94,7 @@ func (r *Renderer) RenderBranchProtection(branch string, protection *github.Prot
 	if protection.RequiredStatusChecks != nil {
 		r.writeLine("")
 		r.writeLine("Required Status Checks:")
-		scTable := newStickyTable(r.newTableWriter([]string{"CONTEXT", "APP_ID", "STRICT"}))
+		scTable := r.newTableWriter([]string{"CONTEXT", "APP_ID", "STRICT"})
 		if protection.RequiredStatusChecks.Checks != nil {
 			for _, check := range *protection.RequiredStatusChecks.Checks {
 				scTable.Append([]string{
@@ -112,7 +118,7 @@ func (r *Renderer) RenderBranchProtection(branch string, protection *github.Prot
 		pr := protection.RequiredPullRequestReviews
 		r.writeLine("")
 		r.writeLine("Required Pull Request Reviews:")
-		prTable := newStickyTable(r.newTableWriter([]string{"SETTING", "VALUE"}))
+		prTable := r.newTableWriter([]string{"SETTING", "VALUE"})
 		prTable.Append([]string{"Required Approving Review Count", fmt.Sprintf("%d", pr.RequiredApprovingReviewCount)})
 		prTable.Append([]string{"Dismiss Stale Reviews", ToString(pr.DismissStaleReviews)})
 		prTable.Append([]string{"Require Code Owner Reviews", ToString(pr.RequireCodeOwnerReviews)})
@@ -126,7 +132,7 @@ func (r *Renderer) RenderBranchProtection(branch string, protection *github.Prot
 	if protection.Restrictions != nil {
 		r.writeLine("")
 		r.writeLine("Push Restrictions:")
-		restrTable := newStickyTable(r.newTableWriter([]string{"TYPE", "NAME"}))
+		restrTable := r.newTableWriter([]string{"TYPE", "NAME"})
 		for _, u := range protection.Restrictions.Users {
 			restrTable.Append([]string{"User", ToString(u.Login)})
 		}

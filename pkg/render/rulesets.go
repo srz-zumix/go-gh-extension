@@ -81,7 +81,7 @@ func (r *Renderer) RenderRepositoryRulesets(rulesets []*github.RepositoryRuleset
 	}
 
 	getter := NewRepositoryRulesetFieldGetters()
-	table := newStickyTable(r.newTableWriter(headers))
+	table := r.newTableWriter(headers)
 
 	for _, ruleset := range rulesets {
 		row := make([]string, len(headers))
@@ -107,7 +107,7 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 	{
 		headers := []string{"ID", "NAME", "TARGET", "ENFORCEMENT", "SOURCE_TYPE", "SOURCE", "CURRENTUSER_CAN_BYPASS", "NODE_ID", "CREATED_AT", "UPDATED_AT"}
 		getter := NewRepositoryRulesetFieldGetters()
-		table := newStickyTable(r.newTableWriter([]string{"FIELD", "VALUE"}))
+		table := r.newTableWriter([]string{"FIELD", "VALUE"})
 
 		for _, header := range headers {
 			table.Append([]string{header, getter.GetField(ruleset, header)})
@@ -124,7 +124,7 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 
 	{
 		r.writeLine("Bypass Actors:")
-		table := newStickyTable(r.newTableWriter([]string{"ACTOR_ID", "ACTOR_TYPE", "BYPASS_MODE"}))
+		table := r.newTableWriter([]string{"ACTOR_ID", "ACTOR_TYPE", "BYPASS_MODE"})
 		for _, actor := range ruleset.BypassActors {
 			table.Append([]string{
 				ToString(actor.ActorID),
@@ -139,7 +139,7 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 
 	if ruleset.Conditions != nil {
 		r.writeLine("Targets:")
-		table := newStickyTable(r.newTableWriter([]string{"CONDITION", "FIELD", "VALUE"}))
+		table := r.newTableWriter([]string{"CONDITION", "FIELD", "VALUE"})
 
 		if ruleset.Conditions.RefName != nil {
 			condition := "Ref Name"
@@ -204,7 +204,7 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 
 	{
 		r.writeLine("Rules:")
-		table := newStickyTable(r.newTableWriter([]string{"FIELD", "VALUE"}))
+		table := r.newTableWriter([]string{"FIELD", "VALUE"})
 		table.Append([]string{"Restrict creations", ToString(rules.Creation)})
 		if rules.Update != nil {
 			table.Append([]string{"Restrict updates", "ENABLED"})
@@ -262,7 +262,7 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 
 	{
 		r.writeLine("Restrict commit metadata:")
-		table := newStickyTable(r.newTableWriter([]string{"TYPE", "NAME", "NEGATE", "OPERATOR", "PATTERN"}))
+		table := r.newTableWriter([]string{"TYPE", "NAME", "NEGATE", "OPERATOR", "PATTERN"})
 		if rules.CommitMessagePattern != nil {
 			row := append([]string{"Commit Message Pattern"}, rowRepositoryRulesetPatternRuleParameters(rules.CommitMessagePattern)...)
 			table.Append(row)
@@ -282,7 +282,7 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 
 	{
 		r.writeLine("Restrict branch and tag names:")
-		table := newStickyTable(r.newTableWriter([]string{"TYPE", "NAME", "NEGATE", "OPERATOR", "PATTERN"}))
+		table := r.newTableWriter([]string{"TYPE", "NAME", "NEGATE", "OPERATOR", "PATTERN"})
 		if rules.BranchNamePattern != nil {
 			row := append([]string{"Branch Name Pattern"}, rowRepositoryRulesetPatternRuleParameters(rules.BranchNamePattern)...)
 			table.Append(row)
@@ -298,12 +298,12 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 
 	if *ruleset.Target == github.RulesetTargetPush {
 		r.writeLine("Push rules:")
-		table := newStickyTable(r.newTableWriter([]string{"NAME", "VALUE"}))
+		table := r.newTableWriter([]string{"NAME", "VALUE"})
 		if rules.FilePathRestriction != nil {
-			table.Append([]string{"Maximum file changes", strings.Join(rules.FilePathRestriction.RestrictedFilePaths, ", ")})
+			table.Append([]string{"Restricted file paths", strings.Join(rules.FilePathRestriction.RestrictedFilePaths, ", ")})
 		}
 		if rules.MaxFilePathLength != nil {
-			table.Append([]string{"Maximum file deletions", ToString(rules.MaxFilePathLength.MaxFilePathLength)})
+			table.Append([]string{"Maximum file path length", ToString(rules.MaxFilePathLength.MaxFilePathLength)})
 		}
 		if rules.FileExtensionRestriction != nil {
 			table.Append([]string{"Restricted file extensions", strings.Join(rules.FileExtensionRestriction.RestrictedFileExtensions, ", ")})
