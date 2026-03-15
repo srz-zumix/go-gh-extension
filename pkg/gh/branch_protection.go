@@ -93,7 +93,7 @@ func ConvertBranchProtectionToRuleset(branch string, protection *github.Protecti
 			}
 		} else if protection.RequiredStatusChecks.Strict {
 			// GitHub rulesets may reject a required-status-checks rule without any checks configured
-			logger.Warning("required status checks 'strict' is enabled but no checks or contexts are configured; skipping required-status-checks rule")
+			logger.Warn("required status checks 'strict' is enabled but no checks or contexts are configured; skipping required-status-checks rule")
 		}
 	}
 
@@ -144,17 +144,17 @@ func ConvertBranchProtectionToRuleset(branch string, protection *github.Protecti
 		if len(protection.Restrictions.Users) > 0 {
 			logger.Warn("Branch protection restriction (users) cannot be directly converted to a ruleset; push-access restrictions are not supported in rulesets",
 				"branch", branch,
-				"users", userLogins(protection.Restrictions.Users))
+				"users", GetObjectNames(protection.Restrictions.Users))
 		}
 		if len(protection.Restrictions.Teams) > 0 {
 			logger.Warn("Branch protection restriction (teams) cannot be directly converted to a ruleset; push-access restrictions are not supported in rulesets",
 				"branch", branch,
-				"teams", teamSlugs(protection.Restrictions.Teams))
+				"teams", GetObjectNames(protection.Restrictions.Teams))
 		}
 		if len(protection.Restrictions.Apps) > 0 {
 			logger.Warn("Branch protection restriction (apps) cannot be directly converted to a ruleset; push-access restrictions are not supported in rulesets",
 				"branch", branch,
-				"apps", appSlugs(protection.Restrictions.Apps))
+				"apps", GetObjectNames(protection.Restrictions.Apps))
 		}
 	}
 
@@ -168,34 +168,4 @@ func ConvertBranchProtectionToRuleset(branch string, protection *github.Protecti
 	}
 
 	return ruleset
-}
-
-func userLogins(users []*github.User) []string {
-	logins := make([]string, 0, len(users))
-	for _, u := range users {
-		if u.Login != nil {
-			logins = append(logins, *u.Login)
-		}
-	}
-	return logins
-}
-
-func teamSlugs(teams []*github.Team) []string {
-	slugs := make([]string, 0, len(teams))
-	for _, t := range teams {
-		if t.Slug != nil {
-			slugs = append(slugs, *t.Slug)
-		}
-	}
-	return slugs
-}
-
-func appSlugs(apps []*github.App) []string {
-	slugs := make([]string, 0, len(apps))
-	for _, a := range apps {
-		if a.Slug != nil {
-			slugs = append(slugs, *a.Slug)
-		}
-	}
-	return slugs
 }

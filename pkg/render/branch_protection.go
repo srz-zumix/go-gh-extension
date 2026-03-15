@@ -82,7 +82,7 @@ func (r *Renderer) RenderBranchProtection(branch string, protection *github.Prot
 		table.Append([]string{"Required Signatures", ToString(protection.RequiredSignatures.Enabled)})
 	}
 
-	table.Render()
+	_ = table.Render()
 
 	// RequiredStatusChecks
 	if protection.RequiredStatusChecks != nil {
@@ -102,7 +102,7 @@ func (r *Renderer) RenderBranchProtection(branch string, protection *github.Prot
 				scTable.Append([]string{ctx, "", ToString(protection.RequiredStatusChecks.Strict)})
 			}
 		}
-		scTable.Render()
+		_ =scTable.Render()
 	}
 
 	// RequiredPullRequestReviews
@@ -115,7 +115,7 @@ func (r *Renderer) RenderBranchProtection(branch string, protection *github.Prot
 		prTable.Append([]string{"Dismiss Stale Reviews", ToString(pr.DismissStaleReviews)})
 		prTable.Append([]string{"Require Code Owner Reviews", ToString(pr.RequireCodeOwnerReviews)})
 		prTable.Append([]string{"Require Last Push Approval", ToString(pr.RequireLastPushApproval)})
-		prTable.Render()
+		_ = prTable.Render()
 	}
 
 	// Restrictions
@@ -135,6 +135,6 @@ func (r *Renderer) RenderBranchProtection(branch string, protection *github.Prot
 		if len(protection.Restrictions.Users) == 0 && len(protection.Restrictions.Teams) == 0 && len(protection.Restrictions.Apps) == 0 {
 			restrTable.Append([]string{"(none)", ""})
 		}
-		restrTable.Render()
+		_ = restrTable.Render()
 	}
 }
