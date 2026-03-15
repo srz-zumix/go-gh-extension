@@ -66,15 +66,14 @@ func (u *repositoryRulesetFieldGetters) GetField(ruleset *github.RepositoryRules
 }
 
 // RenderRepositoryRulesets renders repository rulesets in a table format with specified headers
-func (r *Renderer) RenderRepositoryRulesets(rulesets []*github.RepositoryRuleset, headers []string) {
+func (r *Renderer) RenderRepositoryRulesets(rulesets []*github.RepositoryRuleset, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(rulesets)
-		return
+		return r.RenderExportedData(rulesets)
 	}
 
 	if len(rulesets) == 0 {
 		r.writeLine("No repository rulesets.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -82,7 +81,7 @@ func (r *Renderer) RenderRepositoryRulesets(rulesets []*github.RepositoryRuleset
 	}
 
 	getter := NewRepositoryRulesetFieldGetters()
-	table := r.newTableWriter(headers)
+	table := newStickyTable(r.newTableWriter(headers))
 
 	for _, ruleset := range rulesets {
 		row := make([]string, len(headers))
@@ -92,54 +91,55 @@ func (r *Renderer) RenderRepositoryRulesets(rulesets []*github.RepositoryRuleset
 		table.Append(row)
 	}
 
-	table.Render()
+	return table.Render()
 }
 
 // RenderRepositoryRulesetsDefault renders repository rulesets with default headers
-func (r *Renderer) RenderRepositoryRulesetsDefault(rulesets []*github.RepositoryRuleset) {
-	r.RenderRepositoryRulesets(rulesets, nil)
+func (r *Renderer) RenderRepositoryRulesetsDefault(rulesets []*github.RepositoryRuleset) error {
+	return r.RenderRepositoryRulesets(rulesets, nil)
 }
 
 // RenderRepositoryRulesetDetail renders detailed information about a single repository ruleset
-func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, showConditionsAndRules bool) {
+func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, showConditionsAndRules bool) error {
 	if r.exporter != nil {
-		r.RenderExportedData(ruleset)
-		return
+		return r.RenderExportedData(ruleset)
 	}
 	{
 		headers := []string{"ID", "NAME", "TARGET", "ENFORCEMENT", "SOURCE_TYPE", "SOURCE", "CURRENTUSER_CAN_BYPASS", "NODE_ID", "CREATED_AT", "UPDATED_AT"}
 		getter := NewRepositoryRulesetFieldGetters()
-		table := r.newTableWriter([]string{"FIELD", "VALUE"})
+		table := newStickyTable(r.newTableWriter([]string{"FIELD", "VALUE"}))
 
 		for _, header := range headers {
-			row := []string{header, getter.GetField(ruleset, header)}
-			table.Append(row)
+			table.Append([]string{header, getter.GetField(ruleset, header)})
 		}
 
-		table.Render()
+		if err := table.Render(); err != nil {
+			return err
+		}
 	}
 
 	if !showConditionsAndRules {
-		return
+		return nil
 	}
 
 	{
 		r.writeLine("Bypass Actors:")
-		table := r.newTableWriter([]string{"ACTOR_ID", "ACTOR_TYPE", "BYPASS_MODE"})
+		table := newStickyTable(r.newTableWriter([]string{"ACTOR_ID", "ACTOR_TYPE", "BYPASS_MODE"}))
 		for _, actor := range ruleset.BypassActors {
-			row := []string{
+			table.Append([]string{
 				ToString(actor.ActorID),
 				ToString((*string)(actor.ActorType)),
 				ToString((*string)(actor.BypassMode)),
-			}
-			table.Append(row)
+			})
 		}
-		table.Render()
+		if err := table.Render(); err != nil {
+			return err
+		}
 	}
 
 	if ruleset.Conditions != nil {
 		r.writeLine("Targets:")
-		table := r.newTableWriter([]string{"CONDITION", "FIELD", "VALUE"})
+		table := newStickyTable(r.newTableWriter([]string{"CONDITION", "FIELD", "VALUE"}))
 
 		if ruleset.Conditions.RefName != nil {
 			condition := "Ref Name"
@@ -191,18 +191,20 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 			table.Append([]string{condition, "Include", strings.Join(ruleset.Conditions.OrganizationName.Include, ", ")})
 			table.Append([]string{condition, "Exclude", strings.Join(ruleset.Conditions.OrganizationName.Exclude, ", ")})
 		}
-		table.Render()
+		if err := table.Render(); err != nil {
+			return err
+		}
 	}
 
 	if ruleset.Rules == nil {
-		return
+		return nil
 	}
 
 	rules := ruleset.Rules
 
 	{
 		r.writeLine("Rules:")
-		table := r.newTableWriter([]string{"FIELD", "VALUE"})
+		table := newStickyTable(r.newTableWriter([]string{"FIELD", "VALUE"}))
 		table.Append([]string{"Restrict creations", ToString(rules.Creation)})
 		if rules.Update != nil {
 			table.Append([]string{"Restrict updates", "ENABLED"})
@@ -253,50 +255,50 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 				table.Append([]string{"  - " + tools.Tool, fmt.Sprintf("AlertsThreshold: %s, SecurityAlertsThreshold: %s", tools.AlertsThreshold, tools.SecurityAlertsThreshold)})
 			}
 		}
-
-		table.Render()
+		if err := table.Render(); err != nil {
+			return err
+		}
 	}
 
 	{
 		r.writeLine("Restrict commit metadata:")
-		table := r.newTableWriter([]string{"TYPE", "NAME", "NEGATE", "OPERATOR", "PATTERN"})
+		table := newStickyTable(r.newTableWriter([]string{"TYPE", "NAME", "NEGATE", "OPERATOR", "PATTERN"}))
 		if rules.CommitMessagePattern != nil {
-			row := []string{"Commit Message Pattern"}
-			row = append(row, rowRepositoryRulesetPatternRuleParameters(rules.CommitMessagePattern)...)
+			row := append([]string{"Commit Message Pattern"}, rowRepositoryRulesetPatternRuleParameters(rules.CommitMessagePattern)...)
 			table.Append(row)
 		}
 		if rules.CommitAuthorEmailPattern != nil {
-			row := []string{"Commit Author Email Pattern"}
-			row = append(row, rowRepositoryRulesetPatternRuleParameters(rules.CommitAuthorEmailPattern)...)
+			row := append([]string{"Commit Author Email Pattern"}, rowRepositoryRulesetPatternRuleParameters(rules.CommitAuthorEmailPattern)...)
 			table.Append(row)
 		}
 		if rules.CommitterEmailPattern != nil {
-			row := []string{"Committer Email Pattern"}
-			row = append(row, rowRepositoryRulesetPatternRuleParameters(rules.CommitterEmailPattern)...)
+			row := append([]string{"Committer Email Pattern"}, rowRepositoryRulesetPatternRuleParameters(rules.CommitterEmailPattern)...)
 			table.Append(row)
 		}
-		table.Render()
+		if err := table.Render(); err != nil {
+			return err
+		}
 	}
 
 	{
 		r.writeLine("Restrict branch and tag names:")
-		table := r.newTableWriter([]string{"TYPE", "NAME", "NEGATE", "OPERATOR", "PATTERN"})
+		table := newStickyTable(r.newTableWriter([]string{"TYPE", "NAME", "NEGATE", "OPERATOR", "PATTERN"}))
 		if rules.BranchNamePattern != nil {
-			row := []string{"Branch Name Pattern"}
-			row = append(row, rowRepositoryRulesetPatternRuleParameters(rules.BranchNamePattern)...)
+			row := append([]string{"Branch Name Pattern"}, rowRepositoryRulesetPatternRuleParameters(rules.BranchNamePattern)...)
 			table.Append(row)
 		}
 		if rules.TagNamePattern != nil {
-			row := []string{"Tag Name Pattern"}
-			row = append(row, rowRepositoryRulesetPatternRuleParameters(rules.TagNamePattern)...)
+			row := append([]string{"Tag Name Pattern"}, rowRepositoryRulesetPatternRuleParameters(rules.TagNamePattern)...)
 			table.Append(row)
 		}
-		table.Render()
+		if err := table.Render(); err != nil {
+			return err
+		}
 	}
 
 	if *ruleset.Target == github.RulesetTargetPush {
 		r.writeLine("Push rules:")
-		table := r.newTableWriter([]string{"NAME", "VALUE"})
+		table := newStickyTable(r.newTableWriter([]string{"NAME", "VALUE"}))
 		if rules.FilePathRestriction != nil {
 			table.Append([]string{"Maximum file changes", strings.Join(rules.FilePathRestriction.RestrictedFilePaths, ", ")})
 		}
@@ -309,9 +311,11 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 		if rules.MaxFileSize != nil {
 			table.Append([]string{"Maximum file size (in bytes)", ToString(rules.MaxFileSize.MaxFileSize)})
 		}
-
-		table.Render()
+		if err := table.Render(); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func rowRepositoryRulesetPatternRuleParameters(pattern *github.PatternRuleParameters) []string {

@@ -347,6 +347,33 @@ func (r *Renderer) newTableWriter(header []string) *tablewriter.Table {
 	return table
 }
 
+// stickyTableWriter wraps *tablewriter.Table with a sticky error.
+// Once Append returns an error, subsequent Append calls become no-ops.
+// Render returns the first error encountered, or the render error if none.
+// This follows the "errors are values" pattern to eliminate per-call error checks.
+type stickyTableWriter struct {
+	table *tablewriter.Table
+	err   error
+}
+
+func newStickyTable(table *tablewriter.Table) *stickyTableWriter {
+	return &stickyTableWriter{table: table}
+}
+
+func (s *stickyTableWriter) Append(row []string) {
+	if s.err != nil {
+		return
+	}
+	s.err = s.table.Append(row)
+}
+
+func (s *stickyTableWriter) Render() error {
+	if s.err != nil {
+		return s.err
+	}
+	return s.table.Render()
+}
+
 // truncateString truncates a string to the specified length
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
