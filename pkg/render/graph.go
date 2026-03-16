@@ -9,47 +9,40 @@ import (
 )
 
 // RenderGraphEdge renders dependency edges as a Mermaid flowchart
-func (r *Renderer) RenderGraphEdge(format string, edges []gh.GraphEdge) {
+func (r *Renderer) RenderGraphEdge(format string, edges []gh.GraphEdge) error {
 	if r.exporter != nil {
-		r.RenderExportedData(edges)
-		return
+		return r.RenderExportedData(edges)
 	}
 
 	switch strings.ToLower(format) {
 	case "dot":
-		r.RenderDotGraphEdge(edges)
-		return
+		return r.RenderDotGraphEdge(edges)
 	case "drawio":
-		r.RenderDrawioGraphEdge(edges)
-		return
+		return r.RenderDrawioGraphEdge(edges)
 	case "markdown":
-		r.RenderMarkdownGraphEdge(edges)
-		return
+		return r.RenderMarkdownGraphEdge(edges)
 	case "mermaid":
-		r.RenderMermaidGraphEdge(edges)
-		return
+		return r.RenderMermaidGraphEdge(edges)
 	default:
-		r.WriteLine(fmt.Sprintf("Unsupported graph format: %s", format))
-		return
+		return fmt.Errorf("unsupported graph format: %s", format)
 	}
 }
 
 // RenderMarkdownGraphEdge renders dependency edges in a simple Markdown format
-func (r *Renderer) RenderMarkdownGraphEdge(edges []gh.GraphEdge) {
+func (r *Renderer) RenderMarkdownGraphEdge(edges []gh.GraphEdge) error {
 	if r.exporter != nil {
-		r.RenderExportedData(edges)
-		return
+		return r.RenderExportedData(edges)
 	}
 	r.WriteLine("```mermaid")
-	r.RenderMermaidGraphEdge(edges)
+	err := r.RenderMermaidGraphEdge(edges)
 	r.WriteLine("```")
+	return err
 }
 
 // RenderMermaidGraphEdge renders dependency edges as a Mermaid flowchart
-func (r *Renderer) RenderMermaidGraphEdge(edges []gh.GraphEdge) {
+func (r *Renderer) RenderMermaidGraphEdge(edges []gh.GraphEdge) error {
 	if r.exporter != nil {
-		r.RenderExportedData(edges)
-		return
+		return r.RenderExportedData(edges)
 	}
 
 	r.writeLine("graph LR")
@@ -69,13 +62,13 @@ func (r *Renderer) RenderMermaidGraphEdge(edges []gh.GraphEdge) {
 			targetID, to,
 		))
 	}
+	return nil
 }
 
 // RenderDotGraphEdge renders dependency edges as a Graphviz DOT digraph
-func (r *Renderer) RenderDotGraphEdge(edges []gh.GraphEdge) {
+func (r *Renderer) RenderDotGraphEdge(edges []gh.GraphEdge) error {
 	if r.exporter != nil {
-		r.RenderExportedData(edges)
-		return
+		return r.RenderExportedData(edges)
 	}
 
 	r.writeLine("digraph {")
@@ -94,6 +87,7 @@ func (r *Renderer) RenderDotGraphEdge(edges []gh.GraphEdge) {
 		))
 	}
 	r.writeLine("}")
+	return nil
 }
 
 // mermaidNodeID creates a collision-free Mermaid node identifier from a string.
@@ -113,10 +107,9 @@ func mermaidNodeID(name string) string {
 }
 
 // RenderDrawioGraphEdge renders dependency edges as a draw.io XML document
-func (r *Renderer) RenderDrawioGraphEdge(edges []gh.GraphEdge) {
+func (r *Renderer) RenderDrawioGraphEdge(edges []gh.GraphEdge) error {
 	if r.exporter != nil {
-		r.RenderExportedData(edges)
-		return
+		return r.RenderExportedData(edges)
 	}
 
 	nodeURLs := make(map[string]string)
@@ -144,7 +137,7 @@ func (r *Renderer) RenderDrawioGraphEdge(edges []gh.GraphEdge) {
 			}
 		}
 	}
-	r.writeDrawioGraph(dedupEdges, nodeURLs, nil)
+	return r.writeDrawioGraph(dedupEdges, nodeURLs, nil)
 }
 
 // writeDrawioGraph writes a draw.io (mxGraph) XML document from directed edges.
@@ -155,7 +148,7 @@ func (r *Renderer) RenderDrawioGraphEdge(edges []gh.GraphEdge) {
 // the node is rendered without a link.
 // nodeColors maps node labels to border color hex strings (e.g. "#FF9800").
 // If nil or a key is missing, the default border style is used.
-func (r *Renderer) writeDrawioGraph(edges [][2]string, nodeURLs map[string]string, nodeColors map[string]string) {
+func (r *Renderer) writeDrawioGraph(edges [][2]string, nodeURLs map[string]string, nodeColors map[string]string) error {
 	// Collect unique nodes preserving insertion order
 	nodeIndex := make(map[string]int)
 	var nodes []string
@@ -431,6 +424,8 @@ func (r *Renderer) writeDrawioGraph(edges [][2]string, nodeURLs map[string]strin
 	r.writeLine(`    </mxGraphModel>`)
 	r.writeLine(`  </diagram>`)
 	r.writeLine(`</mxfile>`)
+
+	return nil
 }
 
 // dotQuote returns a DOT-safe quoted string by escaping backslashes and double quotes.
