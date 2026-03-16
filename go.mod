@@ -5,6 +5,7 @@ go 1.25.4
 require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.17.0
 	github.com/cli/go-gh/v2 v2.13.0
+	github.com/cli/shurcooL-graphql v0.0.4
 	github.com/ddddddO/gtree v1.13.3
 	github.com/fatih/color v1.18.0
 	github.com/google/go-github/v79 v79.0.0
@@ -36,7 +37,6 @@ require (
 	github.com/charmbracelet/x/exp/strings v0.0.0-20250630141444-821143405392 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cli/browser v1.3.0 // indirect
-	github.com/cli/shurcooL-graphql v0.0.4 // indirect
 	github.com/clipperhouse/displaywidth v0.6.2 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect

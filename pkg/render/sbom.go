@@ -54,13 +54,12 @@ func (g *SBOMPackageFieldGetters) GetField(pkg *github.RepoDependencies, field s
 	return ""
 }
 
-func (r *Renderer) RenderRepositoryDependencies(deps []*github.RepoDependencies, headers []string) {
+func (r *Renderer) RenderRepositoryDependencies(deps []*github.RepoDependencies, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(deps)
-		return
+		return r.RenderExportedData(deps)
 	}
 	if deps == nil {
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -75,34 +74,28 @@ func (r *Renderer) RenderRepositoryDependencies(deps []*github.RepoDependencies,
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }
 
 // RenderSBOMPackages renders SBOM packages with custom headers
-func (r *Renderer) RenderSBOMPackages(sbom *github.SBOM, headers []string) {
+func (r *Renderer) RenderSBOMPackages(sbom *github.SBOM, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(sbom)
-		return
+		return r.RenderExportedData(sbom)
 	}
 	if sbom == nil {
-		return
+		return nil
 	}
-	r.RenderRepositoryDependencies(sbom.SBOM.Packages, headers)
+	return r.RenderRepositoryDependencies(sbom.SBOM.Packages, headers)
 }
 
-// RenderSBOMPackagesDefault renders SBOM packages with default headers
-func (r *Renderer) RenderSBOMPackagesDefault(sbom *github.SBOM) {
-	r.RenderSBOMPackages(sbom, nil)
-}
-
-func (r *Renderer) RenderSBOMPackagesVersionList(sbom *github.SBOM) {
+// RenderSBOMPackagesVersionList renders SBOM packages with version list
+func (r *Renderer) RenderSBOMPackagesVersionList(sbom *github.SBOM) error {
 	if r.exporter != nil {
-		r.RenderExportedData(sbom)
-		return
+		return r.RenderExportedData(sbom)
 	}
 
 	if sbom == nil {
-		return
+		return nil
 	}
 	packages := []string{}
 	for _, pkg := range sbom.SBOM.Packages {
@@ -110,6 +103,7 @@ func (r *Renderer) RenderSBOMPackagesVersionList(sbom *github.SBOM) {
 		packages = append(packages, fmt.Sprintf("%s@%s", names[1], *pkg.VersionInfo))
 	}
 	r.writeLine(strings.Join(packages, "\n"))
+	return nil
 }
 
 type SBOMInfoFieldGetter func(pkg *github.SBOMInfo) string
@@ -142,14 +136,13 @@ func (g *SBOMInfoFieldGetters) GetField(info *github.SBOMInfo, field string) str
 	return ""
 }
 
-func (r *Renderer) RenderSBOMInfo(sbomInfo *github.SBOMInfo, headers []string) {
+func (r *Renderer) RenderSBOMInfo(sbomInfo *github.SBOMInfo, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(sbomInfo)
-		return
+		return r.RenderExportedData(sbomInfo)
 	}
 
 	if sbomInfo == nil {
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -162,21 +155,24 @@ func (r *Renderer) RenderSBOMInfo(sbomInfo *github.SBOMInfo, headers []string) {
 		row[i] = getter.GetField(sbomInfo, header)
 	}
 	table.Append(row)
-	table.Render()
+	return table.Render()
 }
 
 // RenderMultipleSBOMPackages renders packages from multiple SBOMs, displaying each SBOM's name followed by its packages
-func (r *Renderer) RenderMultipleSBOMPackages(sboms []*github.SBOM, headers []string) {
+func (r *Renderer) RenderMultipleSBOMPackages(sboms []*github.SBOM, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(sboms)
-		return
+		return r.RenderExportedData(sboms)
 	}
+	var err error
 	for _, sbom := range sboms {
 		if sbom == nil || sbom.SBOM == nil {
 			// skip SBOM entries that do not contain valid SBOM metadata
 			continue
 		}
 		r.writeLine(ToString(sbom.SBOM.Name))
-		r.RenderSBOMPackages(sbom, headers)
+		if renderErr := r.RenderSBOMPackages(sbom, headers); renderErr != nil {
+			err = renderErr
+		}
 	}
+	return err
 }

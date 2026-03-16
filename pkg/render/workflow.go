@@ -133,41 +133,34 @@ func (r *Renderer) RenderWorkflowDependencies(deps []parser.WorkflowDependency, 
 }
 
 // RenderWorkflowDependenciesWithFormat renders workflow dependencies in the specified format
-func (r *Renderer) RenderWorkflowDependenciesWithFormat(format string, deps []parser.WorkflowDependency, headers []string) {
+func (r *Renderer) RenderWorkflowDependenciesWithFormat(format string, deps []parser.WorkflowDependency, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(deps)
-		return
+		return r.RenderExportedData(deps)
 	}
 
 	if format == "" {
 		r.RenderWorkflowDependencies(deps, headers)
-		return
+		return nil
 	}
 
 	switch strings.ToLower(format) {
 	case "dot":
-		r.RenderDotWorkflowDependencies(deps)
-		return
+		return r.RenderDotWorkflowDependencies(deps)
 	case "drawio":
-		r.RenderDrawioWorkflowDependencies(deps)
-		return
+		return r.RenderDrawioWorkflowDependencies(deps)
 	case "markdown":
-		r.RenderMarkdownWorkflowDependencies(deps)
-		return
+		return r.RenderMarkdownWorkflowDependencies(deps)
 	case "mermaid":
-		r.RenderMermaidWorkflowDependencies(deps)
-		return
+		return r.RenderMermaidWorkflowDependencies(deps)
 	default:
-		r.writeLine(fmt.Sprintf("Unsupported format: %s", format))
-		return
+		return fmt.Errorf("unsupported format: %s", format)
 	}
 }
 
 // RenderDotWorkflowDependencies renders workflow dependencies as a Graphviz DOT digraph
-func (r *Renderer) RenderDotWorkflowDependencies(deps []parser.WorkflowDependency) {
+func (r *Renderer) RenderDotWorkflowDependencies(deps []parser.WorkflowDependency) error {
 	if r.exporter != nil {
-		r.RenderExportedData(deps)
-		return
+		return r.RenderExportedData(deps)
 	}
 
 	r.writeLine("digraph {")
@@ -202,13 +195,13 @@ func (r *Renderer) RenderDotWorkflowDependencies(deps []parser.WorkflowDependenc
 		}
 	}
 	r.writeLine("}")
+	return nil
 }
 
 // RenderDrawioWorkflowDependencies renders workflow dependencies as a draw.io XML document
-func (r *Renderer) RenderDrawioWorkflowDependencies(deps []parser.WorkflowDependency) {
+func (r *Renderer) RenderDrawioWorkflowDependencies(deps []parser.WorkflowDependency) error {
 	if r.exporter != nil {
-		r.RenderExportedData(deps)
-		return
+		return r.RenderExportedData(deps)
 	}
 
 	// Build a set of dep sources for resolving action references
@@ -287,7 +280,7 @@ func (r *Renderer) RenderDrawioWorkflowDependencies(deps []parser.WorkflowDepend
 			}
 		}
 	}
-	r.writeDrawioGraph(edges, nodeURLs, nodeColors)
+	return r.writeDrawioGraph(edges, nodeURLs, nodeColors)
 }
 
 // actionNodeColor returns a draw.io border color hex string based on the action reference type.
@@ -366,21 +359,20 @@ func actionReferenceURL(action parser.ActionReference) string {
 
 // RenderMarkdownWorkflowDependencies renders workflow dependencies in Markdown format
 // with an embedded Mermaid flowchart code block
-func (r *Renderer) RenderMarkdownWorkflowDependencies(deps []parser.WorkflowDependency) {
+func (r *Renderer) RenderMarkdownWorkflowDependencies(deps []parser.WorkflowDependency) error {
 	if r.exporter != nil {
-		r.RenderExportedData(deps)
-		return
+		return r.RenderExportedData(deps)
 	}
 	r.writeLine("```mermaid")
-	r.RenderMermaidWorkflowDependencies(deps)
+	err := r.RenderMermaidWorkflowDependencies(deps)
 	r.writeLine("```")
+	return err
 }
 
 // RenderMermaidWorkflowDependencies renders workflow dependencies as a Mermaid flowchart
-func (r *Renderer) RenderMermaidWorkflowDependencies(deps []parser.WorkflowDependency) {
+func (r *Renderer) RenderMermaidWorkflowDependencies(deps []parser.WorkflowDependency) error {
 	if r.exporter != nil {
-		r.RenderExportedData(deps)
-		return
+		return r.RenderExportedData(deps)
 	}
 
 	r.writeLine("graph LR")
@@ -422,4 +414,5 @@ func (r *Renderer) RenderMermaidWorkflowDependencies(deps []parser.WorkflowDepen
 			))
 		}
 	}
+	return nil
 }

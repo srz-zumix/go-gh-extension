@@ -14,38 +14,38 @@ func getNames(items any) []string {
 	return gh.GetObjectNames(items)
 }
 
-func (r *Renderer) RenderNames(items any) {
+func (r *Renderer) RenderNames(items any) error {
 	names := getNames(items)
 	if r.exporter != nil {
-		r.RenderExportedData(names)
-		return
+		return r.RenderExportedData(names)
 	}
 
 	if names == nil {
-		return
+		return nil
 	}
 
 	r.writeLine(strings.Join(names, "\n"))
+	return nil
 }
 
 // RenderNamesWithSeparator renders the names joined by the specified separator
-func (r *Renderer) RenderNamesWithSeparator(items any, sep string) {
+func (r *Renderer) RenderNamesWithSeparator(items any, sep string) error {
 	names := getNames(items)
 	if r.exporter != nil {
-		r.RenderExportedData(names)
-		return
+		return r.RenderExportedData(names)
 	}
 
 	if names == nil {
-		return
+		return nil
 	}
 
 	r.writeLine(strings.Join(names, sep))
+	return nil
 }
 
 // RenderVersionedNames renders versioned names (name@ref) for ActionReference slices.
 // For other types, falls back to RenderNames.
-func (r *Renderer) RenderVersionedNames(items any) {
+func (r *Renderer) RenderVersionedNames(items any) error {
 	switch v := items.(type) {
 	case []parser.ActionReference:
 		names := make([]string, len(v))
@@ -53,11 +53,11 @@ func (r *Renderer) RenderVersionedNames(items any) {
 			names[i] = ref.VersionedName()
 		}
 		if r.exporter != nil {
-			r.RenderExportedData(names)
-			return
+			return r.RenderExportedData(names)
 		}
 		r.writeLine(strings.Join(names, "\n"))
 	default:
-		r.RenderNames(items)
+		return r.RenderNames(items)
 	}
+	return  nil
 }

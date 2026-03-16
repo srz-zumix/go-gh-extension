@@ -48,13 +48,12 @@ func (g *UnityPackageFieldGetters) Fields() []string {
 
 // RenderUnityPackages renders Unity manifest dependencies as a table.
 // headers specifies which fields to display; defaults to all fields when empty.
-func (r *Renderer) RenderUnityPackages(packages []unity.UnityPackage, headers []string) {
+func (r *Renderer) RenderUnityPackages(packages []unity.UnityPackage, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(packages)
-		return
+		return r.RenderExportedData(packages)
 	}
 	if len(packages) == 0 {
-		return
+		return nil
 	}
 	if len(headers) == 0 {
 		headers = UnityPackageFields
@@ -68,5 +67,5 @@ func (r *Renderer) RenderUnityPackages(packages []unity.UnityPackage, headers []
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }
