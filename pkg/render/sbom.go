@@ -180,7 +180,7 @@ func (r *Renderer) RenderMultipleSBOMPackages(sboms []*github.SBOM, headers []st
 			continue
 		}
 		r.writeLine(ToString(sbom.SBOM.Name))
-		if renderErr := r.RenderSBOMPackages(sbom, headers); renderErr != nil {
+		if renderErr := r.RenderSBOMPackages(sbom, headers); renderErr != nil && err == nil {
 			err = renderErr
 		}
 	}
