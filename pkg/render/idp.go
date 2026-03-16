@@ -164,6 +164,7 @@ func (r *Renderer) RenderExternalGroups(groups []*github.ExternalGroup, headers 
 	return table.Render()
 }
 
+// RenderExternalGroupsDetails renders detailed information for external groups using the provided headers.
 func (r *Renderer) RenderExternalGroupsDetails(groups []*github.ExternalGroup, headers []string) error {
 	if len(headers) == 0 {
 		headers = ExternalGroupFieldList
