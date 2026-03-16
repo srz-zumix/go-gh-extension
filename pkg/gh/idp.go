@@ -63,6 +63,10 @@ func ListExternalGroupsForTeam(ctx context.Context, g *GitHubClient, repo reposi
 	return g.ListExternalGroupsForTeamBySlug(ctx, repo.Owner, teamSlug)
 }
 
+// SearchExternalGroups searches external groups (EMU) in an organization.
+// When teamSlug is non-empty, it returns external groups connected to the specified team.
+// When teamSlug is empty, it searches all external groups in the organization matching displayName.
+// displayName and teamSlug are mutually exclusive; specifying both results in an error.
 func SearchExternalGroups(ctx context.Context, g *GitHubClient, repo repository.Repository, displayName, teamSlug string) ([]*github.ExternalGroup, error) {
 	if displayName != "" && teamSlug != "" {
 		return nil, fmt.Errorf("cannot specify both display name and team slug")
