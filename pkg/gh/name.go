@@ -29,6 +29,16 @@ func GetObjectName(item any) string {
 			return ""
 		}
 		return v.GetName()
+	case *github.ExternalGroupMember:
+		if v == nil {
+			return ""
+		}
+		return v.GetMemberLogin()
+	case *github.ExternalGroupTeam:
+		if v == nil {
+			return ""
+		}
+		return v.GetTeamName()
 	case *github.Label:
 		if v == nil {
 			return ""
@@ -120,6 +130,18 @@ func GetObjectNames(items any) []string {
 		}
 		return names
 	case []*github.CustomOrgRoles:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*github.ExternalGroupMember:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*github.ExternalGroupTeam:
 		names := make([]string, len(v))
 		for i, item := range v {
 			names[i] = GetObjectName(item)

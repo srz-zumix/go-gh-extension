@@ -76,7 +76,10 @@ func (r *Renderer) RenderIDPGroupsDefault(groups []*github.IDPGroup) {
 }
 
 // ExternalGroupFieldList is the list of valid field names for external group (EMU) display.
-var ExternalGroupFieldList = []string{"ID", "NAME", "UPDATED_AT"}
+// NOTE: MEMBER_COUNT and MEMBERS are omitted because the list API (ListExternalGroupsInOrganization /
+// ListExternalGroupsForTeam) does not populate the Members field. GetExternalGroup also does not
+// support pagination for members, so these fields cannot be reliably displayed.
+var ExternalGroupFieldList = []string{"ID", "NAME", "UPDATED_AT", "TEAM_COUNT", "TEAMS"}
 
 type externalGroupFieldGetter func(g *github.ExternalGroup) string
 type externalGroupFieldGetters struct {
@@ -96,6 +99,30 @@ func NewExternalGroupFieldGetters() *externalGroupFieldGetters {
 			"UPDATED_AT": func(g *github.ExternalGroup) string {
 				return ToString(g.UpdatedAt)
 			},
+			"TEAM_COUNT": func(g *github.ExternalGroup) string {
+				count := len(g.Teams)
+				return ToString(&count)
+			},
+			// NOTE: MEMBER_COUNT is not supported because GetExternalGroup does not support
+			// pagination for members, so the Members slice may be incomplete.
+			// "MEMBER_COUNT": func(g *github.ExternalGroup) string {
+			// 	count := len(g.Members)
+			// 	return ToString(&count)
+			// },
+			"TEAMS": func(g *github.ExternalGroup) string {
+				teamNames := gh.GetObjectNames(g.Teams)
+				return strings.Join(teamNames, ", ")
+			},
+			// NOTE: MEMBER_COUNT and MEMBERS are not supported because GetExternalGroup does not
+			// support pagination for members, so the Members slice may be incomplete.
+			// "MEMBER_COUNT": func(g *github.ExternalGroup) string {
+			// 	count := len(g.Members)
+			// 	return ToString(&count)
+			// },
+			// "MEMBERS": func(g *github.ExternalGroup) string {
+			// 	memberNames := gh.GetObjectNames(g.Members)
+			// 	return strings.Join(memberNames, ", ")
+			// },
 		},
 	}
 }
@@ -109,19 +136,18 @@ func (u *externalGroupFieldGetters) GetField(g *github.ExternalGroup, field stri
 }
 
 // RenderExternalGroups renders a list of external groups (EMU) as a table with the given headers.
-func (r *Renderer) RenderExternalGroups(groups []*github.ExternalGroup, headers []string) {
+func (r *Renderer) RenderExternalGroups(groups []*github.ExternalGroup, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(groups)
-		return
+		return r.RenderExportedData(groups)
 	}
 
 	if len(groups) == 0 {
 		r.writeLine("No external groups.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
-		headers = []string{"ID", "NAME"}
+		headers = []string{"ID", "NAME", "TEAM_COUNT"}
 	}
 
 	getter := NewExternalGroupFieldGetters()
@@ -135,7 +161,14 @@ func (r *Renderer) RenderExternalGroups(groups []*github.ExternalGroup, headers 
 		table.Append(row)
 	}
 
-	table.Render()
+	return table.Render()
+}
+
+func (r *Renderer) RenderExternalGroupsDetails(groups []*github.ExternalGroup, headers []string) error {
+	if len(headers) == 0 {
+		headers = ExternalGroupFieldList
+	}
+	return r.RenderExternalGroups(groups, headers)
 }
 
 // ExternalGroupTeamFieldList is the list of valid field names for external group team display.
@@ -199,7 +232,8 @@ func (r *Renderer) RenderExternalGroupTeams(teams []*github.ExternalGroupTeam, h
 }
 
 // ExternalGroupDetailFieldList is the list of valid field names for a single external group detail.
-var ExternalGroupDetailFieldList = []string{"ID", "NAME", "UPDATED_AT", "TEAM_COUNT", "MEMBER_COUNT"}
+// NOTE: MEMBER_COUNT is omitted because GetExternalGroup does not support pagination for members.
+var ExternalGroupDetailFieldList = []string{"ID", "NAME", "UPDATED_AT", "TEAM_COUNT"}
 
 type externalGroupDetailFieldGetter func(g *github.ExternalGroup) string
 type externalGroupDetailFieldGetters struct {
@@ -223,10 +257,12 @@ func NewExternalGroupDetailFieldGetters() *externalGroupDetailFieldGetters {
 				count := len(g.Teams)
 				return ToString(&count)
 			},
-			"MEMBER_COUNT": func(g *github.ExternalGroup) string {
-				count := len(g.Members)
-				return ToString(&count)
-			},
+			// NOTE: MEMBER_COUNT is not supported because GetExternalGroup does not support
+			// pagination for members, so the Members slice may be incomplete.
+			// "MEMBER_COUNT": func(g *github.ExternalGroup) string {
+			// 	count := len(g.Members)
+			// 	return ToString(&count)
+			// },
 		},
 	}
 }
@@ -240,15 +276,14 @@ func (u *externalGroupDetailFieldGetters) GetField(g *github.ExternalGroup, fiel
 }
 
 // RenderExternalGroup renders a single external group as a table row.
-func (r *Renderer) RenderExternalGroup(group *github.ExternalGroup, headers []string) {
+func (r *Renderer) RenderExternalGroup(group *github.ExternalGroup, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(group)
-		return
+		return r.RenderExportedData(group)
 	}
 
 	if group == nil {
 		r.writeLine("External group not found.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -263,7 +298,7 @@ func (r *Renderer) RenderExternalGroup(group *github.ExternalGroup, headers []st
 		row[i] = getter.GetField(group, header)
 	}
 	table.Append(row)
-	table.Render()
+	return table.Render()
 }
 
 // ExternalGroupTeamDetailFieldList is the list of valid field names for external group team details.
@@ -309,15 +344,14 @@ func (u *externalGroupTeamDetailFieldGetters) GetField(t *gh.ExternalGroupTeamDe
 }
 
 // RenderExternalGroupTeamDetails renders detailed team info from an external group.
-func (r *Renderer) RenderExternalGroupTeamDetails(teams []*gh.ExternalGroupTeamDetail, headers []string) {
+func (r *Renderer) RenderExternalGroupTeamDetails(teams []*gh.ExternalGroupTeamDetail, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(teams)
-		return
+		return r.RenderExportedData(teams)
 	}
 
 	if len(teams) == 0 {
 		r.writeLine("No teams connected to this external group.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -334,5 +368,5 @@ func (r *Renderer) RenderExternalGroupTeamDetails(teams []*gh.ExternalGroupTeamD
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }
