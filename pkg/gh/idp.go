@@ -24,8 +24,25 @@ func CreateOrUpdateIDPGroupConnections(ctx context.Context, g *GitHubClient, rep
 }
 
 // ListExternalGroups lists all external groups available in an organization (EMU).
-func ListExternalGroups(ctx context.Context, g *GitHubClient, repo repository.Repository, displayName string) ([]*github.ExternalGroup, error) {
-	return g.ListExternalGroupsInOrganization(ctx, repo.Owner, displayName)
+func ListExternalGroups(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.ExternalGroup, error) {
+	return g.ListExternalGroupsInOrganization(ctx, repo.Owner, "")
+}
+
+// GetExternalGroupDetails fetches detailed info for each group in the list by calling GetExternalGroup per entry.
+func GetExternalGroupDetails(ctx context.Context, g *GitHubClient, repo repository.Repository, groups []*github.ExternalGroup) ([]*github.ExternalGroup, error) {
+	detailed := make([]*github.ExternalGroup, 0, len(groups))
+	for _, grp := range groups {
+		if grp.GroupID == nil {
+			detailed = append(detailed, grp)
+			continue
+		}
+		d, err := g.GetExternalGroup(ctx, repo.Owner, grp.GetGroupID())
+		if err != nil {
+			return nil, err
+		}
+		detailed = append(detailed, d)
+	}
+	return detailed, nil
 }
 
 // HasExternalGroupsInOrganization returns true if the organization has any external groups (EMU).
@@ -45,6 +62,21 @@ func HasExternalGroupsInOrganization(ctx context.Context, g *GitHubClient, repo 
 func ListExternalGroupsForTeam(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string) ([]*github.ExternalGroup, error) {
 	return g.ListExternalGroupsForTeamBySlug(ctx, repo.Owner, teamSlug)
 }
+
+// SearchExternalGroups searches external groups (EMU) in an organization.
+// When teamSlug is non-empty, it returns external groups connected to the specified team.
+// When teamSlug is empty, it searches all external groups in the organization matching displayName.
+// displayName and teamSlug are mutually exclusive; specifying both results in an error.
+func SearchExternalGroups(ctx context.Context, g *GitHubClient, repo repository.Repository, displayName, teamSlug string) ([]*github.ExternalGroup, error) {
+	if displayName != "" && teamSlug != "" {
+		return nil, fmt.Errorf("cannot specify both display name and team slug")
+	}
+	if teamSlug != "" {
+		return g.ListExternalGroupsForTeamBySlug(ctx, repo.Owner, teamSlug)
+	}
+	return g.ListExternalGroupsInOrganization(ctx, repo.Owner, displayName)
+}
+
 
 // FindExternalGroupByTeamSlug returns the external group connected to a team, or nil if none is connected (EMU).
 // Returns nil, nil on 404 or when no external group is connected.
@@ -71,9 +103,6 @@ func FindExternalGroupByName(ctx context.Context, g *GitHubClient, repo reposito
 	}
 	for _, grp := range groups {
 		if grp.GetGroupName() == groupName {
-			if grp.GroupID != nil {
-				return g.GetExternalGroup(ctx, repo.Owner, grp.GetGroupID())
-			}
 			return grp, nil
 		}
 	}
