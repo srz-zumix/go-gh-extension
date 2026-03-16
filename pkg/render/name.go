@@ -59,5 +59,5 @@ func (r *Renderer) RenderVersionedNames(items any) error {
 	default:
 		return r.RenderNames(items)
 	}
-	return  nil
+	return nil
 }
