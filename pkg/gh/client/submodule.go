@@ -63,13 +63,13 @@ func convertSubmodule(submodule repositorySubmoduleObject, baseURL string) (*Rep
 }
 
 func convertSubmodules(nodes []repositorySubmoduleObject, baseURL string) []RepositorySubmodule {
-	submodules := make([]RepositorySubmodule, len(nodes))
-	for i, node := range nodes {
+	submodules := make([]RepositorySubmodule, 0, len(nodes))
+	for _, node := range nodes {
 		submodule, err := convertSubmodule(node, baseURL)
 		if err != nil {
 			continue
 		}
-		submodules[i] = *submodule
+		submodules = append(submodules, *submodule)
 	}
 	return submodules
 }
