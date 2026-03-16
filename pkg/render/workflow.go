@@ -83,10 +83,10 @@ func (g *WorkflowDependencyFieldGetters) GetField(ref *parser.ActionReference, f
 }
 
 // renderActionReferencesWithGetter renders a list of ActionReferences as a table using the given getter.
-func (r *Renderer) renderActionReferencesWithGetter(refs []parser.ActionReference, headers []string, getter *WorkflowDependencyFieldGetters) {
+func (r *Renderer) renderActionReferencesWithGetter(refs []parser.ActionReference, headers []string, getter *WorkflowDependencyFieldGetters) error {
 	if len(refs) == 0 {
 		r.writeLine("No action references.")
-		return
+		return nil
 	}
 	if len(headers) == 0 {
 		headers = []string{"Name", "Version"}
@@ -100,36 +100,41 @@ func (r *Renderer) renderActionReferencesWithGetter(refs []parser.ActionReferenc
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }
 
 // RenderActionReferences renders a list of ActionReferences as a table
-func (r *Renderer) RenderActionReferences(refs []parser.ActionReference, headers []string) {
+func (r *Renderer) RenderActionReferences(refs []parser.ActionReference, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(refs)
-		return
+		return r.RenderExportedData(refs)
 	}
-	r.renderActionReferencesWithGetter(refs, headers, NewWorkflowDependencyFieldGetters())
+	return r.renderActionReferencesWithGetter(refs, headers, NewWorkflowDependencyFieldGetters())
 }
 
 // RenderWorkflowDependencies renders workflow dependencies grouped by source file
-func (r *Renderer) RenderWorkflowDependencies(deps []parser.WorkflowDependency, headers []string) {
+func (r *Renderer) RenderWorkflowDependencies(deps []parser.WorkflowDependency, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(deps)
-		return
+		return r.RenderExportedData(deps)
 	}
 
 	if len(deps) == 0 {
 		r.writeLine("No workflow dependencies.")
-		return
+		return nil
 	}
 
 	getter := NewWorkflowDependencyFieldGetters()
 
+	var firstErr error
 	for _, dep := range deps {
 		r.writeLine(dep.Source)
-		r.renderActionReferencesWithGetter(dep.Actions, headers, getter)
+		if err := r.renderActionReferencesWithGetter(dep.Actions, headers, getter); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			r.WriteError(err)
+		}
 	}
+	return firstErr
 }
 
 // RenderWorkflowDependenciesWithFormat renders workflow dependencies in the specified format
@@ -139,8 +144,7 @@ func (r *Renderer) RenderWorkflowDependenciesWithFormat(format string, deps []pa
 	}
 
 	if format == "" {
-		r.RenderWorkflowDependencies(deps, headers)
-		return nil
+		return r.RenderWorkflowDependencies(deps, headers)
 	}
 
 	switch strings.ToLower(format) {
