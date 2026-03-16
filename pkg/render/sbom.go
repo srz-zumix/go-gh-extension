@@ -99,8 +99,18 @@ func (r *Renderer) RenderSBOMPackagesVersionList(sbom *github.SBOM) error {
 	}
 	packages := []string{}
 	for _, pkg := range sbom.SBOM.Packages {
-		names := strings.Split(*pkg.Name, ":")
-		packages = append(packages, fmt.Sprintf("%s@%s", names[1], *pkg.VersionInfo))
+		name := ToString(pkg.Name)
+		version := ToString(pkg.VersionInfo)
+		// Skip packages with missing name or version
+		if name == "" || version == "" {
+			continue
+		}
+
+		// Use the part after ":" if present, otherwise fall back to the full name
+		parts := strings.SplitN(name, ":", 2)
+		pkgName := parts[len(parts)-1]
+
+		packages = append(packages, fmt.Sprintf("%s@%s", pkgName, version))
 	}
 	r.writeLine(strings.Join(packages, "\n"))
 	return nil
