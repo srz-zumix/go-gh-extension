@@ -63,6 +63,12 @@ func (r *Renderer) RenderSubmodules(submodules []client.RepositorySubmodule, hea
 	if r.exporter != nil {
 		return r.RenderExportedData(submodules)
 	}
+
+	if len(submodules) == 0 {
+		r.writeLine("No submodules.")
+		return nil
+	}
+
 	if len(headers) == 0 {
 		headers = SubmoduleFieldList
 	}
