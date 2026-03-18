@@ -122,6 +122,10 @@ func (r *Renderer) RenderWorkflowDependencies(deps []parser.WorkflowDependency, 
 		return nil
 	}
 
+	if len(headers) == 0 {
+		headers = []string{"Name", "Version"}
+	}
+
 	getter := NewWorkflowDependencyFieldGetters()
 
 	var firstErr error

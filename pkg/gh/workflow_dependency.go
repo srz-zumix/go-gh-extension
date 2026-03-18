@@ -425,6 +425,10 @@ func getLocalActionDependencies(ctx context.Context, g *GitHubClient, repo repos
 func getWorkflowFileDependencies(ctx context.Context, g *GitHubClient, repo repository.Repository, ref *string) ([]parser.WorkflowDependency, error) {
 	_, dirContent, err := g.GetRepositoryContent(ctx, repo.Owner, repo.Name, workflowsDir, ref)
 	if err != nil {
+		// If the workflows directory does not exist, return empty result without error
+		if IsHTTPNotFound(err) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to list workflow directory: %w", err)
 	}
 
