@@ -96,12 +96,18 @@ func ListDeploymentBranchPolicies(ctx context.Context, g *GitHubClient, repo rep
 
 // ListDeploymentCustomBranchPolicies retrieves all custom deployment branch policies for an environment.
 func ListDeploymentCustomBranchPolicies(ctx context.Context, g *GitHubClient, repo repository.Repository, environment *github.Environment) ([]*github.DeploymentBranchPolicy, error) {
+	if environment == nil {
+		return nil, nil
+	}
+
 	if environment.DeploymentBranchPolicy != nil &&
 		environment.DeploymentBranchPolicy.CustomBranchPolicies != nil &&
 		*environment.DeploymentBranchPolicy.CustomBranchPolicies {
-		policies, err := ListDeploymentBranchPolicies(ctx, g, repo, *environment.Name)
+		envName := environment.GetName()
+
+		policies, err := ListDeploymentBranchPolicies(ctx, g, repo, envName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list deployment branch policies for environment %q: %w", *environment.Name, err)
+			return nil, fmt.Errorf("failed to list deployment branch policies for environment %q: %w", envName, err)
 		}
 		return policies, nil
 	}
