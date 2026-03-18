@@ -2,10 +2,53 @@ package gh
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
 )
+
+// CreateUpdateEnvironment creates or updates an environment for a repository.
+func CreateUpdateEnvironment(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, environment *github.CreateUpdateEnvironment) (*github.Environment, error) {
+	return g.CreateUpdateEnvironment(ctx, repo.Owner, repo.Name, name, environment)
+}
+
+// EnvironmentToCreateUpdateRequest builds a CreateUpdateEnvironment request from a GET-response Environment.
+// Wait timer, reviewers, and prevent-self-review are extracted from ProtectionRules.
+func EnvironmentToCreateUpdateRequest(env *github.Environment) *github.CreateUpdateEnvironment {
+	req := &github.CreateUpdateEnvironment{
+		CanAdminsBypass:        env.CanAdminsBypass,
+		DeploymentBranchPolicy: env.DeploymentBranchPolicy,
+		Reviewers:              []*github.EnvReviewers{},
+	}
+	for _, rule := range env.ProtectionRules {
+		if rule.Type == nil {
+			continue
+		}
+		switch *rule.Type {
+		case "wait_timer":
+			req.WaitTimer = rule.WaitTimer
+		case "required_reviewers":
+			req.PreventSelfReview = rule.PreventSelfReview
+			for _, r := range rule.Reviewers {
+				if r.Type == nil {
+					continue
+				}
+				reviewer := &github.EnvReviewers{Type: r.Type}
+				switch v := r.Reviewer.(type) {
+				case *github.User:
+					reviewer.ID = v.ID
+				case *github.Team:
+					reviewer.ID = v.ID
+				}
+				if reviewer.ID != nil {
+					req.Reviewers = append(req.Reviewers, reviewer)
+				}
+			}
+		}
+	}
+	return req
+}
 
 // ListEnvironments retrieves all environments for a repository.
 func ListEnvironments(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Environment, error) {
@@ -41,11 +84,6 @@ func GetEnvironmentID(ctx context.Context, g *GitHubClient, repo repository.Repo
 	}
 }
 
-// // CreateUpdateEnvironment creates or updates an environment.
-// func CreateUpdateEnvironment(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, environment *github.CreateUpdateEnvironment) (*github.Environment, error) {
-// 	return g.CreateUpdateEnvironment(ctx, repo.Owner, repo.Name, name, environment)
-// }
-
 // DeleteEnvironment deletes a specific environment.
 func DeleteEnvironment(ctx context.Context, g *GitHubClient, repo repository.Repository, name string) error {
 	return g.DeleteEnvironment(ctx, repo.Owner, repo.Name, name)
@@ -54,6 +92,20 @@ func DeleteEnvironment(ctx context.Context, g *GitHubClient, repo repository.Rep
 // ListDeploymentBranchPolicies retrieves all deployment branch policies for an environment.
 func ListDeploymentBranchPolicies(ctx context.Context, g *GitHubClient, repo repository.Repository, environment string) ([]*github.DeploymentBranchPolicy, error) {
 	return g.ListDeploymentBranchPolicies(ctx, repo.Owner, repo.Name, environment)
+}
+
+// ListDeploymentCustomBranchPolicies retrieves all custom deployment branch policies for an environment.
+func ListDeploymentCustomBranchPolicies(ctx context.Context, g *GitHubClient, repo repository.Repository, environment *github.Environment) ([]*github.DeploymentBranchPolicy, error) {
+	if environment.DeploymentBranchPolicy != nil &&
+		environment.DeploymentBranchPolicy.CustomBranchPolicies != nil &&
+		*environment.DeploymentBranchPolicy.CustomBranchPolicies {
+		policies, err := ListDeploymentBranchPolicies(ctx, g, repo, *environment.Name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list deployment branch policies for environment %q: %w", *environment.Name, err)
+		}
+		return policies, nil
+	}
+	return nil, nil
 }
 
 // GetDeploymentBranchPolicy retrieves a specific deployment branch policy.
