@@ -17,7 +17,7 @@ import (
 	"strings"
 )
 
-const nugetDefaultHost = "github.com"
+const nugetDefaultHost = DefaultHost
 
 // repositoryElemRe matches the full <repository .../> or <repository ...>...</repository> element
 // in a .nuspec file, including any child content between the tags.
