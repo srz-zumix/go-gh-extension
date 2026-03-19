@@ -20,8 +20,6 @@ var (
 	defaultPerPage = 100
 )
 
-const defaultV4Endpoint = "https://api.github.com/graphql"
-
 func NewClient(client *github.Client) (*GitHubClient, error) {
 	return &GitHubClient{
 		client:  client,
@@ -55,7 +53,7 @@ func (g *GitHubClient) v4EndpointURL() string {
 	if ep := os.Getenv("GITHUB_GRAPHQL_URL"); ep != "" {
 		return ep
 	}
-	return defaultV4Endpoint
+	return DefaultV4Endpoint
 }
 
 func (g *GitHubClient) GetOrCreateGraphQLClient() (*githubv4.Client, error) {

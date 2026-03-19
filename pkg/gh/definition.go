@@ -4,7 +4,14 @@ import (
 	"slices"
 
 	"github.com/google/go-github/v79/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
+
+// defaultHost is an alias for client.DefaultHost for convenience within this package.
+const defaultHost = client.DefaultHost
+
+// defaultV3Endpoint is an alias for client.DefaultV3Endpoint for convenience within this package.
+const defaultV3Endpoint = client.DefaultV3Endpoint
 
 var PermissionsList = []string{
 	"admin",
@@ -34,6 +41,12 @@ var RepoSearchTypeList = []string{
 }
 
 var RepoVisibilityList = []string{
+	"public",
+	"private",
+	"internal",
+}
+
+var PackageVisibilityList = []string{
 	"public",
 	"private",
 	"internal",

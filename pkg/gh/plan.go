@@ -26,7 +26,7 @@ func (o *OrganizationProfile) IsGitHubEnterpriseCloud() bool {
 }
 
 func (o *OrganizationProfile) IsGitHubCom() bool {
-	return o.Host == "" || o.Host == "github.com"
+	return o.Host == "" || o.Host == defaultHost
 }
 
 func (o *OrganizationProfile) IsUser() bool {

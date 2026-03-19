@@ -10,9 +10,6 @@ import (
 
 type GitHubClient = client.GitHubClient
 
-const defaultHost = "github.com"
-const defaultV3Endpoint = "https://api.github.com"
-
 var cachedClients = make(map[string]*GitHubClient)
 
 func RepositoryOption(repo repository.Repository) factory.Option {
