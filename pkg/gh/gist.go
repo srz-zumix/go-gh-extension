@@ -10,6 +10,7 @@ import (
 
 	"github.com/cli/cli/v2/git"
 	"github.com/google/go-github/v79/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
 // ListGists lists all gists for the authenticated user on the given client.
@@ -68,11 +69,9 @@ func gitCmdEnv(g *GitHubClient, rawURL string) []string {
 
 // MigrateGist migrates a gist from src to dst, preserving the full git history
 // via git clone --mirror + git push --mirror.
-// Authentication is performed using bearer tokens obtained from the GitHubClient
-// when available. This requires a token-based auth transport (for example, a
-// personal access token or GITHUB_TOKEN). Transports that do not expose a
-// bearer token, such as some GitHub App authentication flows, are not
-// supported for this migration.
+// Authentication uses bearer tokens obtained from each GitHubClient's transport
+// via GIT_CONFIG_* environment variables. If no token is available the git
+// operations will fail with an authentication error from the remote.
 func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (_ *github.Gist, err error) {
 	// Fetch source gist metadata to get git URL and to set up destination.
 	srcGist, err := src.GetGist(ctx, gistID)
@@ -91,7 +90,7 @@ func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (_ 
 	}
 	defer func() {
 		if removeErr := os.RemoveAll(tmpDir); removeErr != nil {
-			err = errors.Join(err, fmt.Errorf("remove temp dir: %w", removeErr))
+			logger.Warn("failed to remove temp dir", "path", tmpDir, "error", removeErr)
 		}
 	}()
 
