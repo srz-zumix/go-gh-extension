@@ -10,6 +10,9 @@ import (
 	"github.com/google/go-github/v79/github"
 )
 
+// User is an alias for github.User, exposed so callers do not need to import the upstream package directly.
+type User = github.User
+
 func GetLoginUser(ctx context.Context, g *GitHubClient) (*github.User, error) {
 	user, err := g.GetUser(ctx, "")
 	if err != nil {
