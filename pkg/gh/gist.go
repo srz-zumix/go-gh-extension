@@ -51,20 +51,24 @@ func CopyGist(ctx context.Context, src, dst *GitHubClient, gistID string) (*gith
 // MigrateGist migrates a gist from src to dst, preserving the full git history
 // via git clone --mirror + git push --mirror.
 // Tokens are obtained from the clients' bearer token.
-func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (*github.Gist, error) {
+func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (_ *github.Gist, err error) {
 	// Fetch source gist metadata to get git URL and to set up destination.
 	srcGist, err := src.GetGist(ctx, gistID)
 	if err != nil {
 		return nil, fmt.Errorf("get source gist: %w", err)
 	}
 
-	srcURL := src.GitURLWithToken(srcGist.GetGitPullURL())
+	srcURL := srcGist.GetGitPullURL()
 
 	tmpDir, err := os.MkdirTemp("", "gh-my-kit-migrate-*")
 	if err != nil {
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if removeErr := os.RemoveAll(tmpDir); removeErr != nil {
+			err = fmt.Errorf("remove temp dir: %w", removeErr)
+		}
+	}()
 
 	mirrorDir := filepath.Join(tmpDir, "repo.git")
 	cloneClient := &git.Client{Stderr: os.Stderr, Stdout: os.Stderr}
@@ -73,6 +77,7 @@ func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (*g
 		return nil, fmt.Errorf("prepare git clone --mirror: %w", err)
 	}
 	cloneCmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cloneCmd.Env = append(cloneCmd.Env, src.GitAuthEnvs(srcURL)...)
 	if err := cloneCmd.Run(); err != nil {
 		return nil, fmt.Errorf("git clone --mirror: %w", err)
 	}
@@ -102,7 +107,7 @@ func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (*g
 		}
 	}()
 
-	dstURL := dst.GitURLWithToken(dstGist.GetGitPushURL())
+	dstURL := dstGist.GetGitPushURL()
 
 	pushClient := &git.Client{RepoDir: mirrorDir, Stderr: os.Stderr, Stdout: os.Stderr}
 	pushCmd, err := pushClient.Command(ctx, "push", "--mirror", dstURL)
@@ -111,6 +116,7 @@ func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (*g
 		return nil, migrateErr
 	}
 	pushCmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	pushCmd.Env = append(pushCmd.Env, dst.GitAuthEnvs(dstURL)...)
 	if err := pushCmd.Run(); err != nil {
 		migrateErr = fmt.Errorf("git push --mirror: %w", err)
 		return nil, migrateErr
@@ -140,6 +146,7 @@ func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (*g
 			return nil, migrateErr
 		}
 		fixCmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+		fixCmd.Env = append(fixCmd.Env, dst.GitAuthEnvs(dstURL)...)
 		if err := fixCmd.Run(); err != nil {
 			migrateErr = fmt.Errorf("git push HEAD fix: %w", err)
 			return nil, migrateErr

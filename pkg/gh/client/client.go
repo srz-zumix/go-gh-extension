@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -56,19 +57,29 @@ func (g *GitHubClient) GetClient() *github.Client {
 	return g.client
 }
 
-// GitURLWithToken embeds the client's bearer token into rawURL as basic-auth
-// credentials for git over HTTPS. If no token is available, rawURL is returned unchanged.
-func (g *GitHubClient) GitURLWithToken(rawURL string) string {
+// GitAuthEnvs returns GIT_CONFIG_* environment variables that inject an HTTP
+// Authorization header scoped to the host of rawURL. Passing these to a git
+// command's Env keeps the token out of the URL (where it could leak via
+// process listings, proxy logs, or .git/config).
+// The GIT_CONFIG_COUNT/KEY/VALUE mechanism requires git ≥ 2.31.
+func (g *GitHubClient) GitAuthEnvs(rawURL string) []string {
 	token := g.bearerToken()
 	if token == "" || rawURL == "" {
-		return rawURL
+		return nil
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return rawURL
+		return nil
 	}
-	u.User = url.UserPassword("x-access-token", token)
-	return u.String()
+	// Scope the header to the specific host to avoid sending credentials to
+	// unintended servers (e.g., when intermediate redirects occur).
+	configKey := fmt.Sprintf("http.%s://%s/.extraHeader", u.Scheme, u.Host)
+	creds := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
+	return []string{
+		"GIT_CONFIG_COUNT=1",
+		"GIT_CONFIG_KEY_0=" + configKey,
+		"GIT_CONFIG_VALUE_0=Authorization: Basic " + creds,
+	}
 }
 
 // Host returns the GitHub hostname for this client.
