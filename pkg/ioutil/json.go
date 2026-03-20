@@ -11,7 +11,9 @@ import (
 func DecodeJSONFile[T any](input string) (T, error) {
 	var result T
 	var r io.Reader
+	source := input
 	if input == "-" {
+		source = "stdin"
 		r = os.Stdin
 	} else {
 		f, err := os.Open(input)
@@ -22,7 +24,7 @@ func DecodeJSONFile[T any](input string) (T, error) {
 		r = f
 	}
 	if err := json.NewDecoder(r).Decode(&result); err != nil {
-		return result, fmt.Errorf("error parsing JSON input: %w", err)
+		return result, fmt.Errorf("error parsing JSON input from %s: %w", source, err)
 	}
 	return result, nil
 }

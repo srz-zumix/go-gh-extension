@@ -149,7 +149,7 @@ func DetectUserTeams(ctx context.Context, g *GitHubClient, repo repository.Repos
 	return users, nil
 }
 
-func SearchUsers(ctx context.Context, g *GitHubClient, query string) ([]*github.User, error) {
+func SearchUsers(ctx context.Context, g *GitHubClient, query string) ([]*GitHubUser, error) {
 	return g.SearchUser(ctx, query)
 }
 
