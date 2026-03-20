@@ -35,6 +35,12 @@ func newDeployKeyFieldGetters() *deployKeyFieldGetters {
 			"LAST_USED": func(key *github.Key) string {
 				return ToString(key.LastUsed)
 			},
+			"URL": func(key *github.Key) string {
+				return ToString(key.URL)
+			},
+			"KEY": func(key *github.Key) string {
+				return ToString(key.Key)
+			},
 		},
 	}
 }
@@ -48,15 +54,14 @@ func (g *deployKeyFieldGetters) getField(key *github.Key, field string) string {
 }
 
 // RenderDeployKeys renders a table of deploy keys with the specified headers.
-func (r *Renderer) RenderDeployKeys(keys []*github.Key, headers []string) {
+func (r *Renderer) RenderDeployKeys(keys []*github.Key, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(keys)
-		return
+		return r.RenderExportedData(keys)
 	}
 
 	if len(keys) == 0 {
 		r.writeLine("No deploy keys found.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -73,15 +78,14 @@ func (r *Renderer) RenderDeployKeys(keys []*github.Key, headers []string) {
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }
 
 // RenderDeployKey prints the details of a deploy key in a two-column FIELD/VALUE table.
 // fields specifies which fields to display; if empty, all fields are shown.
-func (r *Renderer) RenderDeployKey(key *github.Key, fields []string) {
+func (r *Renderer) RenderDeployKey(key *github.Key, fields []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(key)
-		return
+		return r.RenderExportedData(key)
 	}
 
 	if len(fields) == 0 {
@@ -93,5 +97,5 @@ func (r *Renderer) RenderDeployKey(key *github.Key, fields []string) {
 	for _, field := range fields {
 		table.Append([]string{field, getter.getField(key, field)})
 	}
-	table.Render()
+	return table.Render()
 }
