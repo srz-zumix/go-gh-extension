@@ -1,7 +1,9 @@
 package client
 
 import (
+	"encoding/base64"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"reflect"
@@ -27,9 +29,58 @@ func NewClient(client *github.Client) (*GitHubClient, error) {
 	}, nil
 }
 
+// tokenGetter is implemented by transports that can expose their authentication token.
+type tokenGetter interface {
+	Token() string
+}
+
+// bearerToken returns the access token configured in this client's transport.
+// It unwraps getOnlyRoundTripper if present and uses a type assertion to read the token.
+// Returns an empty string if no token is available.
+func (g *GitHubClient) bearerToken() string {
+	tr := g.client.Client().Transport
+	// Unwrap getOnlyRoundTripper since it delegates to the inner transport
+	type unwrapper interface {
+		Unwrap() http.RoundTripper
+	}
+	if u, ok := tr.(unwrapper); ok {
+		tr = u.Unwrap()
+	}
+	if tg, ok := tr.(tokenGetter); ok {
+		return tg.Token()
+	}
+	return ""
+}
+
 // GetClient returns the underlying GitHub client
 func (g *GitHubClient) GetClient() *github.Client {
 	return g.client
+}
+
+// GitAuthEnvs returns GIT_CONFIG_* environment variables that inject an HTTP
+// Authorization header scoped to the host of rawURL. Passing these to a git
+// command's Env avoids embedding the token in the URL and prevents it from
+// being written to .git/config or shell history, though environment variables
+// may still be observable depending on the operating system and configuration.
+// The GIT_CONFIG_COUNT/KEY/VALUE mechanism requires git ≥ 2.31.
+func (g *GitHubClient) GitAuthEnvs(rawURL string) []string {
+	token := g.bearerToken()
+	if token == "" || rawURL == "" {
+		return nil
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil
+	}
+	// Scope the header to the specific host to avoid sending credentials to
+	// unintended servers (e.g., when intermediate redirects occur).
+	configKey := fmt.Sprintf("http.%s://%s/.extraHeader", u.Scheme, u.Host)
+	creds := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
+	return []string{
+		"GIT_CONFIG_COUNT=1",
+		"GIT_CONFIG_KEY_0=" + configKey,
+		"GIT_CONFIG_VALUE_0=Authorization: Basic " + creds,
+	}
 }
 
 // Host returns the GitHub hostname for this client.

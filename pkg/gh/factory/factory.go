@@ -274,6 +274,11 @@ func (rt roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	return rt.transport.RoundTrip(r)
 }
 
+// Token returns the access token used by this transport.
+func (rt roundTripper) Token() string {
+	return rt.accessToken
+}
+
 type getOnlyRoundTripper struct {
 	transport http.RoundTripper
 }
@@ -283,6 +288,11 @@ func (rt *getOnlyRoundTripper) RoundTrip(r *http.Request) (*http.Response, error
 		return nil, fmt.Errorf("only GET and HEAD methods are allowed, got %s", r.Method)
 	}
 	return rt.transport.RoundTrip(r)
+}
+
+// Unwrap returns the underlying transport, allowing callers to inspect it.
+func (rt *getOnlyRoundTripper) Unwrap() http.RoundTripper {
+	return rt.transport
 }
 
 func newHTTPClientUsingGitHubApp(c *Config, ep string) (*http.Client, error) {
