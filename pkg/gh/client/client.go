@@ -59,8 +59,9 @@ func (g *GitHubClient) GetClient() *github.Client {
 
 // GitAuthEnvs returns GIT_CONFIG_* environment variables that inject an HTTP
 // Authorization header scoped to the host of rawURL. Passing these to a git
-// command's Env keeps the token out of the URL (where it could leak via
-// process listings, proxy logs, or .git/config).
+// command's Env avoids embedding the token in the URL and prevents it from
+// being written to .git/config or shell history, though environment variables
+// may still be observable depending on the operating system and configuration.
 // The GIT_CONFIG_COUNT/KEY/VALUE mechanism requires git ≥ 2.31.
 func (g *GitHubClient) GitAuthEnvs(rawURL string) []string {
 	token := g.bearerToken()
