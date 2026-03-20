@@ -29,7 +29,7 @@ func FindUserByID(ctx context.Context, g *GitHubClient, id int64) (*GitHubUser, 
 	return g.GetUserByID(ctx, id)
 }
 
-func GetUsser(ctx context.Context, g *GitHubClient, username string) *GitHubUser {
+func GetUser(ctx context.Context, g *GitHubClient, username string) *GitHubUser {
 	user, err := FindUser(ctx, g, username)
 	if err != nil {
 		return &github.User{
