@@ -53,11 +53,11 @@ func RemoveOrgMember(ctx context.Context, g *GitHubClient, repo repository.Repos
 	return g.RemoveOrgMember(ctx, repo.Owner, username)
 }
 
-// AddOrgMember adds a member to the specified organization with the given role.
-func AddOrgMember(ctx context.Context, g *GitHubClient, repo repository.Repository, username string, role string) (*github.User, error) {
+// AddOrUpdateOrgMember adds or updates a member in the specified organization with the given role.
+func AddOrUpdateOrgMember(ctx context.Context, g *GitHubClient, repo repository.Repository, username string, role string) (*github.User, error) {
 	membership, err := g.AddOrUpdateOrgMembership(ctx, repo.Owner, username, role)
 	if err != nil {
-		return nil, fmt.Errorf("failed to add '%s' to organization '%s': %w", username, repo.Owner, err)
+		return nil, fmt.Errorf("failed to add or update '%s' in organization '%s': %w", username, repo.Owner, err)
 	}
 	membership.User.RoleName = membership.Role
 	return membership.User, nil
