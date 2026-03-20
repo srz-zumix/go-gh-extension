@@ -81,6 +81,9 @@ func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (_ 
 	}
 
 	srcURL := srcGist.GetGitPullURL()
+	if srcURL == "" {
+		return nil, fmt.Errorf("source gist has no git pull URL")
+	}
 
 	tmpDir, err := os.MkdirTemp("", "gh-my-kit-migrate-*")
 	if err != nil {
