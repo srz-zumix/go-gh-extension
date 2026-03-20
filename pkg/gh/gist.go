@@ -2,6 +2,7 @@ package gh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -70,7 +71,7 @@ func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (_ 
 	}
 	defer func() {
 		if removeErr := os.RemoveAll(tmpDir); removeErr != nil {
-			err = fmt.Errorf("remove temp dir: %w", removeErr)
+			err = errors.Join(err, fmt.Errorf("remove temp dir: %w", removeErr))
 		}
 	}()
 
