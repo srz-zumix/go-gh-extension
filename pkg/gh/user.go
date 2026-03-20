@@ -10,10 +10,10 @@ import (
 	"github.com/google/go-github/v79/github"
 )
 
-// User is an alias for github.User, exposed so callers do not need to import the upstream package directly.
-type User = github.User
+// GitHubUser is an alias for github.User, exposed so callers do not need to import the upstream package directly.
+type GitHubUser = github.User
 
-func GetLoginUser(ctx context.Context, g *GitHubClient) (*github.User, error) {
+func GetLoginUser(ctx context.Context, g *GitHubClient) (*GitHubUser, error) {
 	user, err := g.GetUser(ctx, "")
 	if err != nil {
 		return nil, err
@@ -21,15 +21,15 @@ func GetLoginUser(ctx context.Context, g *GitHubClient) (*github.User, error) {
 	return user, nil
 }
 
-func FindUser(ctx context.Context, g *GitHubClient, username string) (*github.User, error) {
+func FindUser(ctx context.Context, g *GitHubClient, username string) (*GitHubUser, error) {
 	return g.GetUser(ctx, username)
 }
 
-func FindUserByID(ctx context.Context, g *GitHubClient, id int64) (*github.User, error) {
+func FindUserByID(ctx context.Context, g *GitHubClient, id int64) (*GitHubUser, error) {
 	return g.GetUserByID(ctx, id)
 }
 
-func GetUsser(ctx context.Context, g *GitHubClient, username string) *github.User {
+func GetUsser(ctx context.Context, g *GitHubClient, username string) *GitHubUser {
 	user, err := FindUser(ctx, g, username)
 	if err != nil {
 		return &github.User{
@@ -52,7 +52,7 @@ func GetUserHovercard(ctx context.Context, g *GitHubClient, username string, sub
 	return g.GetUserHovercard(ctx, username, subjectType, subjectId)
 }
 
-func UpdateUsers(ctx context.Context, g *GitHubClient, users []*github.User) ([]*github.User, error) {
+func UpdateUsers(ctx context.Context, g *GitHubClient, users []*GitHubUser) ([]*GitHubUser, error) {
 	for _, user := range users {
 		userDetails, err := g.GetUser(ctx, *user.Login)
 		if err != nil {
@@ -72,8 +72,8 @@ func UpdateUsers(ctx context.Context, g *GitHubClient, users []*github.User) ([]
 	return users, nil
 }
 
-func CollectSuspendedUsers(users []*github.User) []*github.User {
-	var suspendedUsers []*github.User
+func CollectSuspendedUsers(users []*GitHubUser) []*GitHubUser {
+	var suspendedUsers []*GitHubUser
 	for _, user := range users {
 		if user.SuspendedAt != nil {
 			suspendedUsers = append(suspendedUsers, user)
@@ -82,8 +82,8 @@ func CollectSuspendedUsers(users []*github.User) []*github.User {
 	return suspendedUsers
 }
 
-func ExcludeSuspendedUsers(users []*github.User) []*github.User {
-	var suspendedUsers []*github.User
+func ExcludeSuspendedUsers(users []*GitHubUser) []*GitHubUser {
+	var suspendedUsers []*GitHubUser
 	for _, user := range users {
 		if user.SuspendedAt == nil {
 			suspendedUsers = append(suspendedUsers, user)
@@ -92,14 +92,14 @@ func ExcludeSuspendedUsers(users []*github.User) []*github.User {
 	return suspendedUsers
 }
 
-func ExcludeOrganizationAdmins(ctx context.Context, g *GitHubClient, repo repository.Repository, users []*github.User) ([]*github.User, error) {
+func ExcludeOrganizationAdmins(ctx context.Context, g *GitHubClient, repo repository.Repository, users []*GitHubUser) ([]*GitHubUser, error) {
 	admins, err := ListOrgMembers(ctx, g, repo, []string{"admin"}, false)
 	if err != nil {
 		return nil, err
 	}
-	var filteredUsers []*github.User
+	var filteredUsers []*GitHubUser
 	for _, user := range users {
-		if slices.ContainsFunc(admins, func(admin *github.User) bool {
+		if slices.ContainsFunc(admins, func(admin *GitHubUser) bool {
 			return *admin.ID == *user.ID
 		}) {
 			continue
@@ -110,8 +110,8 @@ func ExcludeOrganizationAdmins(ctx context.Context, g *GitHubClient, repo reposi
 }
 
 // ExcludeUsers filters out users whose login names match any of the provided excludeUsernames.
-func ExcludeUsers(users []*github.User, excludeUsernames []string) []*github.User {
-	var filteredUsers []*github.User
+func ExcludeUsers(users []*GitHubUser, excludeUsernames []string) []*GitHubUser {
+	var filteredUsers []*GitHubUser
 	for _, user := range users {
 		if !slices.ContainsFunc(excludeUsernames, func(excludeName string) bool {
 			return user.Login != nil && *user.Login == excludeName
@@ -123,7 +123,7 @@ func ExcludeUsers(users []*github.User, excludeUsernames []string) []*github.Use
 }
 
 // DetectUserTeams adds team information to each user (collaborator) for a repository
-func DetectUserTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, users []*github.User) ([]*github.User, error) {
+func DetectUserTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, users []*GitHubUser) ([]*GitHubUser, error) {
 	teams, err := g.ListRepositoryTeams(ctx, repo.Owner, repo.Name)
 	if err != nil {
 		return users, err
@@ -153,7 +153,7 @@ func SearchUsers(ctx context.Context, g *GitHubClient, query string) ([]*github.
 	return g.SearchUser(ctx, query)
 }
 
-func FindUserByEmail(ctx context.Context, g *GitHubClient, email string) (*github.User, error) {
+func FindUserByEmail(ctx context.Context, g *GitHubClient, email string) (*GitHubUser, error) {
 	query := fmt.Sprintf("in:email %s", email)
 	users, err := SearchUsers(ctx, g, query)
 	if err != nil {
@@ -167,6 +167,6 @@ func FindUserByEmail(ctx context.Context, g *GitHubClient, email string) (*githu
 	return nil, nil
 }
 
-func GetUserNames(users []*github.User) []string {
+func GetUserNames(users []*GitHubUser) []string {
 	return GetObjectNames(users)
 }

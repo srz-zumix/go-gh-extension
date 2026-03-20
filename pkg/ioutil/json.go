@@ -18,7 +18,7 @@ func DecodeJSONFile[T any](input string) (T, error) {
 		if err != nil {
 			return result, fmt.Errorf("error opening input %q: %w", input, err)
 		}
-		defer func() { _ = f.Close() }()
+		defer f.Close() // nolint
 		r = f
 	}
 	if err := json.NewDecoder(r).Decode(&result); err != nil {
