@@ -113,6 +113,10 @@ func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (_ 
 	}()
 
 	dstURL := dstGist.GetGitPushURL()
+	if dstURL == "" {
+		migrateErr = fmt.Errorf("destination gist has empty git push URL")
+		return nil, migrateErr
+	}
 
 	pushClient := &git.Client{RepoDir: mirrorDir, Stderr: os.Stderr, Stdout: os.Stderr}
 	pushCmd, err := pushClient.Command(ctx, "push", "--mirror", dstURL)
