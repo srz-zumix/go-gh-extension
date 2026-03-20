@@ -50,7 +50,11 @@ func CopyGist(ctx context.Context, src, dst *GitHubClient, gistID string) (*gith
 
 // MigrateGist migrates a gist from src to dst, preserving the full git history
 // via git clone --mirror + git push --mirror.
-// Tokens are obtained from the clients' bearer token.
+// Authentication is performed using bearer tokens obtained from the GitHubClient
+// when available. This requires a token-based auth transport (for example, a
+// personal access token or GITHUB_TOKEN). Transports that do not expose a
+// bearer token, such as some GitHub App authentication flows, are not
+// supported for this migration.
 func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (_ *github.Gist, err error) {
 	// Fetch source gist metadata to get git URL and to set up destination.
 	srcGist, err := src.GetGist(ctx, gistID)
