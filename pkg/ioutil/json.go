@@ -24,7 +24,7 @@ func DecodeJSONFile[T any](input string) (T, error) {
 		r = f
 	}
 	if err := json.NewDecoder(r).Decode(&result); err != nil {
-		return result, fmt.Errorf("error parsing JSON input from %s: %w", source, err)
+		return result, fmt.Errorf("error parsing JSON input from %q: %w", source, err)
 	}
 	return result, nil
 }
