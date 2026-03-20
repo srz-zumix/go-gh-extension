@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"reflect"
@@ -27,9 +28,47 @@ func NewClient(client *github.Client) (*GitHubClient, error) {
 	}, nil
 }
 
+// tokenGetter is implemented by transports that can expose their authentication token.
+type tokenGetter interface {
+	Token() string
+}
+
+// bearerToken returns the access token configured in this client's transport.
+// It unwraps getOnlyRoundTripper if present and uses a type assertion to read the token.
+// Returns an empty string if no token is available.
+func (g *GitHubClient) bearerToken() string {
+	tr := g.client.Client().Transport
+	// Unwrap getOnlyRoundTripper since it delegates to the inner transport
+	type unwrapper interface {
+		Unwrap() http.RoundTripper
+	}
+	if u, ok := tr.(unwrapper); ok {
+		tr = u.Unwrap()
+	}
+	if tg, ok := tr.(tokenGetter); ok {
+		return tg.Token()
+	}
+	return ""
+}
+
 // GetClient returns the underlying GitHub client
 func (g *GitHubClient) GetClient() *github.Client {
 	return g.client
+}
+
+// GitURLWithToken embeds the client's bearer token into rawURL as basic-auth
+// credentials for git over HTTPS. If no token is available, rawURL is returned unchanged.
+func (g *GitHubClient) GitURLWithToken(rawURL string) string {
+	token := g.bearerToken()
+	if token == "" || rawURL == "" {
+		return rawURL
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	u.User = url.UserPassword("x-access-token", token)
+	return u.String()
 }
 
 // Host returns the GitHub hostname for this client.
