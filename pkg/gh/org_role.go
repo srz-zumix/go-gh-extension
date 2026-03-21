@@ -51,6 +51,9 @@ func GetRoleIDByName(ctx context.Context, g *GitHubClient, repo repository.Repos
 
 	for _, role := range roles {
 		if role.GetName() == roleName {
+			if role.ID == nil {
+				return nil, fmt.Errorf("role '%s' in organization '%s' has nil ID", roleName, repo.Owner)
+			}
 			return role.ID, nil
 		}
 	}
