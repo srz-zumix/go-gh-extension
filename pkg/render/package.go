@@ -181,15 +181,14 @@ func (g *PackageVersionFieldGetters) Fields() []string {
 }
 
 // RenderPackageVersions renders a list of package versions as a table using the given headers.
-func (r *Renderer) RenderPackageVersions(versions []*github.PackageVersion, headers []string) {
+func (r *Renderer) RenderPackageVersions(versions []*github.PackageVersion, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(versions)
-		return
+		return r.RenderExportedData(versions)
 	}
 
 	if len(versions) == 0 {
 		r.writeLine("No package versions.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -206,19 +205,18 @@ func (r *Renderer) RenderPackageVersions(versions []*github.PackageVersion, head
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }
 
 // RenderPackageVersion renders a single package version as a key-value table.
-func (r *Renderer) RenderPackageVersion(v *github.PackageVersion) {
+func (r *Renderer) RenderPackageVersion(v *github.PackageVersion) error {
 	if r.exporter != nil {
-		r.RenderExportedData(v)
-		return
+		return r.RenderExportedData(v)
 	}
 
 	if v == nil {
 		r.writeLine("No package version found.")
-		return
+		return nil
 	}
 
 	table := r.newTableWriter([]string{"FIELD", "VALUE"})
@@ -229,5 +227,5 @@ func (r *Renderer) RenderPackageVersion(v *github.PackageVersion) {
 			table.Append([]string{field, value})
 		}
 	}
-	table.Render()
+	return table.Render()
 }

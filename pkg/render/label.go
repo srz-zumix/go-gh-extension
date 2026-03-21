@@ -63,15 +63,14 @@ func (g *labelFieldGetters) GetField(label *github.Label, field string) string {
 }
 
 // RenderLabels renders a table of labels with the specified headers
-func (r *Renderer) RenderLabels(labels []*github.Label, headers []string) {
+func (r *Renderer) RenderLabels(labels []*github.Label, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(labels)
-		return
+		return r.RenderExportedData(labels)
 	}
 
 	if len(labels) == 0 {
 		r.writeLine("No labels.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -96,10 +95,5 @@ func (r *Renderer) RenderLabels(labels []*github.Label, headers []string) {
 		}
 		table.Append(row)
 	}
-	table.Render()
-}
-
-// RenderLabelsDefault renders labels with default columns
-func (r *Renderer) RenderLabelsDefault(labels []*github.Label) {
-	r.RenderLabels(labels, nil)
+	return table.Render()
 }

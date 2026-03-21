@@ -114,15 +114,14 @@ func (g *checkRunFieldGetters) GetField(checkRun *gh.CheckRun, field string) str
 }
 
 // RenderCheckRuns renders a table of check runs with the specified headers
-func (r *Renderer) RenderCheckRuns(checkRuns []*gh.CheckRun, headers []string) {
+func (r *Renderer) RenderCheckRuns(checkRuns []*gh.CheckRun, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(checkRuns)
-		return
+		return r.RenderExportedData(checkRuns)
 	}
 
 	if len(checkRuns) == 0 {
 		r.writeLine("No check runs.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -142,18 +141,13 @@ func (r *Renderer) RenderCheckRuns(checkRuns []*gh.CheckRun, headers []string) {
 		}
 		table.Append(row)
 	}
-	table.Render()
-}
-
-// RenderCheckRunsDefault renders check runs with default columns
-func (r *Renderer) RenderCheckRunsDefault(checkRuns []*gh.CheckRun) {
-	r.RenderCheckRuns(checkRuns, nil)
+	return table.Render()
 }
 
 // RenderCheckRunsDetails renders check runs with detailed columns
-func (r *Renderer) RenderCheckRunsDetails(checkRuns []*gh.CheckRun) {
+func (r *Renderer) RenderCheckRunsDetails(checkRuns []*gh.CheckRun) error {
 	headers := []string{"_", "WORKFLOW_NAME", "NAME", "STATUS", "RUN_ID", "JOB_ID", "ELAPSED", "DETAILS_URL"}
-	r.RenderCheckRuns(checkRuns, headers)
+	return r.RenderCheckRuns(checkRuns, headers)
 }
 
 // checkSuiteFieldGetter is a function type that extracts a string field from a github.CheckSuite.
@@ -240,15 +234,14 @@ func (g *checkSuiteFieldGetters) GetField(checkSuite *github.CheckSuite, field s
 }
 
 // RenderCheckSuites renders a table of check suites with the specified headers
-func (r *Renderer) RenderCheckSuites(checkSuites []*github.CheckSuite, headers []string) {
+func (r *Renderer) RenderCheckSuites(checkSuites []*github.CheckSuite, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(checkSuites)
-		return
+		return r.RenderExportedData(checkSuites)
 	}
 
 	if len(checkSuites) == 0 {
 		r.writeLine("No check suites.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -268,10 +261,5 @@ func (r *Renderer) RenderCheckSuites(checkSuites []*github.CheckSuite, headers [
 		}
 		table.Append(row)
 	}
-	table.Render()
-}
-
-// RenderCheckSuitesDefault renders check suites with default columns
-func (r *Renderer) RenderCheckSuitesDefault(checkSuites []*github.CheckSuite) {
-	r.RenderCheckSuites(checkSuites, nil)
+	return table.Render()
 }

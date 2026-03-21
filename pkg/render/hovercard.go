@@ -4,10 +4,9 @@ import (
 	"github.com/google/go-github/v79/github"
 )
 
-func (r *Renderer) RenderHovercard(hovercard *github.Hovercard) {
+func (r *Renderer) RenderHovercard(hovercard *github.Hovercard) error {
 	if r.exporter != nil {
-		r.RenderExportedData(hovercard)
-		return
+		return r.RenderExportedData(hovercard)
 	}
 
 	headers := []string{"MESSAGE", "OCTION"}
@@ -19,5 +18,5 @@ func (r *Renderer) RenderHovercard(hovercard *github.Hovercard) {
 		row[1] = ToString(context.Octicon)
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }

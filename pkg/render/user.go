@@ -54,10 +54,9 @@ func (u *userFiledGetters) GetField(user *github.User, field string) string {
 	return ""
 }
 
-func (r *Renderer) RenderUsers(users []*github.User, headers []string) {
+func (r *Renderer) RenderUsers(users []*github.User, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(users)
-		return
+		return r.RenderExportedData(users)
 	}
 
 	if len(headers) == 0 {
@@ -73,15 +72,15 @@ func (r *Renderer) RenderUsers(users []*github.User, headers []string) {
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }
 
-func (r *Renderer) RenderUserWithRole(users []*github.User) {
+func (r *Renderer) RenderUserWithRole(users []*github.User) error {
 	headers := []string{"USERNAME", "ROLE"}
-	r.RenderUsers(users, headers)
+	return r.RenderUsers(users, headers)
 }
 
-func (r *Renderer) RenderUserDetails(users []*github.User) {
+func (r *Renderer) RenderUserDetails(users []*github.User) error {
 	headers := []string{"USERNAME", "ROLE", "EMAIL", "SUSPENDED"}
-	r.RenderUsers(users, headers)
+	return r.RenderUsers(users, headers)
 }

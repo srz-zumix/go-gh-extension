@@ -95,15 +95,14 @@ func (g *RepoWithSecretFieldGetters) GetField(repo *github.Repository, secrets [
 }
 
 // RenderRepository renders a list of repositories as a table using the given headers.
-func (r *Renderer) RenderRepository(repos []*github.Repository, headers []string) {
+func (r *Renderer) RenderRepository(repos []*github.Repository, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(repos)
-		return
+		return r.RenderExportedData(repos)
 	}
 
 	if len(repos) == 0 {
 		r.writeLine("No repositories.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -120,19 +119,18 @@ func (r *Renderer) RenderRepository(repos []*github.Repository, headers []string
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }
 
 // RenderRepositoriesWithSecret renders a table of repositories with their secrets, one row per repository.
-func (r *Renderer) RenderRepositoriesWithSecret(repos []gh.RepoWithSecrets, headers []string) {
+func (r *Renderer) RenderRepositoriesWithSecret(repos []gh.RepoWithSecrets, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(repos)
-		return
+		return r.RenderExportedData(repos)
 	}
 
 	if len(repos) == 0 {
 		r.writeLine("No repositories with secrets found.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -149,25 +147,24 @@ func (r *Renderer) RenderRepositoriesWithSecret(repos []gh.RepoWithSecrets, head
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }
 
 // RenderRepositoriesWithSecretCount renders a table of repositories and their secret counts.
-func (r *Renderer) RenderRepositoriesWithSecretCount(repos []gh.RepoWithSecrets) {
-	r.RenderRepositoriesWithSecret(repos, []string{"REPOSITORY", "COUNT"})
+func (r *Renderer) RenderRepositoriesWithSecretCount(repos []gh.RepoWithSecrets) error {
+	return r.RenderRepositoriesWithSecret(repos, []string{"REPOSITORY", "COUNT"})
 }
 
 // RenderRepositoriesWithScopedSecretCount renders a table of repositories with per-scope secret counts.
 // Each repository may generate multiple rows: one for repository-level secrets and one for each environment.
-func (r *Renderer) RenderRepositoriesWithScopedSecretCount(repos []gh.RepoWithSecrets) {
+func (r *Renderer) RenderRepositoriesWithScopedSecretCount(repos []gh.RepoWithSecrets) error {
 	if r.exporter != nil {
-		r.RenderExportedData(repos)
-		return
+		return r.RenderExportedData(repos)
 	}
 
 	if len(repos) == 0 {
 		r.writeLine("No repositories with secrets found.")
-		return
+		return nil
 	}
 
 	headers := []string{"REPOSITORY", "SCOPE", "COUNT"}
@@ -190,5 +187,5 @@ func (r *Renderer) RenderRepositoriesWithScopedSecretCount(repos []gh.RepoWithSe
 			}
 		}
 	}
-	table.Render()
+	return table.Render()
 }

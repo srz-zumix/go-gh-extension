@@ -25,15 +25,15 @@ func getPermissions(v any) map[string]bool {
 	}
 }
 
-func (r *Renderer) RenderPermission(v any) {
+func (r *Renderer) RenderPermission(v any) error {
 	var permissions = getPermissions(v)
 
 	if r.exporter != nil {
-		r.RenderExportedData(permissions)
-		return
+		return r.RenderExportedData(permissions)
 	}
 
 	r.writeLine(gh.GetPermissionName(permissions))
+	return nil
 }
 
 type nameWithPermissions struct {
@@ -41,18 +41,18 @@ type nameWithPermissions struct {
 	Permissions map[string]bool
 }
 
-func (r *Renderer) RenderPermissions(v any) {
+func (r *Renderer) RenderPermissions(v any) error {
 	switch v := v.(type) {
 	case []*github.Repository:
-		r.RenderRepositoryPermissions(v)
+		return r.RenderRepositoryPermissions(v)
 	case []*gh.RepositoryPermissionLevel:
-		r.RenderRepositoryPermissionLevels(v)
+		return r.RenderRepositoryPermissionLevels(v)
 	default:
-		r.RenderPermission(v)
+		return r.RenderPermission(v)
 	}
 }
 
-func (r *Renderer) RenderRepositoryPermissions(v []*github.Repository) {
+func (r *Renderer) RenderRepositoryPermissions(v []*github.Repository) error {
 	var permissionsList []nameWithPermissions
 	for _, item := range v {
 		var name = getName(item)
@@ -64,8 +64,7 @@ func (r *Renderer) RenderRepositoryPermissions(v []*github.Repository) {
 	}
 
 	if r.exporter != nil {
-		r.RenderExportedData(permissionsList)
-		return
+		return r.RenderExportedData(permissionsList)
 	}
 
 	headers := []string{"NAME", "PERMISSION"}
@@ -79,10 +78,10 @@ func (r *Renderer) RenderRepositoryPermissions(v []*github.Repository) {
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }
 
-func (r *Renderer) RenderRepositoryPermissionLevels(v []*gh.RepositoryPermissionLevel) {
+func (r *Renderer) RenderRepositoryPermissionLevels(v []*gh.RepositoryPermissionLevel) error {
 	var permissionsList []nameWithPermissions
 	for _, item := range v {
 		var name = getName(item)
@@ -94,8 +93,7 @@ func (r *Renderer) RenderRepositoryPermissionLevels(v []*gh.RepositoryPermission
 	}
 
 	if r.exporter != nil {
-		r.RenderExportedData(permissionsList)
-		return
+		return r.RenderExportedData(permissionsList)
 	}
 
 	headers := []string{"NAME", "PERMISSION"}
@@ -109,5 +107,5 @@ func (r *Renderer) RenderRepositoryPermissionLevels(v []*gh.RepositoryPermission
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }

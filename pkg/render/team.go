@@ -57,15 +57,14 @@ func (u *teamFiledGetters) GetField(team *github.Team, field string) string {
 	return ""
 }
 
-func (r *Renderer) RenderTeams(teams []*github.Team, headers []string) {
+func (r *Renderer) RenderTeams(teams []*github.Team, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(teams)
-		return
+		return r.RenderExportedData(teams)
 	}
 
 	if len(teams) == 0 {
 		r.writeLine("No teams.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -93,16 +92,12 @@ func (r *Renderer) RenderTeams(teams []*github.Team, headers []string) {
 		table.Append(row)
 	}
 
-	table.Render()
+	return table.Render()
 }
 
-func (r *Renderer) RenderTeamsDefault(teams []*github.Team) {
-	r.RenderTeams(teams, nil)
-}
-
-func (r *Renderer) RenderTeamsWithPermission(teams []*github.Team) {
+func (r *Renderer) RenderTeamsWithPermission(teams []*github.Team) error {
 	headers := []string{"NAME", "DESCRIPTION", "MEMBER_COUNT", "REPOS_COUNT", "PRIVACY", "PERMISSION", "PARENT_SLUG"}
-	r.RenderTeams(teams, headers)
+	return r.RenderTeams(teams, headers)
 }
 
 type teamCodeReviewFiledGetter func(s *gh.TeamCodeReviewSettings) string
@@ -155,10 +150,13 @@ func (u *teamCodeReviewFiledGetters) GetField(s *gh.TeamCodeReviewSettings, fiel
 	return ""
 }
 
-func (r *Renderer) RenderTeamCodeReviewSettings(codeReviewSettings *gh.TeamCodeReviewSettings, fields []string) {
+func (r *Renderer) RenderTeamCodeReviewSettings(codeReviewSettings *gh.TeamCodeReviewSettings, fields []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(codeReviewSettings)
-		return
+		return r.RenderExportedData(codeReviewSettings)
+	}
+
+	if len(fields) == 0 {
+		fields = []string{"TEAM_SLUG", "AUTO_ASSIGNMENT", "MEMBER_COUNT", "ALGORITHM", "NOTIFY_TEAM"}
 	}
 
 	getter := NewTeamCodeReviewFieldGetters()
@@ -169,11 +167,5 @@ func (r *Renderer) RenderTeamCodeReviewSettings(codeReviewSettings *gh.TeamCodeR
 		table.Append([]string{field, value})
 	}
 
-	table.Render()
+	return table.Render()
 }
-
-func (r *Renderer) RenderTeamCodeReviewSettingsDefault(codeReviewSettings *gh.TeamCodeReviewSettings) {
-	fields := []string{"TEAM_SLUG", "AUTO_ASSIGNMENT", "MEMBER_COUNT", "ALGORITHM", "NOTIFY_TEAM"}
-	r.RenderTeamCodeReviewSettings(codeReviewSettings, fields)
-}
-

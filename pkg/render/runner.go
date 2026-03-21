@@ -53,15 +53,14 @@ func (g *runnerFieldGetters) GetField(runner *github.Runner, field string) strin
 }
 
 // RenderRunners renders a table of runners with the specified headers
-func (r *Renderer) RenderRunners(runners []*github.Runner, headers []string) {
+func (r *Renderer) RenderRunners(runners []*github.Runner, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(runners)
-		return
+		return r.RenderExportedData(runners)
 	}
 
 	if len(runners) == 0 {
 		r.writeLine("No runners.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -78,10 +77,5 @@ func (r *Renderer) RenderRunners(runners []*github.Runner, headers []string) {
 		}
 		table.Append(row)
 	}
-	table.Render()
-}
-
-// RenderRunnersDefault renders runners with default columns
-func (r *Renderer) RenderRunnersDefault(runners []*github.Runner) {
-	r.RenderRunners(runners, nil)
+	return table.Render()
 }

@@ -49,14 +49,13 @@ func (g *mannequinFieldGetters) GetField(m *client.Mannequin, field string) stri
 }
 
 // RenderMannequins renders a list of mannequins as a table with the given headers.
-func (r *Renderer) RenderMannequins(mannequins []client.Mannequin, headers []string) {
+func (r *Renderer) RenderMannequins(mannequins []client.Mannequin, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(mannequins)
-		return
+		return r.RenderExportedData(mannequins)
 	}
 	if len(mannequins) == 0 {
 		r.writeLine("No mannequins.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -73,10 +72,5 @@ func (r *Renderer) RenderMannequins(mannequins []client.Mannequin, headers []str
 		}
 		table.Append(row)
 	}
-	table.Render()
-}
-
-// RenderMannequinsDefault renders mannequins with default columns.
-func (r *Renderer) RenderMannequinsDefault(mannequins []client.Mannequin) {
-	r.RenderMannequins(mannequins, nil)
+	return table.Render()
 }

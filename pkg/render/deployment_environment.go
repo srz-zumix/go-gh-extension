@@ -37,15 +37,14 @@ func (g *environmentFieldGetters) GetField(env *github.Environment, field string
 }
 
 // RenderEnvironments renders a table of environments with the specified headers.
-func (r *Renderer) RenderEnvironments(envs []*github.Environment, headers []string) {
+func (r *Renderer) RenderEnvironments(envs []*github.Environment, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(envs)
-		return
+		return r.RenderExportedData(envs)
 	}
 
 	if len(envs) == 0 {
 		r.writeLine("No environments.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -62,16 +61,15 @@ func (r *Renderer) RenderEnvironments(envs []*github.Environment, headers []stri
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }
 
 // RenderEnvironment prints the details of an environment in key:value format.
 // policies should contain the custom deployment branch policies when
 // DeploymentBranchPolicy.CustomBranchPolicies is true; pass nil otherwise.
-func (r *Renderer) RenderEnvironment(env *github.Environment, policies []*github.DeploymentBranchPolicy) {
+func (r *Renderer) RenderEnvironment(env *github.Environment, policies []*github.DeploymentBranchPolicy) error {
 	if r.exporter != nil {
-		r.RenderExportedData(env)
-		return
+		return r.RenderExportedData(env)
 	}
 
 	r.writeLine(fmt.Sprintf("Name:                %s", ToString(env.Name)))
@@ -139,4 +137,5 @@ func (r *Renderer) RenderEnvironment(env *github.Environment, policies []*github
 			r.writeLine(fmt.Sprintf("  - %s", rev))
 		}
 	}
+	return nil
 }

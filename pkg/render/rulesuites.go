@@ -58,15 +58,14 @@ func (u *ruleSuiteFieldGetters) GetField(ruleSuite *client.RuleSuite, field stri
 }
 
 // RenderRuleSuites renders rule suites in a table format with specified headers
-func (r *Renderer) RenderRuleSuites(ruleSuites []*client.RuleSuite, headers []string) {
+func (r *Renderer) RenderRuleSuites(ruleSuites []*client.RuleSuite, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(ruleSuites)
-		return
+		return r.RenderExportedData(ruleSuites)
 	}
 
 	if len(ruleSuites) == 0 {
 		r.writeLine("No rule suites.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -84,19 +83,13 @@ func (r *Renderer) RenderRuleSuites(ruleSuites []*client.RuleSuite, headers []st
 		table.Append(row)
 	}
 
-	table.Render()
-}
-
-// RenderRuleSuitesDefault renders rule suites with default headers
-func (r *Renderer) RenderRuleSuitesDefault(ruleSuites []*client.RuleSuite) {
-	r.RenderRuleSuites(ruleSuites, nil)
+	return table.Render()
 }
 
 // RenderRuleSuiteDetail renders detailed information about a single rule suite
-func (r *Renderer) RenderRuleSuiteDetail(ruleSuite *client.RuleSuite) {
+func (r *Renderer) RenderRuleSuiteDetail(ruleSuite *client.RuleSuite) error {
 	if r.exporter != nil {
-		r.RenderExportedData(ruleSuite)
-		return
+		return r.RenderExportedData(ruleSuite)
 	}
 
 	r.writeLine(fmt.Sprintf("Rule Suite ID: %s", ToString(ruleSuite.ID)))
@@ -128,4 +121,5 @@ func (r *Renderer) RenderRuleSuiteDetail(ruleSuite *client.RuleSuite) {
 			}
 		}
 	}
+	return nil
 }

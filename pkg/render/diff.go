@@ -25,10 +25,9 @@ func colorizeDiff(diff string) string {
 	return result
 }
 
-func (r *Renderer) RenderDiff(diff any, left, right any, commandBuilder DiffCommandBuilder) {
+func (r *Renderer) RenderDiff(diff any, left, right any, commandBuilder DiffCommandBuilder) error {
 	if r.exporter != nil {
-		r.RenderExportedData(diff)
-		return
+		return r.RenderExportedData(diff)
 	}
 
 	diffLines := getDiffLines(diff, left, right, commandBuilder)
@@ -36,6 +35,7 @@ func (r *Renderer) RenderDiff(diff any, left, right any, commandBuilder DiffComm
 		diffLines = colorizeDiff(diffLines)
 	}
 	r.writeLine(diffLines)
+	return nil
 }
 
 func getDiffLines(diff any, left, right any, commandBuilder DiffCommandBuilder) string {

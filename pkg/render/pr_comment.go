@@ -91,17 +91,21 @@ func (g *prCommentFieldGetters) GetField(comment *github.PullRequestComment, fie
 
 var PullRequestCommentDefaultHeaders = []string{"ID", "BODY", "USER", "PATH", "HTML_URL"}
 
-func (r *Renderer) RenderPullRequestComments(comments []*github.PullRequestComment, headers []string) {
+func (r *Renderer) RenderPullRequestComments(comments []*github.PullRequestComment, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(comments)
-		return
+		return r.RenderExportedData(comments)
 	}
-	getter := NewPullRequestCommentFieldGetters()
+
+	if len(comments) == 0 {
+		r.WriteLine("no pull request comments found")
+		return nil
+	}
 
 	if len(headers) == 0 {
 		headers = PullRequestCommentDefaultHeaders
 	}
 
+	getter := NewPullRequestCommentFieldGetters()
 	table := r.newTableWriter(headers)
 	for _, comment := range comments {
 		row := make([]string, len(headers))
@@ -110,9 +114,5 @@ func (r *Renderer) RenderPullRequestComments(comments []*github.PullRequestComme
 		}
 		table.Append(row)
 	}
-	table.Render()
-}
-
-func (r *Renderer) RenderPullRequestCommentsDefault(comments []*github.PullRequestComment) {
-	r.RenderPullRequestComments(comments, nil)
+	return table.Render()
 }
