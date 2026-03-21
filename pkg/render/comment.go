@@ -6,15 +6,43 @@ import (
 	"github.com/google/go-github/v79/github"
 )
 
+type githubCommentFieldGetter func(comment *github.Comment) string
+type githubCommentFieldGetters struct {
+	Func map[string]githubCommentFieldGetter
+}
+
+func NewGitHubCommentFieldGetters() *githubCommentFieldGetters {
+	return &githubCommentFieldGetters{
+		Func: map[string]githubCommentFieldGetter{
+			"BODY": func(comment *github.Comment) string {
+				return comment.Body
+			},
+			"CREATED_AT": func(comment *github.Comment) string {
+				return ToString(comment.CreatedAt)
+			},
+		},
+	}
+}
+
+func (g *githubCommentFieldGetters) GetField(comment *github.Comment, field string) string {
+	field = strings.ToUpper(field)
+	if getter, ok := g.Func[field]; ok {
+		return getter(comment)
+	}
+	return ""
+}
+
 type commentFieldGetters struct {
 	issueCommentGetter       *issueCommentFieldGetters
 	pullRequestCommentGetter *prCommentFieldGetters
+	githubCommentGetter      *githubCommentFieldGetters
 }
 
 func NewCommentFieldGetters() *commentFieldGetters {
 	return &commentFieldGetters{
 		issueCommentGetter:       NewIssueCommentFieldGetters(),
 		pullRequestCommentGetter: NewPullRequestCommentFieldGetters(),
+		githubCommentGetter:      NewGitHubCommentFieldGetters(),
 	}
 }
 
@@ -26,13 +54,7 @@ func (g *commentFieldGetters) GetField(comment any, field string) string {
 		return g.pullRequestCommentGetter.GetField(v, field)
 	}
 	if v, ok := comment.(*github.Comment); ok {
-		field = strings.ToUpper(field)
-		if field == "BODY" {
-			return ToString(v.Body)
-		}
-		if field == "CREATED_AT" {
-			return ToString(v.CreatedAt)
-		}
+		return g.githubCommentGetter.GetField(v, field)
 	}
 	return ""
 }
@@ -51,7 +73,7 @@ func (r *Renderer) RenderComments(comments []*github.Comment, headers []string) 
 		headers = []string{"BODY", "CREATED_AT"}
 	}
 
-	commentGetter := NewCommentFieldGetters()
+	commentGetter := NewGitHubCommentFieldGetters()
 	table := r.newTableWriter(headers)
 	for _, comment := range comments {
 		row := make([]string, len(headers))
@@ -71,6 +93,10 @@ func (r *Renderer) RenderAnyComments(comments []any, headers []string) error {
 	if len(comments) == 0 {
 		r.WriteLine("no comments found")
 		return nil
+	}
+
+	if len(headers) == 0 {
+		headers = []string{"BODY", "CREATED_AT"}
 	}
 
 	commentGetter := NewCommentFieldGetters()
