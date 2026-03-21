@@ -79,15 +79,14 @@ func (g *discussionFieldGetters) GetField(discussion *client.Discussion, field s
 }
 
 // RenderDiscussions renders a table of discussions with the specified headers
-func (r *Renderer) RenderDiscussions(discussions []client.Discussion, headers []string) {
+func (r *Renderer) RenderDiscussions(discussions []client.Discussion, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(discussions)
-		return
+		return r.RenderExportedData(discussions)
 	}
 
 	if len(discussions) == 0 {
 		r.writeLine("No discussions.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -107,10 +106,5 @@ func (r *Renderer) RenderDiscussions(discussions []client.Discussion, headers []
 		}
 		table.Append(row)
 	}
-	table.Render()
-}
-
-// RenderDiscussionsDefault renders discussions with default columns
-func (r *Renderer) RenderDiscussionsDefault(discussions []client.Discussion) {
-	r.RenderDiscussions(discussions, nil)
+	return table.Render()
 }
