@@ -256,10 +256,10 @@ func (g *GitHubClient) ListDiscussionCategories(ctx context.Context, owner strin
 
 // CreateDiscussionInput is the input for creating a discussion.
 type CreateDiscussionInput struct {
-	RepositoryID githubv4.ID
-	CategoryID   githubv4.ID
-	Title        githubv4.String
-	Body         githubv4.String
+	RepositoryID githubv4.ID     `json:"repositoryId"`
+	CategoryID   githubv4.ID     `json:"categoryId"`
+	Title        githubv4.String `json:"title"`
+	Body         githubv4.String `json:"body"`
 }
 
 // CreateDiscussion creates a new discussion in a repository using GraphQL mutation.
@@ -269,54 +269,15 @@ func (g *GitHubClient) CreateDiscussion(ctx context.Context, input CreateDiscuss
 		return nil, err
 	}
 
-	type createDiscussionInput struct {
-		RepositoryID githubv4.ID     `json:"repositoryId"`
-		CategoryID   githubv4.ID     `json:"categoryId"`
-		Title        githubv4.String `json:"title"`
-		Body         githubv4.String `json:"body"`
-	}
-
 	var mutation struct {
 		CreateDiscussion struct {
 			Discussion Discussion
 		} `graphql:"createDiscussion(input: $input)"`
 	}
 
-	mutInput := createDiscussionInput{
-		RepositoryID: input.RepositoryID,
-		CategoryID:   input.CategoryID,
-		Title:        input.Title,
-		Body:         input.Body,
-	}
-
-	if err := graphql.Mutate(ctx, &mutation, mutInput, nil); err != nil {
+	if err := graphql.Mutate(ctx, &mutation, input, nil); err != nil {
 		return nil, err
 	}
 
 	return &mutation.CreateDiscussion.Discussion, nil
-}
-
-// GetRepositoryNodeID retrieves the GraphQL node ID of a repository.
-func (g *GitHubClient) GetRepositoryNodeID(ctx context.Context, owner string, repo string) (githubv4.ID, error) {
-	graphql, err := g.GetOrCreateGraphQLClient()
-	if err != nil {
-		return nil, err
-	}
-
-	var query struct {
-		Repository struct {
-			ID githubv4.String
-		} `graphql:"repository(owner: $owner, name: $repo)"`
-	}
-
-	variables := map[string]any{
-		"owner": githubv4.String(owner),
-		"repo":  githubv4.String(repo),
-	}
-
-	if err := graphql.Query(ctx, &query, variables); err != nil {
-		return nil, err
-	}
-
-	return githubv4.ID(query.Repository.ID), nil
 }
