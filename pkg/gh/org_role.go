@@ -163,9 +163,14 @@ func BuildTeamOrgRoleMap(ctx context.Context, g *GitHubClient, repo repository.R
 		if role.Source == nil || *role.Source != "Organization" {
 			continue
 		}
-		teams, err := g.ListTeamsAssignedToOrgRole(ctx, repo.Owner, *role.ID)
+		roleID := role.GetID()
+		if roleID == 0 {
+			return nil, fmt.Errorf("encountered org role with missing ID in organization '%s'", repo.Owner)
+		}
+		teams, err := g.ListTeamsAssignedToOrgRole(ctx, repo.Owner, roleID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list teams for role '%s' in organization '%s': %w", *role.Name, repo.Owner, err)
+			roleName := role.GetName()
+			return nil, fmt.Errorf("failed to list teams for role '%s' in organization '%s': %w", roleName, repo.Owner, err)
 		}
 		for _, team := range teams {
 			slug := team.GetSlug()
