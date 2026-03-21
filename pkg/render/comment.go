@@ -37,7 +37,33 @@ func (g *commentFieldGetters) GetField(comment any, field string) string {
 	return ""
 }
 
-func (r *Renderer) RenderComments(comments []any, headers []string) error {
+func (r *Renderer) RenderComments(comments []*github.Comment, headers []string) error {
+	if r.exporter != nil {
+		return r.RenderExportedData(comments)
+	}
+
+	if len(comments) == 0 {
+		r.WriteLine("no comments found")
+		return nil
+	}
+
+	if len(headers) == 0 {
+		headers = []string{"BODY", "CREATED_AT"}
+	}
+
+	commentGetter := NewCommentFieldGetters()
+	table := r.newTableWriter(headers)
+	for _, comment := range comments {
+		row := make([]string, len(headers))
+		for i, header := range headers {
+			row[i] = commentGetter.GetField(comment, header)
+		}
+		table.Append(row)
+	}
+	return table.Render()
+}
+
+func (r *Renderer) RenderAnyComments(comments []any, headers []string) error {
 	if r.exporter != nil {
 		return r.RenderExportedData(comments)
 	}
@@ -66,12 +92,11 @@ func (r *Renderer) RenderCommentDefault(comments any) error {
 	if v, ok := comments.([]*github.PullRequestComment); ok {
 		return r.RenderPullRequestComments(v, nil)
 	}
+	if v, ok := comments.([]*github.Comment); ok {
+		return r.RenderComments(v, []string{"BODY"})
+	}
 	if v, ok := comments.([]any); ok {
-		if _, ok := comments.([]*github.Comment); ok {
-			return r.RenderComments(v, []string{"BODY"})
-		} else {
-			return r.RenderComments(v, PullRequestCommentDefaultHeaders)
-		}
+		return r.RenderAnyComments(v, PullRequestCommentDefaultHeaders)
 	}
 	return nil
 }
