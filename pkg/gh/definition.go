@@ -31,6 +31,13 @@ var OrgMembershipList = []string{
 	"admin",
 }
 
+// OrgCustomRoleSourceList is the list of valid source values for custom organization roles.
+var OrgCustomRoleSourceList = []string{
+	"Organization",
+	"Predefined",
+	"System",
+}
+
 var RepoSearchTypeList = []string{
 	"public",
 	"internal",

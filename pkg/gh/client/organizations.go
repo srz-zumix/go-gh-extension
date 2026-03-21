@@ -198,3 +198,15 @@ func (g *GitHubClient) RemoveOrgRoleFromUser(ctx context.Context, org string, us
 	_, err := g.client.Organizations.RemoveOrgRoleFromUser(ctx, org, username, roleID)
 	return err
 }
+
+// CreateCustomOrgRole creates a new custom organization role.
+func (g *GitHubClient) CreateCustomOrgRole(ctx context.Context, org string, opts *github.CreateOrUpdateOrgRoleOptions) (*github.CustomOrgRoles, error) {
+	role, _, err := g.client.Organizations.CreateCustomOrgRole(ctx, org, opts)
+	return role, err
+}
+
+// UpdateCustomOrgRole updates an existing custom organization role by ID.
+func (g *GitHubClient) UpdateCustomOrgRole(ctx context.Context, org string, roleID int64, opts *github.CreateOrUpdateOrgRoleOptions) (*github.CustomOrgRoles, error) {
+	role, _, err := g.client.Organizations.UpdateCustomOrgRole(ctx, org, roleID, opts)
+	return role, err
+}
