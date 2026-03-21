@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // PackageFieldGetter defines a function to get a field value from a github.Package

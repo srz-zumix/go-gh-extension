@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // GetCopilotTeamMetrics retrieves Copilot metrics for a team via REST API (not supported by go-github)

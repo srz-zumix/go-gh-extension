@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
@@ -418,8 +418,10 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 		if ruleset.Rules.PullRequest != nil {
 			ruleset.Rules.PullRequest.AllowedMergeMethods = nil
 			logger.Warn("Allowed merge methods are not supported on GitHub Enterprise Server, removing...")
-			ruleset.Rules.PullRequest.AutomaticCopilotCodeReviewEnabled = nil
-			logger.Warn("Automatic Copilot code review is not supported on GitHub Enterprise Server, removing...")
+		}
+		if ruleset.Rules.CopilotCodeReview != nil {
+			ruleset.Rules.CopilotCodeReview = nil
+			logger.Warn("Copilot code review is not supported on GitHub Enterprise Server, removing...")
 		}
 	} else {
 		if ruleset.Rules.PullRequest != nil {

@@ -3,7 +3,7 @@ package gh
 import (
 	"slices"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
@@ -175,7 +175,31 @@ func GetRepositoryPermissions(repo *github.Repository) string {
 	return "none"
 }
 
-func GetPermissionName(permissions map[string]bool) string {
+func GetPermissionName(permissions *github.RepositoryPermissions) string {
+	if permissions == nil {
+		return "none"
+	}
+	if permissions.GetAdmin() {
+		return "admin"
+	}
+	if permissions.GetMaintain() {
+		return "maintain"
+	}
+	if permissions.GetPush() {
+		return "push"
+	}
+	if permissions.GetTriage() {
+		return "triage"
+	}
+	if permissions.GetPull() {
+		return "pull"
+	}
+	return "none"
+}
+
+// GetPermissionNameFromMap returns the highest permission name from a map of permissions.
+// Used for types that still use map[string]bool (e.g. github.Team).
+func GetPermissionNameFromMap(permissions map[string]bool) string {
 	for _, permission := range PermissionsList {
 		if permissions[permission] {
 			return permission
@@ -185,27 +209,57 @@ func GetPermissionName(permissions map[string]bool) string {
 }
 
 type PermissionInterface interface {
-	GetPermissions() map[string]bool
+	GetPermissions() *github.RepositoryPermissions
 }
 
 func HasPermission(obj PermissionInterface, roles []string) bool {
 	if obj != nil {
-		permissions := obj.GetPermissions()
+		perms := obj.GetPermissions()
+		if perms == nil {
+			return false
+		}
 		for _, role := range roles {
-			if permissions[role] {
-				return true
+			switch role {
+			case "admin":
+				if perms.GetAdmin() {
+					return true
+				}
+			case "maintain":
+				if perms.GetMaintain() {
+					return true
+				}
+			case "push":
+				if perms.GetPush() {
+					return true
+				}
+			case "triage":
+				if perms.GetTriage() {
+					return true
+				}
+			case "pull":
+				if perms.GetPull() {
+					return true
+				}
 			}
 		}
 	}
 	return false
 }
 
-func CreatePermissionMap(permissions []string) map[string]bool {
-	permissionMap := make(map[string]bool)
-	for _, permission := range PermissionsList {
-		permissionMap[permission] = slices.Contains(permissions, permission)
+// CreateRepositoryPermissions creates a *github.RepositoryPermissions from a list of permission names.
+func CreateRepositoryPermissions(permissions []string) *github.RepositoryPermissions {
+	admin := slices.Contains(permissions, "admin")
+	maintain := slices.Contains(permissions, "maintain")
+	push := slices.Contains(permissions, "push")
+	triage := slices.Contains(permissions, "triage")
+	pull := slices.Contains(permissions, "pull")
+	return &github.RepositoryPermissions{
+		Admin:    &admin,
+		Maintain: &maintain,
+		Push:     &push,
+		Triage:   &triage,
+		Pull:     &pull,
 	}
-	return permissionMap
 }
 
 func FilterByRepositoryPermissions(repos []*github.Repository, permissions []string) []*github.Repository {

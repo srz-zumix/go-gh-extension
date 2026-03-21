@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 type repositoryRulesetFieldGetter func(ruleset *github.RepositoryRuleset) string
@@ -229,7 +229,6 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 			table.Append([]string{"  - Require review from Code Owners", ToString(rules.PullRequest.RequireCodeOwnerReview)})
 			table.Append([]string{"  - Require approval of the most recent reviewable push", ToString(rules.PullRequest.RequireLastPushApproval)})
 			table.Append([]string{"  - Require conversation resolution before merging", ToString(rules.PullRequest.RequiredReviewThreadResolution)})
-			table.Append([]string{"  - Automatically request Copilot code review", ToString(rules.PullRequest.AutomaticCopilotCodeReviewEnabled)})
 			allowedMergeMethod := []string{}
 			for _, method := range rules.PullRequest.AllowedMergeMethods {
 				allowedMergeMethod = append(allowedMergeMethod, string(method))
@@ -254,6 +253,13 @@ func (r *Renderer) RenderRepositoryRuleset(ruleset *github.RepositoryRuleset, sh
 			for _, tools := range rules.CodeScanning.CodeScanningTools {
 				table.Append([]string{"  - " + tools.Tool, fmt.Sprintf("AlertsThreshold: %s, SecurityAlertsThreshold: %s", tools.AlertsThreshold, tools.SecurityAlertsThreshold)})
 			}
+		}
+		if rules.CopilotCodeReview != nil {
+			table.Append([]string{"Automatically request Copilot code review", "ENABLED"})
+			table.Append([]string{"  - Review on push", ToString(rules.CopilotCodeReview.ReviewOnPush)})
+			table.Append([]string{"  - Review draft pull requests", ToString(rules.CopilotCodeReview.ReviewDraftPullRequests)})
+		} else {
+			table.Append([]string{"Automatically request Copilot code review", "DISABLED"})
 		}
 		if err := table.Render(); err != nil {
 			return err

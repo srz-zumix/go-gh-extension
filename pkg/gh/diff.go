@@ -3,7 +3,7 @@ package gh
 import (
 	"fmt"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // RepositoryPermissionsDiff represents the diff between two repositories.

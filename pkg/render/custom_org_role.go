@@ -3,7 +3,7 @@ package render
 import (
 	"strings"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // CustomOrgRoleFieldList is the list of valid field names for custom organization role display.

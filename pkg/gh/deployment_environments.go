@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // CreateUpdateEnvironment creates or updates an environment for a repository.
@@ -153,7 +153,7 @@ func CreateCustomDeploymentProtectionRule(ctx context.Context, g *GitHubClient, 
 }
 
 // ListCustomDeploymentRuleIntegrations retrieves all custom deployment rule integrations.
-func ListCustomDeploymentRuleIntegrations(ctx context.Context, g *GitHubClient, repo repository.Repository, environment string) (*github.ListCustomDeploymentRuleIntegrationsResponse, error) {
+func ListCustomDeploymentRuleIntegrations(ctx context.Context, g *GitHubClient, repo repository.Repository, environment string) ([]*github.CustomDeploymentProtectionRuleApp, error) {
 	return g.ListCustomDeploymentRuleIntegrations(ctx, repo.Owner, repo.Name, environment)
 }
 

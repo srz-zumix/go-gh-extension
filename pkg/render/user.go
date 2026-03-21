@@ -3,7 +3,7 @@ package render
 import (
 	"strings"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 type userFiledGetter func(user *github.User) string

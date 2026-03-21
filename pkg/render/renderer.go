@@ -10,7 +10,7 @@ import (
 	"github.com/cli/cli/v2/pkg/cmdutil"
 	"github.com/cli/cli/v2/pkg/iostreams"
 	"github.com/fatih/color"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )

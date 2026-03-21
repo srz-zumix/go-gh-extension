@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // ListEnvironments retrieves all environments for a repository.
@@ -55,11 +55,20 @@ func (g *GitHubClient) DeleteEnvironment(ctx context.Context, owner string, repo
 
 // ListDeploymentBranchPolicies retrieves all deployment branch policies for an environment.
 func (g *GitHubClient) ListDeploymentBranchPolicies(ctx context.Context, owner string, repo string, environment string) ([]*github.DeploymentBranchPolicy, error) {
-	policies, _, err := g.client.Repositories.ListDeploymentBranchPolicies(ctx, owner, repo, environment)
-	if err != nil {
-		return nil, err
+	opt := &github.ListOptions{PerPage: defaultPerPage}
+	var allPolicies []*github.DeploymentBranchPolicy
+	for {
+		policies, resp, err := g.client.Repositories.ListDeploymentBranchPolicies(ctx, owner, repo, environment, opt)
+		if err != nil {
+			return nil, err
+		}
+		allPolicies = append(allPolicies, policies.BranchPolicies...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
 	}
-	return policies.BranchPolicies, nil
+	return allPolicies, nil
 }
 
 // GetDeploymentBranchPolicy retrieves a specific deployment branch policy.
@@ -114,12 +123,21 @@ func (g *GitHubClient) CreateCustomDeploymentProtectionRule(ctx context.Context,
 }
 
 // ListCustomDeploymentRuleIntegrations retrieves all custom deployment rule integrations.
-func (g *GitHubClient) ListCustomDeploymentRuleIntegrations(ctx context.Context, owner string, repo string, environment string) (*github.ListCustomDeploymentRuleIntegrationsResponse, error) {
-	integrations, _, err := g.client.Repositories.ListCustomDeploymentRuleIntegrations(ctx, owner, repo, environment)
-	if err != nil {
-		return nil, err
+func (g *GitHubClient) ListCustomDeploymentRuleIntegrations(ctx context.Context, owner string, repo string, environment string) ([]*github.CustomDeploymentProtectionRuleApp, error) {
+	opt := &github.ListOptions{PerPage: defaultPerPage}
+	var allIntegrations []*github.CustomDeploymentProtectionRuleApp
+	for {
+		integrations, resp, err := g.client.Repositories.ListCustomDeploymentRuleIntegrations(ctx, owner, repo, environment, opt)
+		if err != nil {
+			return nil, err
+		}
+		allIntegrations = append(allIntegrations, integrations.AvailableIntegrations...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
 	}
-	return integrations, nil
+	return allIntegrations, nil
 }
 
 // GetCustomDeploymentProtectionRule retrieves a specific custom deployment protection rule.

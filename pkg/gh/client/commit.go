@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 func (g *GitHubClient) ListCommits(ctx context.Context, owner, repo string, options *github.CommitsListOptions) ([]*github.RepositoryCommit, error) {
