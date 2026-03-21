@@ -3,9 +3,11 @@ package gh
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v79/github"
+	"github.com/shurcooL/githubv4"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
@@ -285,4 +287,101 @@ func SearchDiscussions(ctx context.Context, g *GitHubClient, repo repository.Rep
 		return nil, err
 	}
 	return discussions, nil
+}
+
+// DiscussionCategory is an alias for client.DiscussionCategory.
+type DiscussionCategory = client.DiscussionCategory
+
+// ListDiscussionCategories retrieves all discussion categories for a repository.
+func ListDiscussionCategories(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]DiscussionCategory, error) {
+	return g.ListDiscussionCategories(ctx, repo.Owner, repo.Name)
+}
+
+// FindDiscussionCategoryBySlug returns the category matching slug (case-insensitive).
+// If not found, returns nil.
+func FindDiscussionCategoryBySlug(categories []DiscussionCategory, slug string) *DiscussionCategory {
+	for i := range categories {
+		if strings.EqualFold(string(categories[i].Slug), slug) {
+			return &categories[i]
+		}
+	}
+	return nil
+}
+
+// MigrateDiscussionOptions controls migration behaviour.
+type MigrateDiscussionOptions struct {
+	// CategorySlug overrides category matching. If empty, the source category slug is used.
+	CategorySlug string
+}
+
+// MigrateDiscussion migrates a single discussion from src repo to dst repo.
+// It copies the title and body, and maps the category by slug.
+// src and dst may be different hosts (GHE ↔ github.com).
+func MigrateDiscussion(ctx context.Context, src, dst *GitHubClient, srcRepo, dstRepo repository.Repository, number any, opts *MigrateDiscussionOptions) (*Discussion, error) {
+	discussionNumber, err := GetDiscussionNumber(number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse discussion number: %w", err)
+	}
+
+	// Fetch source discussion
+	srcDiscussion, err := src.GetDiscussion(ctx, srcRepo.Owner, srcRepo.Name, discussionNumber)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source discussion #%d in '%s/%s': %w", discussionNumber, srcRepo.Owner, srcRepo.Name, err)
+	}
+
+	return migrateDiscussion(ctx, dst, dstRepo, srcDiscussion, opts)
+}
+
+// MigrateDiscussions migrates all discussions from src repo to dst repo.
+func MigrateDiscussions(ctx context.Context, src, dst *GitHubClient, srcRepo, dstRepo repository.Repository, opts *MigrateDiscussionOptions) ([]*Discussion, error) {
+	srcDiscussions, err := src.ListDiscussions(ctx, srcRepo.Owner, srcRepo.Name, 100)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list discussions in '%s/%s': %w", srcRepo.Owner, srcRepo.Name, err)
+	}
+
+	var results []*Discussion
+	for i := range srcDiscussions {
+		d, err := migrateDiscussion(ctx, dst, dstRepo, &srcDiscussions[i], opts)
+		if err != nil {
+			return results, err
+		}
+		results = append(results, d)
+	}
+	return results, nil
+}
+
+// migrateDiscussion copies a single Discussion to dstRepo on dst client.
+func migrateDiscussion(ctx context.Context, dst *GitHubClient, dstRepo repository.Repository, src *Discussion, opts *MigrateDiscussionOptions) (*Discussion, error) {
+	// Resolve destination repository node ID
+	dstRepoID, err := dst.GetRepositoryNodeID(ctx, dstRepo.Owner, dstRepo.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repository ID for '%s/%s': %w", dstRepo.Owner, dstRepo.Name, err)
+	}
+
+	// Resolve category in destination repo
+	dstCategories, err := dst.ListDiscussionCategories(ctx, dstRepo.Owner, dstRepo.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list categories in '%s/%s': %w", dstRepo.Owner, dstRepo.Name, err)
+	}
+
+	slug := string(src.Category.Slug)
+	if opts != nil && opts.CategorySlug != "" {
+		slug = opts.CategorySlug
+	}
+
+	dstCategory := FindDiscussionCategoryBySlug(dstCategories, slug)
+	if dstCategory == nil {
+		return nil, fmt.Errorf("category with slug %q not found in destination repository '%s/%s'", slug, dstRepo.Owner, dstRepo.Name)
+	}
+
+	created, err := dst.CreateDiscussion(ctx, client.CreateDiscussionInput{
+		RepositoryID: dstRepoID,
+		CategoryID:   githubv4.ID(dstCategory.ID),
+		Title:        src.Title,
+		Body:         src.Body,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create discussion %q in '%s/%s': %w", string(src.Title), dstRepo.Owner, dstRepo.Name, err)
+	}
+	return created, nil
 }

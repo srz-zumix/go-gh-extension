@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/go-github/v79/github"
+	"github.com/shurcooL/githubv4"
 )
 
 func (g *GitHubClient) GetRepository(ctx context.Context, owner string, repo string) (*github.Repository, error) {
@@ -256,4 +257,29 @@ func (g *GitHubClient) EditRepository(ctx context.Context, owner, repo string, r
 		return nil, err
 	}
 	return updatedRepo, nil
+}
+
+// GetRepositoryNodeID retrieves the GraphQL node ID of a repository.
+func (g *GitHubClient) GetRepositoryNodeID(ctx context.Context, owner string, repo string) (githubv4.ID, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var query struct {
+		Repository struct {
+			ID githubv4.String
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	variables := map[string]any{
+		"owner": githubv4.String(owner),
+		"repo":  githubv4.String(repo),
+	}
+
+	if err := graphql.Query(ctx, &query, variables); err != nil {
+		return nil, err
+	}
+
+	return githubv4.ID(query.Repository.ID), nil
 }

@@ -205,3 +205,79 @@ func (g *GitHubClient) SearchDiscussions(ctx context.Context, query string, firs
 
 	return allDiscussions, nil
 }
+
+// DiscussionCategory represents a discussion category in a repository.
+type DiscussionCategory struct {
+	ID   githubv4.String
+	Name githubv4.String
+	Slug githubv4.String
+}
+
+// ListDiscussionCategories retrieves all discussion categories for a repository using GraphQL.
+func (g *GitHubClient) ListDiscussionCategories(ctx context.Context, owner string, repo string) ([]DiscussionCategory, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var query struct {
+		Repository struct {
+			DiscussionCategories struct {
+				Nodes    []DiscussionCategory
+				PageInfo struct {
+					EndCursor   githubv4.String
+					HasNextPage bool
+				}
+			} `graphql:"discussionCategories(first: $first, after: $cursor)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	variables := map[string]any{
+		"owner":  githubv4.String(owner),
+		"repo":   githubv4.String(repo),
+		"first":  githubv4.Int(100),
+		"cursor": (*githubv4.String)(nil),
+	}
+
+	allCategories := []DiscussionCategory{}
+	for {
+		if err := graphql.Query(ctx, &query, variables); err != nil {
+			return nil, err
+		}
+		allCategories = append(allCategories, query.Repository.DiscussionCategories.Nodes...)
+		if !query.Repository.DiscussionCategories.PageInfo.HasNextPage {
+			break
+		}
+		variables["cursor"] = githubv4.NewString(query.Repository.DiscussionCategories.PageInfo.EndCursor)
+	}
+
+	return allCategories, nil
+}
+
+// CreateDiscussionInput is the input for creating a discussion.
+type CreateDiscussionInput struct {
+	RepositoryID githubv4.ID     `json:"repositoryId"`
+	CategoryID   githubv4.ID     `json:"categoryId"`
+	Title        githubv4.String `json:"title"`
+	Body         githubv4.String `json:"body"`
+}
+
+// CreateDiscussion creates a new discussion in a repository using GraphQL mutation.
+func (g *GitHubClient) CreateDiscussion(ctx context.Context, input CreateDiscussionInput) (*Discussion, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var mutation struct {
+		CreateDiscussion struct {
+			Discussion Discussion
+		} `graphql:"createDiscussion(input: $input)"`
+	}
+
+	if err := graphql.Mutate(ctx, &mutation, input, nil); err != nil {
+		return nil, err
+	}
+
+	return &mutation.CreateDiscussion.Discussion, nil
+}
