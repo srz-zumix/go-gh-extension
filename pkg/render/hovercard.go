@@ -9,7 +9,7 @@ func (r *Renderer) RenderHovercard(hovercard *github.Hovercard) error {
 		return r.RenderExportedData(hovercard)
 	}
 
-	headers := []string{"MESSAGE", "OCTION"}
+	headers := []string{"MESSAGE", "OCTICON"}
 	table := r.newTableWriter(headers)
 
 	for _, context := range hovercard.Contexts {
