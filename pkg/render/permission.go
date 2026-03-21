@@ -1,16 +1,30 @@
 package render
 
 import (
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
 
-func getPermissions(v any) map[string]bool {
+func getPermissions(v any) *github.RepositoryPermissions {
 	switch v := v.(type) {
 	case *github.Repository:
 		return v.Permissions
 	case *github.Team:
-		return v.Permissions
+		if v.Permissions == nil {
+			return nil
+		}
+		admin := v.Permissions["admin"]
+		maintain := v.Permissions["maintain"]
+		push := v.Permissions["push"]
+		triage := v.Permissions["triage"]
+		pull := v.Permissions["pull"]
+		return &github.RepositoryPermissions{
+			Admin:    &admin,
+			Maintain: &maintain,
+			Push:     &push,
+			Triage:   &triage,
+			Pull:     &pull,
+		}
 	case *github.User:
 		return v.Permissions
 	case *github.RepositoryPermissionLevel:
@@ -38,7 +52,7 @@ func (r *Renderer) RenderPermission(v any) error {
 
 type nameWithPermissions struct {
 	Name        string
-	Permissions map[string]bool
+	Permissions *github.RepositoryPermissions
 }
 
 func (r *Renderer) RenderPermissions(v any) error {

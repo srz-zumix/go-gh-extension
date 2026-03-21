@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 	"github.com/stretchr/testify/assert"
 )
 

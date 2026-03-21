@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // RuleSuite represents a rule suite evaluation

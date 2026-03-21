@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
@@ -401,8 +401,8 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 			return nil, nil
 		}
 	}
-	if !org.IsGitHubEnterprise() {
-		if ruleset.Rules != nil {
+	if ruleset.Rules != nil {
+		if !org.IsGitHubEnterprise() {
 			ruleset.Rules.MergeQueue = nil
 			logger.Warn("Merge Queue settings are not supported on GitHub.com or GitHub Team plan, removing...")
 			ruleset.Rules.CommitMessagePattern = nil
@@ -413,22 +413,24 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 			ruleset.Rules.TagNamePattern = nil
 			logger.Warn("Restrict branch and tag names settings are not supported on GitHub.com or GitHub Team plan, removing...")
 		}
-	}
-	if org.IsGitHubEnterpriseServer() {
-		if ruleset.Rules.PullRequest != nil {
-			ruleset.Rules.PullRequest.AllowedMergeMethods = nil
-			logger.Warn("Allowed merge methods are not supported on GitHub Enterprise Server, removing...")
-			ruleset.Rules.PullRequest.AutomaticCopilotCodeReviewEnabled = nil
-			logger.Warn("Automatic Copilot code review is not supported on GitHub Enterprise Server, removing...")
-		}
-	} else {
-		if ruleset.Rules.PullRequest != nil {
-			ruleset.Rules.PullRequest.AllowedMergeMethods = []github.PullRequestMergeMethod{
-				github.PullRequestMergeMethodSquash,
-				github.PullRequestMergeMethodRebase,
-				github.PullRequestMergeMethodMerge,
+		if org.IsGitHubEnterpriseServer() {
+			if ruleset.Rules.PullRequest != nil {
+				ruleset.Rules.PullRequest.AllowedMergeMethods = nil
+				logger.Warn("Allowed merge methods are not supported on GitHub Enterprise Server, removing...")
 			}
-			logger.Info("Allowed merge methods have been set to all methods supported on GitHub.com")
+			if ruleset.Rules.CopilotCodeReview != nil {
+				ruleset.Rules.CopilotCodeReview = nil
+				logger.Warn("Copilot code review is not supported on GitHub Enterprise Server, removing...")
+			}
+		} else {
+			if ruleset.Rules.PullRequest != nil {
+				ruleset.Rules.PullRequest.AllowedMergeMethods = []github.PullRequestMergeMethod{
+					github.PullRequestMergeMethodSquash,
+					github.PullRequestMergeMethodRebase,
+					github.PullRequestMergeMethodMerge,
+				}
+				logger.Info("Allowed merge methods have been set to all methods supported on GitHub.com")
+			}
 		}
 	}
 

@@ -6,7 +6,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // ListRepoVariables lists all variables in a repository.

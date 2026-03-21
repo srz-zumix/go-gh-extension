@@ -7,7 +7,7 @@ import (
 	"slices"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // GitHubUser is an alias for github.User, exposed so callers do not need to import the upstream package directly.
@@ -134,7 +134,7 @@ func DetectUserTeams(ctx context.Context, g *GitHubClient, repo repository.Repos
 			continue // skip error team
 		}
 		for _, user := range users {
-			if GetPermissionName(user.Permissions) == GetPermissionName(team.Permissions) {
+			if GetPermissionName(user.Permissions) == GetPermissionNameFromMap(team.Permissions) {
 				if slices.ContainsFunc(members, func(m *github.User) bool {
 					return *m.ID == *user.ID
 				}) {

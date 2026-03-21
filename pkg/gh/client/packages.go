@@ -6,7 +6,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // ListOrgPackages lists packages in an organization.
@@ -148,28 +148,12 @@ func (g *GitHubClient) RestoreUserPackage(ctx context.Context, user, packageType
 }
 
 // ListUserPackageVersions lists package versions for a package owned by a user.
-func (g *GitHubClient) ListUserPackageVersions(ctx context.Context, user, packageType, packageName string, opts *github.PackageListOptions) ([]*github.PackageVersion, error) {
-	var allVersions []*github.PackageVersion
-	if opts == nil {
-		opts = &github.PackageListOptions{}
+func (g *GitHubClient) ListUserPackageVersions(ctx context.Context, user, packageType, packageName string) ([]*github.PackageVersion, error) {
+	versions, _, err := g.client.Users.ListUserPackageVersions(ctx, user, packageType, packageName)
+	if err != nil {
+		return nil, err
 	}
-	if opts.PerPage == 0 {
-		opts.PerPage = defaultPerPage
-	}
-
-	for {
-		versions, resp, err := g.client.Users.PackageGetAllVersions(ctx, user, packageType, packageName, opts)
-		if err != nil {
-			return nil, err
-		}
-		allVersions = append(allVersions, versions...)
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
-	}
-
-	return allVersions, nil
+	return versions, nil
 }
 
 // GetUserPackageVersion gets a specific package version for a user.

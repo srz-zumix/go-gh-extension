@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // CustomOrgRoles is an alias for github.CustomOrgRoles, exposed so callers do not need to import the upstream package directly.

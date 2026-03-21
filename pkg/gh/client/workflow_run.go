@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // GetWorkflowByID retrieves a workflow definition by its numeric ID.
@@ -264,13 +264,13 @@ func (g *GitHubClient) ReviewCustomDeploymentProtectionRule(ctx context.Context,
 }
 
 // CreateWorkflowDispatchEventByFileName triggers a workflow dispatch event by workflow file name.
-func (g *GitHubClient) CreateWorkflowDispatchEventByFileName(ctx context.Context, owner, repo, workflowFileName string, event github.CreateWorkflowDispatchEventRequest) error {
-	_, err := g.client.Actions.CreateWorkflowDispatchEventByFileName(ctx, owner, repo, workflowFileName, event)
-	return err
+func (g *GitHubClient) CreateWorkflowDispatchEventByFileName(ctx context.Context, owner, repo, workflowFileName string, event github.CreateWorkflowDispatchEventRequest) (*github.WorkflowDispatchRunDetails, error) {
+	details, _, err := g.client.Actions.CreateWorkflowDispatchEventByFileName(ctx, owner, repo, workflowFileName, event)
+	return details, err
 }
 
 // CreateWorkflowDispatchEventByID triggers a workflow dispatch event by workflow ID.
-func (g *GitHubClient) CreateWorkflowDispatchEventByID(ctx context.Context, owner, repo string, workflowID int64, event github.CreateWorkflowDispatchEventRequest) error {
-	_, err := g.client.Actions.CreateWorkflowDispatchEventByID(ctx, owner, repo, workflowID, event)
-	return err
+func (g *GitHubClient) CreateWorkflowDispatchEventByID(ctx context.Context, owner, repo string, workflowID int64, event github.CreateWorkflowDispatchEventRequest) (*github.WorkflowDispatchRunDetails, error) {
+	details, _, err := g.client.Actions.CreateWorkflowDispatchEventByID(ctx, owner, repo, workflowID, event)
+	return details, err
 }

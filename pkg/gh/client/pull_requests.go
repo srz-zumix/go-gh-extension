@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -94,22 +94,11 @@ func (g *GitHubClient) RemoveReviewers(ctx context.Context, owner string, repo s
 }
 
 func (g *GitHubClient) ListRequestedReviewers(ctx context.Context, owner string, repo string, number int) (*github.Reviewers, error) {
-	allReviewers := &github.Reviewers{}
-	opt := &github.ListOptions{PerPage: defaultPerPage}
-
-	for {
-		reviewers, resp, err := g.client.PullRequests.ListReviewers(ctx, owner, repo, number, opt)
-		if err != nil {
-			return nil, err
-		}
-		allReviewers.Users = append(allReviewers.Users, reviewers.Users...)
-		allReviewers.Teams = append(allReviewers.Teams, reviewers.Teams...)
-		if resp.NextPage == 0 {
-			break
-		}
-		opt.Page = resp.NextPage
+	reviewers, _, err := g.client.PullRequests.ListReviewers(ctx, owner, repo, number)
+	if err != nil {
+		return nil, err
 	}
-	return allReviewers, nil
+	return reviewers, nil
 }
 
 func (g *GitHubClient) GetPullRequestReviews(ctx context.Context, owner string, repo string, number int) ([]*github.PullRequestReview, error) {

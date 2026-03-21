@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
@@ -350,13 +350,21 @@ func RestoreUserPackage(ctx context.Context, g *GitHubClient, user string, packa
 // ListUserPackageVersions lists package versions for a package owned by a user.
 // If user is empty, lists versions for the authenticated user.
 func ListUserPackageVersions(ctx context.Context, g *GitHubClient, user string, packageType, packageName string, state string) ([]*github.PackageVersion, error) {
-	opts := &github.PackageListOptions{}
-	if state != "" {
-		opts.State = github.Ptr(state)
-	}
-	versions, err := g.ListUserPackageVersions(ctx, user, packageType, packageName, opts)
+	versions, err := g.ListUserPackageVersions(ctx, user, packageType, packageName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list versions for package '%s' for user '%s': %w", packageName, user, err)
+	}
+	// Filter by state if specified (since ListUserPackageVersions doesn't support state filtering directly)
+	if state != "" && state != "all" {
+		var filtered []*github.PackageVersion
+		for _, v := range versions {
+			if state == "active" && v.DeletedAt == nil {
+				filtered = append(filtered, v)
+			} else if state == "deleted" && v.DeletedAt != nil {
+				filtered = append(filtered, v)
+			}
+		}
+		versions = filtered
 	}
 	return versions, nil
 }
@@ -402,7 +410,7 @@ func ListPackageVersionsByOwnerType(ctx context.Context, g *GitHubClient, ownerT
 		}
 		return versions, nil
 	case OwnerTypeUser:
-		versions, err := g.ListUserPackageVersions(ctx, owner, packageType, packageName, opts)
+		versions, err := g.ListUserPackageVersions(ctx, owner, packageType, packageName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list versions for package '%s' for user '%s': %w", packageName, owner, err)
 		}

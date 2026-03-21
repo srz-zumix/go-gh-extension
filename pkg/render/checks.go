@@ -2,7 +2,7 @@ package render
 
 import (
 	"github.com/fatih/color"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/tw"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh"

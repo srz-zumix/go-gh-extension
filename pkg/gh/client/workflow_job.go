@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 // GetWorkflowJobByID retrieves a specific workflow job by its ID.

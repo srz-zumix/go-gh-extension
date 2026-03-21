@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 )
 
 type LogUrlFetcher interface {
@@ -121,11 +121,11 @@ func GetWorkflowRunLogUrlFetcher(object any) LogUrlFetcher {
 }
 
 // CreateWorkflowDispatchEventByFileName triggers a workflow dispatch event by workflow file name (wrapper).
-func CreateWorkflowDispatchEventByFileName(ctx context.Context, g *GitHubClient, repo repository.Repository, workflowFileName string, event github.CreateWorkflowDispatchEventRequest) error {
+func CreateWorkflowDispatchEventByFileName(ctx context.Context, g *GitHubClient, repo repository.Repository, workflowFileName string, event github.CreateWorkflowDispatchEventRequest) (*github.WorkflowDispatchRunDetails, error) {
 	return g.CreateWorkflowDispatchEventByFileName(ctx, repo.Owner, repo.Name, workflowFileName, event)
 }
 
 // CreateWorkflowDispatchEventByID triggers a workflow dispatch event by workflow ID (wrapper).
-func CreateWorkflowDispatchEventByID(ctx context.Context, g *GitHubClient, repo repository.Repository, workflowID int64, event github.CreateWorkflowDispatchEventRequest) error {
+func CreateWorkflowDispatchEventByID(ctx context.Context, g *GitHubClient, repo repository.Repository, workflowID int64, event github.CreateWorkflowDispatchEventRequest) (*github.WorkflowDispatchRunDetails, error) {
 	return g.CreateWorkflowDispatchEventByID(ctx, repo.Owner, repo.Name, workflowID, event)
 }

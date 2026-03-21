@@ -10,7 +10,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v84/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
@@ -199,7 +199,7 @@ func CheckTeamPermissions(ctx context.Context, g *GitHubClient, repo repository.
 			return nil, false, fmt.Errorf("failed to get repository: %w", err)
 		}
 		teamRepo.RoleName = github.Ptr("none")
-		teamRepo.Permissions = CreatePermissionMap([]string{})
+		teamRepo.Permissions = CreateRepositoryPermissions([]string{})
 	}
 	return teamRepo, hasPermission, nil
 }
@@ -303,7 +303,7 @@ func ListUserAccessableRepositories(ctx context.Context, g *GitHubClient, repo r
 		if permissions == nil {
 			if username == *loginUser.Login {
 				r.RoleName = github.Ptr("pull")
-				r.Permissions = CreatePermissionMap([]string{"pull"})
+				r.Permissions = CreateRepositoryPermissions([]string{"pull"})
 			}
 		} else {
 			r.RoleName = permissions.RoleName
