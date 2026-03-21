@@ -81,15 +81,14 @@ func (g *SecretsFieldGetters) GetField(secrets []*github.Secret, field string) s
 }
 
 // RenderSecrets renders a list of secrets as a table using the given headers.
-func (r *Renderer) RenderSecrets(secrets []*github.Secret, headers []string) {
+func (r *Renderer) RenderSecrets(secrets []*github.Secret, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(secrets)
-		return
+		return r.RenderExportedData(secrets)
 	}
 
 	if len(secrets) == 0 {
 		r.writeLine("No secrets found.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -106,5 +105,5 @@ func (r *Renderer) RenderSecrets(secrets []*github.Secret, headers []string) {
 		}
 		table.Append(row)
 	}
-	table.Render()
+	return table.Render()
 }

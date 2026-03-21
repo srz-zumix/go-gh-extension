@@ -37,15 +37,14 @@ func (g *copilotMetricsFieldGetters) GetField(m *github.CopilotMetrics, field st
 }
 
 // RenderCopilotMetrics renders a table of Copilot metrics with the specified headers
-func (r *Renderer) RenderCopilotMetrics(metrics []*github.CopilotMetrics, headers []string) {
+func (r *Renderer) RenderCopilotMetrics(metrics []*github.CopilotMetrics, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(metrics)
-		return
+		return r.RenderExportedData(metrics)
 	}
 
 	if len(metrics) == 0 {
 		r.writeLine("no copilot metrics found")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -62,10 +61,5 @@ func (r *Renderer) RenderCopilotMetrics(metrics []*github.CopilotMetrics, header
 		}
 		table.Append(row)
 	}
-	table.Render()
-}
-
-// RenderCopilotMetricsDefault renders Copilot metrics with default columns
-func (r *Renderer) RenderCopilotMetricsDefault(metrics []*github.CopilotMetrics) {
-	r.RenderCopilotMetrics(metrics, nil)
+	return table.Render()
 }

@@ -88,15 +88,14 @@ func (g *issueFieldGetters) GetField(issue *github.Issue, field string) string {
 }
 
 // RenderIssues renders a table of issues with the specified headers
-func (r *Renderer) RenderIssues(issues []*github.Issue, headers []string) {
+func (r *Renderer) RenderIssues(issues []*github.Issue, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(issues)
-		return
+		return r.RenderExportedData(issues)
 	}
 
 	if len(issues) == 0 {
 		r.writeLine("No issues.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -116,10 +115,5 @@ func (r *Renderer) RenderIssues(issues []*github.Issue, headers []string) {
 		}
 		table.Append(row)
 	}
-	table.Render()
-}
-
-// RenderIssuesDefault renders issues with default columns
-func (r *Renderer) RenderIssuesDefault(issues []*github.Issue) {
-	r.RenderIssues(issues, nil)
+	return table.Render()
 }

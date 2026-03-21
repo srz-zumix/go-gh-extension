@@ -68,15 +68,14 @@ func (g *MilestoneFieldGetters) GetField(m *github.Milestone, field string) stri
 }
 
 // RenderMilestones renders a table of milestones with the specified headers.
-func (r *Renderer) RenderMilestones(milestones []*github.Milestone, headers []string) {
+func (r *Renderer) RenderMilestones(milestones []*github.Milestone, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(milestones)
-		return
+		return r.RenderExportedData(milestones)
 	}
 
 	if len(milestones) == 0 {
 		r.WriteLine("No milestones found")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -94,5 +93,5 @@ func (r *Renderer) RenderMilestones(milestones []*github.Milestone, headers []st
 		table.Append(row)
 	}
 
-	table.Render()
+	return table.Render()
 }

@@ -41,15 +41,14 @@ func (u *idpGroupFieldGetters) GetField(g *github.IDPGroup, field string) string
 }
 
 // RenderIDPGroups renders a list of IDP groups as a table with the given headers.
-func (r *Renderer) RenderIDPGroups(groups []*github.IDPGroup, headers []string) {
+func (r *Renderer) RenderIDPGroups(groups []*github.IDPGroup, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(groups)
-		return
+		return r.RenderExportedData(groups)
 	}
 
 	if len(groups) == 0 {
 		r.writeLine("No IDP groups.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -67,12 +66,7 @@ func (r *Renderer) RenderIDPGroups(groups []*github.IDPGroup, headers []string) 
 		table.Append(row)
 	}
 
-	table.Render()
-}
-
-// RenderIDPGroupsDefault renders IDP groups with default columns.
-func (r *Renderer) RenderIDPGroupsDefault(groups []*github.IDPGroup) {
-	r.RenderIDPGroups(groups, nil)
+	return table.Render()
 }
 
 // ExternalGroupFieldList is the list of valid field names for external group (EMU) display.
@@ -203,15 +197,14 @@ func (u *externalGroupTeamFieldGetters) GetField(t *github.ExternalGroupTeam, fi
 }
 
 // RenderExternalGroupTeams renders the teams connected to an external group as a table.
-func (r *Renderer) RenderExternalGroupTeams(teams []*github.ExternalGroupTeam, headers []string) {
+func (r *Renderer) RenderExternalGroupTeams(teams []*github.ExternalGroupTeam, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(teams)
-		return
+		return r.RenderExportedData(teams)
 	}
 
 	if len(teams) == 0 {
 		r.writeLine("No teams connected to this external group.")
-		return
+		return nil
 	}
 
 	if len(headers) == 0 {
@@ -229,7 +222,7 @@ func (r *Renderer) RenderExternalGroupTeams(teams []*github.ExternalGroupTeam, h
 		table.Append(row)
 	}
 
-	table.Render()
+	return table.Render()
 }
 
 // ExternalGroupDetailFieldList is the list of valid field names for a single external group detail.

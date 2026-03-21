@@ -32,14 +32,16 @@ func teamTree(node *gtree.Node, team gh.Team) *gtree.Node {
 	return root
 }
 
-func (r *Renderer) RenderTeamTree(rootName string, team gh.Team) {
+func (r *Renderer) RenderTeamTree(rootName string, team gh.Team) error {
 	if r.exporter != nil {
-		r.RenderExportedData(team)
+		return r.RenderExportedData(team)
 	}
 
 	root := teamTree(teamRootTree(rootName, team), team)
 	err := gtree.OutputFromRoot(r.IO.Out, root)
 	if err != nil {
 		r.WriteError(err)
+		return err
 	}
+	return nil
 }

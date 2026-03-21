@@ -41,11 +41,16 @@ func (g *issueCommentFieldGetters) GetField(comment *github.IssueComment, field 
 	return ""
 }
 
-func (r *Renderer) RenderIssueComments(comments []*github.IssueComment, headers []string) {
+func (r *Renderer) RenderIssueComments(comments []*github.IssueComment, headers []string) error {
 	if r.exporter != nil {
-		r.RenderExportedData(comments)
-		return
+		return r.RenderExportedData(comments)
 	}
+
+	if len(comments) == 0 {
+		r.WriteLine("no issue comments found")
+		return nil
+	}
+
 	if len(headers) == 0 {
 		headers = []string{"ID", "BODY", "USER", "CREATED_AT", "UPDATED_AT"}
 	}
@@ -60,9 +65,5 @@ func (r *Renderer) RenderIssueComments(comments []*github.IssueComment, headers 
 		}
 		table.Append(row)
 	}
-	table.Render()
-}
-
-func (r *Renderer) RenderIssueCommentsDefault(comments []*github.IssueComment) {
-	r.RenderIssueComments(comments, nil)
+	return table.Render()
 }
