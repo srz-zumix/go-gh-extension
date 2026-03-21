@@ -11,7 +11,7 @@ import (
 // CustomOrgRoles is an alias for github.CustomOrgRoles, exposed so callers do not need to import the upstream package directly.
 type CustomOrgRoles = github.CustomOrgRoles
 
-// ListRoles retrieves all roles available in the specified organization.
+// ListOrgRoles retrieves all roles available in the specified organization.
 func ListOrgRoles(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*CustomOrgRoles, error) {
 	roles, err := g.ListOrgRoles(ctx, repo.Owner)
 	if err != nil {
