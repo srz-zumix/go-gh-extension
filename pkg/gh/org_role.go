@@ -50,7 +50,7 @@ func GetRoleIDByName(ctx context.Context, g *GitHubClient, repo repository.Repos
 	}
 
 	for _, role := range roles {
-		if *role.Name == roleName {
+		if role.GetName() == roleName {
 			return role.ID, nil
 		}
 	}
@@ -67,7 +67,7 @@ func ListUsersAssignedToOrgRole(ctx context.Context, g *GitHubClient, repo repos
 
 	var users []*github.User
 	for _, role := range roles {
-		if roleName == "" || *role.Name == roleName {
+		if roleName == "" || role.GetName() == roleName {
 			usersFromRole, err := g.ListUsersAssignedToOrgRole(ctx, repo.Owner, *role.ID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to list users for role '%s' in organization '%s': %w", *role.Name, repo.Owner, err)
@@ -130,8 +130,8 @@ func CreateOrUpdateOrgRole(ctx context.Context, g *GitHubClient, repo repository
 		Permissions: permissions,
 	}
 	for _, r := range existing {
-		if r.Name != nil && *r.Name == name {
-			updated, err := g.UpdateCustomOrgRole(ctx, repo.Owner, *r.ID, opts)
+		if r.ID != nil && r.GetName() == name {
+			updated, err := g.UpdateCustomOrgRole(ctx, repo.Owner, r.GetID(), opts)
 			if err != nil {
 				return nil, fmt.Errorf("failed to update org role '%s' in organization '%s': %w", name, repo.Owner, err)
 			}
@@ -152,25 +152,21 @@ type TeamOrgRoleEntry struct {
 }
 
 // BuildTeamOrgRoleMap returns a map from team slug to a TeamOrgRoleEntry containing the team and its assigned custom org roles.
-// Only Organization-sourced (user-defined) roles are included.
 func BuildTeamOrgRoleMap(ctx context.Context, g *GitHubClient, repo repository.Repository) (map[string]*TeamOrgRoleEntry, error) {
 	roles, err := ListOrgRoles(ctx, g, repo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list org roles in organization '%s': %w", repo.Owner, err)
 	}
+
 	result := make(map[string]*TeamOrgRoleEntry)
 	for _, role := range roles {
-		if role.Source == nil || *role.Source != "Organization" {
-			continue
-		}
 		roleID := role.GetID()
 		if roleID == 0 {
 			return nil, fmt.Errorf("encountered org role with missing ID in organization '%s'", repo.Owner)
 		}
 		teams, err := g.ListTeamsAssignedToOrgRole(ctx, repo.Owner, roleID)
 		if err != nil {
-			roleName := role.GetName()
-			return nil, fmt.Errorf("failed to list teams for role '%s' in organization '%s': %w", roleName, repo.Owner, err)
+			return nil, fmt.Errorf("failed to list teams for role '%s' in organization '%s': %w", role.GetName(), repo.Owner, err)
 		}
 		for _, team := range teams {
 			slug := team.GetSlug()
