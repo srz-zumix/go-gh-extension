@@ -148,7 +148,7 @@ func (g *GitHubClient) RestoreUserPackage(ctx context.Context, user, packageType
 }
 
 // ListUserPackageVersions lists package versions for a package owned by a user.
-func (g *GitHubClient) ListUserPackageVersions(ctx context.Context, user, packageType, packageName string, _ *github.PackageListOptions) ([]*github.PackageVersion, error) {
+func (g *GitHubClient) ListUserPackageVersions(ctx context.Context, user, packageType, packageName string) ([]*github.PackageVersion, error) {
 	versions, _, err := g.client.Users.ListUserPackageVersions(ctx, user, packageType, packageName)
 	if err != nil {
 		return nil, err
