@@ -72,7 +72,7 @@ func ListUsersAssignedToOrgRole(ctx context.Context, g *GitHubClient, repo repos
 			if err != nil {
 				return nil, fmt.Errorf("failed to list users for role '%s' in organization '%s': %w", *role.Name, repo.Owner, err)
 			}
-			for _, user := range users {
+			for _, user := range usersFromRole {
 				user.RoleName = role.Name
 			}
 			users = append(users, usersFromRole...)
