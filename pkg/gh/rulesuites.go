@@ -9,6 +9,22 @@ import (
 
 type RuleSuite = client.RuleSuite
 
+// RuleSuiteTimePeriodList is the list of valid time period values for filtering rule suites.
+var RuleSuiteTimePeriodList = []string{
+	"hour",
+	"day",
+	"week",
+	"month",
+}
+
+// RuleSuiteResultList is the list of valid result values for filtering rule suites.
+var RuleSuiteResultList = []string{
+	"pass",
+	"fail",
+	"bypass",
+	"all",
+}
+
 type ListRuleSuitesOptions struct {
 	Ref             string
 	TimePeriod      string

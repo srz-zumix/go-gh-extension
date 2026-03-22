@@ -10,6 +10,22 @@ import (
 	"github.com/google/go-github/v84/github"
 )
 
+// SBOMEcosystems is the list of valid SBOM package ecosystem prefixes
+// as used by the GitHub Dependency Graph API (e.g. "npm:package-name").
+var SBOMEcosystems = []string{
+	"actions",
+	"cargo",
+	"composer",
+	"gomod",
+	"maven",
+	"npm",
+	"nuget",
+	"pip",
+	"pub",
+	"rubygems",
+	"swift",
+}
+
 func GetRepositoryDependencyGraphSBOM(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.SBOM, error) {
 	sbom, err := g.GetDependencyGraphSBOM(ctx, repo.Owner, repo.Name)
 	if err != nil {
