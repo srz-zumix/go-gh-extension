@@ -52,6 +52,7 @@ type ListRuleSuitesOptions struct {
 }
 
 // ListRepositoryRuleSuites retrieves all rule suites for a specific repository
+// https://docs.github.com/ja/rest/repos/rule-suites?apiVersion=2026-03-10#list-repository-rule-suites
 func (g *GitHubClient) ListRepositoryRuleSuites(ctx context.Context, owner string, repo string, opts *ListRuleSuitesOptions) ([]*RuleSuite, error) {
 	allRuleSuites := []*RuleSuite{}
 	opt := &ListRuleSuitesOptions{
@@ -94,6 +95,7 @@ func (g *GitHubClient) ListRepositoryRuleSuites(ctx context.Context, owner strin
 }
 
 // GetRepositoryRuleSuite retrieves a single rule suite for a specific repository by rule suite ID
+// https://docs.github.com/ja/rest/repos/rule-suites?apiVersion=2026-03-10#get-a-repository-rule-suite
 func (g *GitHubClient) GetRepositoryRuleSuite(ctx context.Context, owner string, repo string, ruleSuiteID int64) (*RuleSuite, error) {
 	u := fmt.Sprintf("repos/%s/%s/rulesets/rule-suites/%d", owner, repo, ruleSuiteID)
 
@@ -112,6 +114,7 @@ func (g *GitHubClient) GetRepositoryRuleSuite(ctx context.Context, owner string,
 }
 
 // ListOrgRuleSuites retrieves all rule suites for a specific organization
+// https://docs.github.com/ja/rest/orgs/rule-suites?apiVersion=2026-03-10#list-organization-rule-suites
 func (g *GitHubClient) ListOrgRuleSuites(ctx context.Context, org string, opts *ListRuleSuitesOptions) ([]*RuleSuite, error) {
 	allRuleSuites := []*RuleSuite{}
 	opt := &ListRuleSuitesOptions{
@@ -154,6 +157,7 @@ func (g *GitHubClient) ListOrgRuleSuites(ctx context.Context, org string, opts *
 }
 
 // GetOrgRuleSuite retrieves a single rule suite for a specific organization by rule suite ID
+// https://docs.github.com/ja/rest/orgs/rule-suites?apiVersion=2026-03-10#get-an-organization-rule-suite
 func (g *GitHubClient) GetOrgRuleSuite(ctx context.Context, org string, ruleSuiteID int64) (*RuleSuite, error) {
 	u := fmt.Sprintf("orgs/%s/rulesets/rule-suites/%d", org, ruleSuiteID)
 
