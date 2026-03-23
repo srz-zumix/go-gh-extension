@@ -183,6 +183,8 @@ type orgDeployKeysInput struct {
 
 // SetOrgDeployKeysEnabled enables or disables the ability to use deploy keys across
 // all repositories in the organization via PATCH /orgs/{org}.
+// Note: The returned *github.Organization does not expose deploy_keys_enabled_for_repositories.
+// To read back the current value of this setting, use GetOrgDeployKeysEnabled.
 func (g *GitHubClient) SetOrgDeployKeysEnabled(ctx context.Context, org string, enabled bool) (*github.Organization, error) {
 	u := fmt.Sprintf("orgs/%v", org)
 	req, err := g.client.NewRequest("PATCH", u, &orgDeployKeysInput{DeployKeysEnabledForRepositories: enabled})
