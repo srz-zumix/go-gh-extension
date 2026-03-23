@@ -46,7 +46,7 @@ func (o *OrganizationProfile) IsTeamPlan() bool {
 }
 
 func GetOrganizationProfile(ctx context.Context, g *GitHubClient, repo repository.Repository) (*OrganizationProfile, error) {
-	org, err := GetOrg(ctx, g, repo.Owner)
+	org, err := GetOrg(ctx, g, repo)
 	if err != nil {
 		return &OrganizationProfile{
 			Name: repo.Owner,

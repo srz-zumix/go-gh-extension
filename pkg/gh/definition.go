@@ -31,6 +31,14 @@ var OrgMembershipList = []string{
 	"admin",
 }
 
+// OrgDefaultRepoPermissionList is the list of valid values for the default repository permission in an organization.
+var OrgDefaultRepoPermissionList = []string{
+	"read",
+	"write",
+	"admin",
+	"none",
+}
+
 // OrgCustomRoleSourceList is the list of valid source values for custom organization roles.
 var OrgCustomRoleSourceList = []string{
 	"Organization",
