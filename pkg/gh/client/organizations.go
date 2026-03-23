@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/go-github/v84/github"
 )
@@ -12,6 +13,59 @@ func (g *GitHubClient) GetOrg(ctx context.Context, org string) (*github.Organiza
 		return nil, err
 	}
 	return organization, nil
+}
+
+// EditOrg updates the organization settings using the GitHub API.
+func (g *GitHubClient) EditOrg(ctx context.Context, org string, input *github.Organization) (*github.Organization, error) {
+	organization, _, err := g.client.Organizations.Edit(ctx, org, input)
+	if err != nil {
+		return nil, err
+	}
+	return organization, nil
+}
+
+// orgDeployKeysInput is the request body for enabling/disabling deploy keys at the org level.
+// go-github's Organization struct does not expose deploy_keys_enabled_for_repositories,
+// so we use a raw PATCH request.
+type orgDeployKeysInput struct {
+	DeployKeysEnabledForRepositories bool `json:"deploy_keys_enabled_for_repositories"`
+}
+
+// SetOrgDeployKeysEnabled enables or disables the ability to use deploy keys across
+// all repositories in the organization via PATCH /orgs/{org}.
+func (g *GitHubClient) SetOrgDeployKeysEnabled(ctx context.Context, org string, enabled bool) (*github.Organization, error) {
+	u := fmt.Sprintf("orgs/%s", org)
+	req, err := g.client.NewRequest("PATCH", u, &orgDeployKeysInput{DeployKeysEnabledForRepositories: enabled})
+	if err != nil {
+		return nil, err
+	}
+	result := new(github.Organization)
+	_, err = g.client.Do(ctx, req, result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// orgDeployKeysResponse is the response body subset for reading deploy_keys_enabled_for_repositories.
+type orgDeployKeysResponse struct {
+	DeployKeysEnabledForRepositories bool `json:"deploy_keys_enabled_for_repositories"`
+}
+
+// GetOrgDeployKeysEnabled returns whether deploy keys are enabled for repositories in the organization.
+// go-github's Organization struct does not expose this field, so a raw GET request is used.
+func (g *GitHubClient) GetOrgDeployKeysEnabled(ctx context.Context, org string) (bool, error) {
+	u := fmt.Sprintf("orgs/%s", org)
+	req, err := g.client.NewRequest("GET", u, nil)
+	if err != nil {
+		return false, err
+	}
+	result := new(orgDeployKeysResponse)
+	_, err = g.client.Do(ctx, req, result)
+	if err != nil {
+		return false, err
+	}
+	return result.DeployKeysEnabledForRepositories, nil
 }
 
 // ListOrgMembers retrieves all members of the specified organization.
