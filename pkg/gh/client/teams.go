@@ -98,7 +98,7 @@ func (g *GitHubClient) CreateTeam(ctx context.Context, org string, team *github.
 	return createdTeam, nil
 }
 
-// UpdateTeam updates the details of a team in the specified repository.
+// UpdateTeam updates the details of a team in the specified organization.
 func (g *GitHubClient) UpdateTeam(ctx context.Context, owner string, teamSlug string, team *github.NewTeam, removeParent bool) (*github.Team, error) {
 	editedTeam, _, err := g.client.Teams.EditTeamBySlug(ctx, owner, teamSlug, *team, removeParent)
 	if err != nil {
