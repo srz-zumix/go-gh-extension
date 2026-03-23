@@ -1,6 +1,8 @@
 package render
 
 import (
+	"strings"
+
 	"github.com/google/go-github/v84/github"
 )
 
@@ -65,6 +67,14 @@ func newOrgMemberPrivilegeFieldGetters() *orgMemberPrivilegeFieldGetters {
 	}
 }
 
+func (g *orgMemberPrivilegeFieldGetters) GetField(org *github.Organization, field string) string {
+	field = strings.ToUpper(field)
+	if getter, ok := g.Func[field]; ok {
+		return getter(org)
+	}
+	return ""
+}
+
 // RenderOrgMemberPrivileges renders the member privileges of an organization as a key-value table.
 func (r *Renderer) RenderOrgMemberPrivileges(org *github.Organization, fields []string) error {
 	if r.exporter != nil {
@@ -79,9 +89,7 @@ func (r *Renderer) RenderOrgMemberPrivileges(org *github.Organization, fields []
 	table := r.newTableWriter([]string{"FIELD", "VALUE"})
 
 	for _, field := range fields {
-		if fn, ok := getter.Func[field]; ok {
-			table.Append([]string{field, fn(org)})
-		}
+		table.Append([]string{field, getter.GetField(org, field)})
 	}
 
 	return table.Render()

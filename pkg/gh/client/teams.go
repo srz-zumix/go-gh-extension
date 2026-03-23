@@ -7,6 +7,7 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// ListMyTeams retrieves all teams that the authenticated user is a member of.
 func (g *GitHubClient) ListMyTeams(ctx context.Context) ([]*github.Team, error) {
 	var allTeams []*github.Team
 	opt := &github.ListOptions{PerPage: defaultPerPage}
@@ -86,6 +87,33 @@ func (g *GitHubClient) FindTeamBySlug(ctx context.Context, org string, teamSlug 
 		return nil, err
 	}
 	return t, nil
+}
+
+// CreateTeam creates a new team in the specified organization.
+func (g *GitHubClient) CreateTeam(ctx context.Context, org string, team *github.NewTeam) (*github.Team, error) {
+	createdTeam, _, err := g.client.Teams.CreateTeam(ctx, org, *team)
+	if err != nil {
+		return nil, err
+	}
+	return createdTeam, nil
+}
+
+// UpdateTeam updates the details of a team in the specified repository.
+func (g *GitHubClient) UpdateTeam(ctx context.Context, owner string, teamSlug string, team *github.NewTeam, removeParent bool) (*github.Team, error) {
+	editedTeam, _, err := g.client.Teams.EditTeamBySlug(ctx, owner, teamSlug, *team, removeParent)
+	if err != nil {
+		return nil, err
+	}
+	return editedTeam, nil
+}
+
+// DeleteTeamBySlug deletes a team by its slug in the specified organization.
+func (g *GitHubClient) DeleteTeamBySlug(ctx context.Context, org string, teamSlug string) error {
+	_, err := g.client.Teams.DeleteTeamBySlug(ctx, org, teamSlug)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // ListTeamRepos retrieves all repositories associated with a specific team in the organization.
