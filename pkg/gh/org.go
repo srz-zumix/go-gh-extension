@@ -8,7 +8,10 @@ import (
 	"github.com/google/go-github/v84/github"
 )
 
-func GetOrg(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Organization, error) {
+// Organization is an alias for github.Organization, exposed so callers do not need to import the upstream package directly.
+type Organization = github.Organization
+
+func GetOrg(ctx context.Context, g *GitHubClient, repo repository.Repository) (*Organization, error) {
 	org, err := g.GetOrg(ctx, repo.Owner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get organization '%s': %w", repo.Owner, err)
@@ -16,7 +19,7 @@ func GetOrg(ctx context.Context, g *GitHubClient, repo repository.Repository) (*
 	return org, nil
 }
 
-func EditOrg(ctx context.Context, g *GitHubClient, repo repository.Repository, input *github.Organization) (*github.Organization, error) {
+func EditOrg(ctx context.Context, g *GitHubClient, repo repository.Repository, input *Organization) (*Organization, error) {
 	org, err := g.EditOrg(ctx, repo.Owner, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to edit organization '%s': %w", repo.Owner, err)
@@ -25,7 +28,7 @@ func EditOrg(ctx context.Context, g *GitHubClient, repo repository.Repository, i
 }
 
 // SetOrgDeployKeysEnabled enables or disables deploy keys for all repositories in the organization.
-func SetOrgDeployKeysEnabled(ctx context.Context, g *GitHubClient, repo repository.Repository, enabled bool) (*github.Organization, error) {
+func SetOrgDeployKeysEnabled(ctx context.Context, g *GitHubClient, repo repository.Repository, enabled bool) (*Organization, error) {
 	org, err := g.SetOrgDeployKeysEnabled(ctx, repo.Owner, enabled)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set deploy keys enabled for organization '%s': %w", repo.Owner, err)
@@ -53,7 +56,7 @@ func FindOrgMembership(ctx context.Context, g *GitHubClient, repo repository.Rep
 }
 
 // ListOrgMembers wraps the GitHubClient's ListOrgMembers function.
-func ListOrgMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, roles []string, membership bool) ([]*github.User, error) {
+func ListOrgMembers(ctx context.Context, g *GitHubClient, repo repository.Repository, roles []string, membership bool) ([]*GitHubUser, error) {
 	roleFilter := GetOrgMembershipFilter(roles)
 	members, err := g.ListOrgMembers(ctx, repo.Owner, roleFilter)
 	if err != nil {
@@ -80,7 +83,7 @@ func RemoveOrgMember(ctx context.Context, g *GitHubClient, repo repository.Repos
 }
 
 // AddOrUpdateOrgMember adds or updates a member in the specified organization with the given role.
-func AddOrUpdateOrgMember(ctx context.Context, g *GitHubClient, repo repository.Repository, username string, role string) (*github.User, error) {
+func AddOrUpdateOrgMember(ctx context.Context, g *GitHubClient, repo repository.Repository, username string, role string) (*GitHubUser, error) {
 	membership, err := g.AddOrUpdateOrgMembership(ctx, repo.Owner, username, role)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add or update '%s' in organization '%s': %w", username, repo.Owner, err)
@@ -89,7 +92,7 @@ func AddOrUpdateOrgMember(ctx context.Context, g *GitHubClient, repo repository.
 	return membership.User, nil
 }
 
-func UpdateOrgMemberRole(ctx context.Context, g *GitHubClient, repo repository.Repository, username string, role string) (*github.User, error) {
+func UpdateOrgMemberRole(ctx context.Context, g *GitHubClient, repo repository.Repository, username string, role string) (*GitHubUser, error) {
 	membership, err := g.FindOrgMembership(ctx, repo.Owner, username)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find membership for '%s' in organization '%s': %w", username, repo.Owner, err)
@@ -119,11 +122,20 @@ func ListTeamsAssignedToRole(ctx context.Context, g *GitHubClient, repo reposito
 }
 
 // GetOrgMemberPrivileges retrieves the member privileges settings for the organization.
-func GetOrgMemberPrivileges(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Organization, error) {
+func GetOrgMemberPrivileges(ctx context.Context, g *GitHubClient, repo repository.Repository) (*Organization, error) {
 	return GetOrg(ctx, g, repo)
 }
 
-// EditOrgMemberPrivileges updates the member privileges settings for the organization.
-func EditOrgMemberPrivileges(ctx context.Context, g *GitHubClient, repo repository.Repository, input *github.Organization) (*github.Organization, error) {
-	return EditOrg(ctx, g, repo, input)
+// SetOrgBasePermission sets the default repository permission (base permissions) for organization members.
+func SetOrgBasePermission(ctx context.Context, g *GitHubClient, repo repository.Repository, permission string) (*Organization, error) {
+	return EditOrg(ctx, g, repo, &github.Organization{
+		DefaultRepoPermission: &permission,
+	})
+}
+
+// SetOrgMembersCanCreateTeams sets whether organization members can create teams.
+func SetOrgMembersCanCreateTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, enabled bool) (*Organization, error) {
+	return EditOrg(ctx, g, repo, &github.Organization{
+		MembersCanCreateTeams: &enabled,
+	})
 }
