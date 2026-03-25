@@ -281,3 +281,258 @@ func (g *GitHubClient) CreateDiscussion(ctx context.Context, input CreateDiscuss
 
 	return &mutation.CreateDiscussion.Discussion, nil
 }
+
+// Reaction represents a single reaction on a discussion or comment.
+type Reaction struct {
+	Content githubv4.String
+}
+
+// DiscussionCommentReply represents a reply to a top-level discussion comment.
+// Reactions are not included inline to avoid exceeding GraphQL node limits;
+// use GetNodeReactions to fetch them separately.
+type DiscussionCommentReply struct {
+	ID     githubv4.String
+	Body   githubv4.String
+	Author struct {
+		Login githubv4.String
+	}
+}
+
+// DiscussionComment represents a top-level comment on a discussion.
+type DiscussionComment struct {
+	ID     githubv4.String
+	Body   githubv4.String
+	Author struct {
+		Login githubv4.String
+	}
+	Reactions struct {
+		Nodes []Reaction
+	} `graphql:"reactions(first: 100)"`
+	Replies struct {
+		Nodes []DiscussionCommentReply
+	} `graphql:"replies(first: 100)"`
+}
+
+// AddDiscussionCommentInput is the input for adding a comment to a discussion.
+// Set ReplyToID to add a reply to an existing top-level comment.
+type AddDiscussionCommentInput struct {
+	DiscussionID githubv4.ID     `json:"discussionId"`
+	Body         githubv4.String `json:"body"`
+	ReplyToID    *githubv4.ID    `json:"replyToId,omitempty"`
+}
+
+// AddReactionInput is the input for adding a reaction to a subject (discussion or comment).
+type AddReactionInput struct {
+	SubjectID githubv4.ID     `json:"subjectId"`
+	Content   githubv4.String `json:"content"`
+}
+
+// GetNodeReactions retrieves all reactions on any reactionable node (discussion, comment, reply) by its GraphQL node ID.
+func (g *GitHubClient) GetNodeReactions(ctx context.Context, nodeID string) ([]Reaction, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var query struct {
+		Node struct {
+			Reactable struct {
+				Reactions struct {
+					Nodes    []Reaction
+					PageInfo struct {
+						EndCursor   githubv4.String
+						HasNextPage bool
+					}
+				} `graphql:"reactions(first: $first, after: $cursor)"`
+			} `graphql:"... on Reactable"`
+		} `graphql:"node(id: $id)"`
+	}
+
+	variables := map[string]any{
+		"id":     githubv4.ID(nodeID),
+		"first":  githubv4.Int(100),
+		"cursor": (*githubv4.String)(nil),
+	}
+
+	var allReactions []Reaction
+	for {
+		if err := graphql.Query(ctx, &query, variables); err != nil {
+			return nil, err
+		}
+		allReactions = append(allReactions, query.Node.Reactable.Reactions.Nodes...)
+		if !query.Node.Reactable.Reactions.PageInfo.HasNextPage {
+			break
+		}
+		variables["cursor"] = githubv4.NewString(query.Node.Reactable.Reactions.PageInfo.EndCursor)
+	}
+	return allReactions, nil
+}
+
+// GetDiscussionReactions retrieves all reactions on a discussion.
+func (g *GitHubClient) GetDiscussionReactions(ctx context.Context, owner, repo string, number int) ([]Reaction, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var query struct {
+		Repository struct {
+			Discussion struct {
+				Reactions struct {
+					Nodes    []Reaction
+					PageInfo struct {
+						EndCursor   githubv4.String
+						HasNextPage bool
+					}
+				} `graphql:"reactions(first: $first, after: $cursor)"`
+			} `graphql:"discussion(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	variables := map[string]any{
+		"owner":  githubv4.String(owner),
+		"repo":   githubv4.String(repo),
+		"number": githubv4.Int(number),
+		"first":  githubv4.Int(100),
+		"cursor": (*githubv4.String)(nil),
+	}
+
+	var allReactions []Reaction
+	for {
+		if err := graphql.Query(ctx, &query, variables); err != nil {
+			return nil, err
+		}
+		allReactions = append(allReactions, query.Repository.Discussion.Reactions.Nodes...)
+		if !query.Repository.Discussion.Reactions.PageInfo.HasNextPage {
+			break
+		}
+		variables["cursor"] = githubv4.NewString(query.Repository.Discussion.Reactions.PageInfo.EndCursor)
+	}
+	return allReactions, nil
+}
+
+// ListDiscussionComments retrieves all top-level comments (with replies and reactions) for a discussion.
+func (g *GitHubClient) ListDiscussionComments(ctx context.Context, owner, repo string, number int) ([]DiscussionComment, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var query struct {
+		Repository struct {
+			Discussion struct {
+				Comments struct {
+					Nodes    []DiscussionComment
+					PageInfo struct {
+						EndCursor   githubv4.String
+						HasNextPage bool
+					}
+				} `graphql:"comments(first: $first, after: $cursor)"`
+			} `graphql:"discussion(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	variables := map[string]any{
+		"owner":  githubv4.String(owner),
+		"repo":   githubv4.String(repo),
+		"number": githubv4.Int(number),
+		"first":  githubv4.Int(100),
+		"cursor": (*githubv4.String)(nil),
+	}
+
+	var allComments []DiscussionComment
+	for {
+		if err := graphql.Query(ctx, &query, variables); err != nil {
+			return nil, err
+		}
+		allComments = append(allComments, query.Repository.Discussion.Comments.Nodes...)
+		if !query.Repository.Discussion.Comments.PageInfo.HasNextPage {
+			break
+		}
+		variables["cursor"] = githubv4.NewString(query.Repository.Discussion.Comments.PageInfo.EndCursor)
+	}
+	return allComments, nil
+}
+
+// CreateDiscussionComment adds a top-level comment to a discussion and returns the new comment's node ID.
+func (g *GitHubClient) CreateDiscussionComment(ctx context.Context, discussionID, body string) (string, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return "", err
+	}
+
+	var mutation struct {
+		AddDiscussionComment struct {
+			Comment struct {
+				ID githubv4.String
+			}
+		} `graphql:"addDiscussionComment(input: $input)"`
+	}
+
+	input := AddDiscussionCommentInput{
+		DiscussionID: githubv4.ID(discussionID),
+		Body:         githubv4.String(body),
+	}
+
+	if err := graphql.Mutate(ctx, &mutation, input, nil); err != nil {
+		return "", err
+	}
+
+	return string(mutation.AddDiscussionComment.Comment.ID), nil
+}
+
+// AddDiscussionCommentReply adds a reply to an existing discussion comment and returns the new reply's node ID.
+func (g *GitHubClient) AddDiscussionCommentReply(ctx context.Context, discussionID, replyToID, body string) (string, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return "", err
+	}
+
+	var mutation struct {
+		AddDiscussionComment struct {
+			Comment struct {
+				ID githubv4.String
+			}
+		} `graphql:"addDiscussionComment(input: $input)"`
+	}
+
+	replyToIDVal := githubv4.ID(replyToID)
+	input2 := AddDiscussionCommentInput{
+		DiscussionID: githubv4.ID(discussionID),
+		Body:         githubv4.String(body),
+		ReplyToID:    &replyToIDVal,
+	}
+
+	if err := graphql.Mutate(ctx, &mutation, input2, nil); err != nil {
+		return "", err
+	}
+
+	return string(mutation.AddDiscussionComment.Comment.ID), nil
+}
+
+// AddReaction adds a reaction to a subject (discussion or comment).
+func (g *GitHubClient) AddReaction(ctx context.Context, subjectID, content string) error {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+
+	var mutation struct {
+		AddReaction struct {
+			Reaction struct {
+				Content githubv4.String
+			}
+		} `graphql:"addReaction(input: $input)"`
+	}
+
+	input := AddReactionInput{
+		SubjectID: githubv4.ID(subjectID),
+		Content:   githubv4.String(content),
+	}
+
+	if err := graphql.Mutate(ctx, &mutation, input, nil); err != nil {
+		return err
+	}
+
+	return nil
+}
