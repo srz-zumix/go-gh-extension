@@ -104,6 +104,10 @@ func GetCommit(ctx context.Context, g *GitHubClient, repo repository.Repository,
 	return g.GetCommit(ctx, repo.Owner, repo.Name, sha)
 }
 
+func GetCommitSHA1(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string) (string, error) {
+	return g.GetCommitSHA1(ctx, repo.Owner, repo.Name, ref, "")
+}
+
 func CompareCommits(ctx context.Context, g *GitHubClient, repo repository.Repository, base, head string) (*github.CommitsComparison, error) {
 	return g.CompareCommits(ctx, repo.Owner, repo.Name, base, head)
 }
