@@ -550,3 +550,8 @@ func UnarchiveRepository(ctx context.Context, g *GitHubClient, repo repository.R
 func ArchiveRepository(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
 	return EditRepository(ctx, g, repo, &github.Repository{Archived: github.Ptr(true)})
 }
+
+// EnableDiscussions enables Discussions on a repository.
+func EnableDiscussions(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
+	return EditRepository(ctx, g, repo, &github.Repository{HasDiscussions: github.Ptr(true)})
+}
