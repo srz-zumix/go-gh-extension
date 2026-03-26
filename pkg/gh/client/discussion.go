@@ -323,8 +323,8 @@ type AddDiscussionCommentInput struct {
 
 // AddReactionInput is the input for adding a reaction to a subject (discussion or comment).
 type AddReactionInput struct {
-	SubjectID githubv4.ID     `json:"subjectId"`
-	Content   githubv4.String `json:"content"`
+	SubjectID githubv4.ID              `json:"subjectId"`
+	Content   githubv4.ReactionContent `json:"content"`
 }
 
 // GetNodeReactions retrieves all reactions on any reactionable node (discussion, comment, reply) by its GraphQL node ID.

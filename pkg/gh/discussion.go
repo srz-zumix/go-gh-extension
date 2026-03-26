@@ -289,3 +289,8 @@ func SearchDiscussions(ctx context.Context, g *GitHubClient, repo repository.Rep
 	}
 	return discussions, nil
 }
+
+// ListDiscussionCategories lists discussion categories for the given repository
+func ListDiscussionCategories(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]DiscussionCategory, error) {
+	return g.ListDiscussionCategories(ctx, repo.Owner, repo.Name)
+}
