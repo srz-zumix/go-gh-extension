@@ -411,7 +411,8 @@ func (g *GitHubClient) GetDiscussionReactions(ctx context.Context, owner, repo s
 	return allReactions, nil
 }
 
-// ListDiscussionComments retrieves all top-level comments (with replies and reactions) for a discussion.
+// ListDiscussionComments retrieves all top-level comments for a discussion.
+// Replies and reactions on each comment are included up to the limit configured in the underlying GraphQL query (they are not paginated here).
 func (g *GitHubClient) ListDiscussionComments(ctx context.Context, owner, repo string, number int) ([]DiscussionComment, error) {
 	graphql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
