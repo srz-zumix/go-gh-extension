@@ -528,7 +528,7 @@ func (g *GitHubClient) AddReaction(ctx context.Context, subjectID, content strin
 
 	input := AddReactionInput{
 		SubjectID: githubv4.ID(subjectID),
-		Content:   githubv4.String(content),
+		Content:   githubv4.ReactionContent(content),
 	}
 
 	if err := graphql.Mutate(ctx, &mutation, input, nil); err != nil {
