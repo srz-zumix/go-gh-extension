@@ -294,3 +294,83 @@ func SearchDiscussions(ctx context.Context, g *GitHubClient, repo repository.Rep
 func ListDiscussionCategories(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]DiscussionCategory, error) {
 	return g.ListDiscussionCategories(ctx, repo.Owner, repo.Name)
 }
+
+// DiscussionComment is an alias for client.DiscussionComment.
+type DiscussionComment = client.DiscussionComment
+
+// Reaction is an alias for client.Reaction.
+type Reaction = client.Reaction
+
+// CreateDiscussionInput is an alias for client.CreateDiscussionInput.
+type CreateDiscussionInput = client.CreateDiscussionInput
+
+// getDiscussionNodeID resolves a GraphQL node ID string from v.
+// If v is a *Discussion or Discussion, its ID field is returned.
+// If v is a string, it is returned as-is.
+func getDiscussionNodeID(v any) string {
+	switch t := v.(type) {
+	case *Discussion:
+		return string(t.ID)
+	case Discussion:
+		return string(t.ID)
+	case string:
+		return t
+	default:
+		return fmt.Sprintf("%v", t)
+	}
+}
+
+// ListDiscussions lists all discussions in a repository.
+func ListDiscussions(ctx context.Context, g *GitHubClient, repo repository.Repository, first int) ([]Discussion, error) {
+	return g.ListDiscussions(ctx, repo.Owner, repo.Name, first)
+}
+
+// GetDiscussionByNumber retrieves a specific discussion by its number.
+func GetDiscussionByNumber(ctx context.Context, g *GitHubClient, repo repository.Repository, number int) (*Discussion, error) {
+	return g.GetDiscussion(ctx, repo.Owner, repo.Name, number)
+}
+
+// DeleteDiscussion deletes a discussion by its node ID.
+// id may be a *Discussion, Discussion, or string.
+func DeleteDiscussion(ctx context.Context, g *GitHubClient, id any) error {
+	return g.DeleteDiscussion(ctx, getDiscussionNodeID(id))
+}
+
+// CreateDiscussion creates a new discussion in a repository.
+func CreateDiscussion(ctx context.Context, g *GitHubClient, input CreateDiscussionInput) (*Discussion, error) {
+	return g.CreateDiscussion(ctx, input)
+}
+
+// GetDiscussionReactions retrieves all reactions on a discussion.
+func GetDiscussionReactions(ctx context.Context, g *GitHubClient, repo repository.Repository, number int) ([]Reaction, error) {
+	return g.GetDiscussionReactions(ctx, repo.Owner, repo.Name, number)
+}
+
+// GetNodeReactions retrieves all reactions on any reactionable node by its GraphQL node ID.
+// nodeID may be a *Discussion, Discussion, or string.
+func GetNodeReactions(ctx context.Context, g *GitHubClient, nodeID any) ([]Reaction, error) {
+	return g.GetNodeReactions(ctx, getDiscussionNodeID(nodeID))
+}
+
+// ListDiscussionComments retrieves all top-level comments (with replies) for a discussion.
+func ListDiscussionComments(ctx context.Context, g *GitHubClient, repo repository.Repository, number int) ([]DiscussionComment, error) {
+	return g.ListDiscussionComments(ctx, repo.Owner, repo.Name, number)
+}
+
+// CreateDiscussionComment adds a top-level comment to a discussion and returns the new comment's node ID.
+// discussionID may be a *Discussion, Discussion, or string.
+func CreateDiscussionComment(ctx context.Context, g *GitHubClient, discussionID any, body string) (string, error) {
+	return g.CreateDiscussionComment(ctx, getDiscussionNodeID(discussionID), body)
+}
+
+// AddDiscussionCommentReply adds a reply to an existing discussion comment and returns the new reply's node ID.
+// discussionID and replyToID may each be a *Discussion, Discussion, or string.
+func AddDiscussionCommentReply(ctx context.Context, g *GitHubClient, discussionID, replyToID any, body string) (string, error) {
+	return g.AddDiscussionCommentReply(ctx, getDiscussionNodeID(discussionID), getDiscussionNodeID(replyToID), body)
+}
+
+// AddReaction adds a reaction to a subject (discussion or comment).
+// subjectID may be a *Discussion, Discussion, or string.
+func AddReaction(ctx context.Context, g *GitHubClient, subjectID any, content string) error {
+	return g.AddReaction(ctx, getDiscussionNodeID(subjectID), content)
+}
