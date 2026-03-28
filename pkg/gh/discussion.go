@@ -316,7 +316,8 @@ func getDiscussionNodeID(v any) string {
 	case string:
 		return t
 	default:
-		return fmt.Sprintf("%v", t)
+		// Panic on unsupported types to surface programmer errors early
+		panic(fmt.Sprintf("unsupported type %T passed to getDiscussionNodeID", t))
 	}
 }
 
