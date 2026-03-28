@@ -306,6 +306,9 @@ func (g *GitHubClient) DeleteDiscussion(ctx context.Context, discussionID string
 // Reaction represents a single reaction on a discussion or comment.
 type Reaction struct {
 	Content githubv4.String
+	User    struct {
+		Login githubv4.String
+	}
 }
 
 // DiscussionCommentReply represents a reply to a top-level discussion comment.
