@@ -21,6 +21,18 @@ var PermissionsList = []string{
 	"pull",
 }
 
+// TeamPrivacyList is the list of valid values for the privacy setting of a team.
+var TeamPrivacyList = []string{
+	"secret",
+	"closed",
+}
+
+// TeamNotificationSettingList is the list of valid values for the notification setting of a team.
+var TeamNotificationSettingList = []string{
+	"notifications_enabled",
+	"notifications_disabled",
+}
+
 var TeamMembershipList = []string{
 	TeamMembershipRoleMember,
 	TeamMembershipRoleMaintainer,
