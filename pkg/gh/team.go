@@ -287,10 +287,12 @@ func CreateOrUpdateTeam(ctx context.Context, g *GitHubClient, repo repository.Re
 	}
 	// If the display name differs from the slug, update the team to set the intended name.
 	if name != nil && *name != teamSlug {
-		team, err = UpdateTeam(ctx, g, repo, teamSlug, name, &description, &privacy, &enableNotification, parentTeamSlug)
+		updatedTeam, err := UpdateTeam(ctx, g, repo, teamSlug, name, &description, &privacy, &enableNotification, parentTeamSlug)
 		if err != nil {
-			return nil, err
+			// Return the created team along with the error to indicate partial success
+			return team, err
 		}
+		team = updatedTeam
 	}
 	return team, nil
 }
