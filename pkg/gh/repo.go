@@ -11,6 +11,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v84/github"
+	"github.com/shurcooL/githubv4"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
@@ -554,4 +555,9 @@ func ArchiveRepository(ctx context.Context, g *GitHubClient, repo repository.Rep
 // EnableDiscussions enables Discussions on a repository.
 func EnableDiscussions(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
 	return EditRepository(ctx, g, repo, &github.Repository{HasDiscussions: github.Ptr(true)})
+}
+
+// GetRepositoryNodeID retrieves the GraphQL node ID of a repository.
+func GetRepositoryNodeID(ctx context.Context, g *GitHubClient, repo repository.Repository) (githubv4.ID, error) {
+	return g.GetRepositoryNodeID(ctx, repo.Owner, repo.Name)
 }

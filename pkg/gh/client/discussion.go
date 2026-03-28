@@ -282,6 +282,27 @@ func (g *GitHubClient) CreateDiscussion(ctx context.Context, input CreateDiscuss
 	return &mutation.CreateDiscussion.Discussion, nil
 }
 
+// DeleteDiscussion deletes a discussion by its node ID.
+func (g *GitHubClient) DeleteDiscussion(ctx context.Context, discussionID string) error {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+
+	var mutation struct {
+		DeleteDiscussion struct {
+			ClientMutationID githubv4.String
+		} `graphql:"deleteDiscussion(input: $input)"`
+	}
+
+	type DeleteDiscussionInput struct {
+		ID githubv4.ID `json:"id"`
+	}
+
+	input := DeleteDiscussionInput{ID: githubv4.ID(discussionID)}
+	return graphql.Mutate(ctx, &mutation, input, nil)
+}
+
 // Reaction represents a single reaction on a discussion or comment.
 type Reaction struct {
 	Content githubv4.String
