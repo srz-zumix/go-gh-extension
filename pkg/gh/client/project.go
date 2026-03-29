@@ -219,7 +219,7 @@ type projectV2ItemNode struct {
 	Content     projectV2ItemContentNode
 	FieldValues struct {
 		Nodes []projectV2ItemFieldValueNode
-	} `graphql:"fieldValues(first: 20)"`
+	} `graphql:"fieldValues(first: 100)"`
 }
 
 func (n *projectV2ItemNode) toProjectV2Item() ProjectV2Item {
