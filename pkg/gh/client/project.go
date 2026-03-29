@@ -86,7 +86,6 @@ type ProjectV2Item struct {
 // projectV2FieldConfigNode is the inline-fragment representation of the
 // ProjectV2FieldConfiguration union (ProjectV2Field | ProjectV2SingleSelectField | ProjectV2IterationField).
 // Exactly one variant's ID will be non-empty for any given node.
-// nolint:unused
 type projectV2FieldConfigNode struct {
 	AsProjectV2Field struct {
 		ID       githubv4.String
