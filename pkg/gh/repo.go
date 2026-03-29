@@ -11,7 +11,6 @@ import (
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v84/github"
-	"github.com/shurcooL/githubv4"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
@@ -558,6 +557,14 @@ func EnableDiscussions(ctx context.Context, g *GitHubClient, repo repository.Rep
 }
 
 // GetRepositoryNodeID retrieves the GraphQL node ID of a repository.
-func GetRepositoryNodeID(ctx context.Context, g *GitHubClient, repo repository.Repository) (githubv4.ID, error) {
-	return g.GetRepositoryNodeID(ctx, repo.Owner, repo.Name)
+func GetRepositoryNodeID(ctx context.Context, g *GitHubClient, repo repository.Repository) (string, error) {
+	id, err := g.GetRepositoryNodeID(ctx, repo.Owner, repo.Name)
+	if err != nil {
+		return "", err
+	}
+	// githubv4.ID is an interface{}; the underlying value is expected to be a string.
+	if s, ok := id.(string); ok {
+		return s, nil
+	}
+	return "", fmt.Errorf("unexpected repository node ID type %T", id)
 }
