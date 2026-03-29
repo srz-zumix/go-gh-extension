@@ -39,7 +39,7 @@ func (g *GitHubClient) GetNodeReactions(ctx context.Context, nodeID string) ([]R
 	}
 
 	var query struct {
-		Node struct {
+		Node *struct {
 			Reactable struct {
 				Reactions struct {
 					Nodes    []rawReaction
@@ -62,6 +62,9 @@ func (g *GitHubClient) GetNodeReactions(ctx context.Context, nodeID string) ([]R
 	for {
 		if err := graphql.Query(ctx, &query, variables); err != nil {
 			return nil, err
+		}
+		if query.Node == nil {
+			return nil, nil
 		}
 		for _, r := range query.Node.Reactable.Reactions.Nodes {
 			allReactions = append(allReactions, r.toReaction())
