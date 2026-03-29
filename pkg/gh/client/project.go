@@ -10,14 +10,14 @@ import (
 
 // ProjectV2 represents a GitHub Project v2.
 type ProjectV2 struct {
-	ID               githubv4.String
-	Number           githubv4.Int
-	Title            githubv4.String
-	ShortDescription *githubv4.String
-	Readme           *githubv4.String
-	URL              githubv4.String
-	Public           githubv4.Boolean
-	Closed           githubv4.Boolean
+	ID               string
+	Number           int
+	Title            string
+	ShortDescription *string
+	Readme           *string
+	URL              string
+	Public           bool
+	Closed           bool
 }
 
 // ProjectV2Field represents a resolved field (column) in a GitHub Project v2.
