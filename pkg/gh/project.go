@@ -94,12 +94,8 @@ func ListProjectV2Items(ctx context.Context, g *GitHubClient, owner string, numb
 }
 
 // GetOwnerNodeID returns the GraphQL node ID for a user or organization login as a string.
-func GetOwnerNodeID(ctx context.Context, g *GitHubClient, login string) (string, error) {
-	id, err := g.GetOwnerNodeID(ctx, login)
-	if err != nil {
-		return "", err
-	}
-	return string(id), nil
+func GetOwnerNodeID(ctx context.Context, g *GitHubClient, login string) (*string, error) {
+	return g.GetOwnerNodeID(ctx, login)
 }
 
 // CreateProjectV2 creates a new GitHub Project v2 owned by the given owner.

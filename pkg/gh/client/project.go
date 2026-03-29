@@ -589,7 +589,7 @@ func (g *GitHubClient) ListOrgProjectV2Items(ctx context.Context, org string, nu
 }
 
 // GetOwnerNodeID returns the GraphQL node ID for a user or organization login.
-func (g *GitHubClient) GetOwnerNodeID(ctx context.Context, login string) (githubv4.ID, error) {
+func (g *GitHubClient) GetOwnerNodeID(ctx context.Context, login string) (*string, error) {
 	user, err := g.GetUser(ctx, login)
 	if err != nil {
 		return nil, err
@@ -597,7 +597,7 @@ func (g *GitHubClient) GetOwnerNodeID(ctx context.Context, login string) (github
 	if user.NodeID == nil {
 		return nil, fmt.Errorf("owner '%s' has no node ID", login)
 	}
-	return githubv4.ID(*user.NodeID), nil
+	return user.NodeID, nil
 }
 
 // ─────────────────────────────────────────
