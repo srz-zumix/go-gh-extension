@@ -301,14 +301,8 @@ type DiscussionComment = client.DiscussionComment
 // Reaction is an alias for client.Reaction.
 type Reaction = client.Reaction
 
-// CreateDiscussionInput is the input for creating a discussion.
-// All IDs are plain strings; the gh layer converts to GraphQL types internally.
-type CreateDiscussionInput struct {
-	RepositoryID string
-	CategoryID   string
-	Title        string
-	Body         string
-}
+// CreateDiscussionOption is an alias for client.CreateDiscussionOption.
+type CreateDiscussionOption = client.CreateDiscussionOption
 
 // getDiscussionNodeID resolves a GraphQL node ID string from v.
 // If v is a *Discussion or Discussion, its ID field is returned.
@@ -343,19 +337,9 @@ func DeleteDiscussion(ctx context.Context, g *GitHubClient, id any) error {
 	return g.DeleteDiscussion(ctx, getDiscussionNodeID(id))
 }
 
-// UpdateDiscussionInput is the input for updating a discussion body.
-// All IDs are plain strings; the gh layer converts to GraphQL types internally.
-type UpdateDiscussionInput struct {
-	DiscussionID string
-	Body         string
-}
-
 // UpdateDiscussion updates the body of an existing discussion.
-func UpdateDiscussion(ctx context.Context, g *GitHubClient, input UpdateDiscussionInput) error {
-	return g.UpdateDiscussion(ctx, client.UpdateDiscussionInput{
-		DiscussionID: input.DiscussionID,
-		Body:         input.Body,
-	})
+func UpdateDiscussion(ctx context.Context, g *GitHubClient, id any, body string) error {
+	return g.UpdateDiscussion(ctx, getDiscussionNodeID(id), body)
 }
 
 // DeleteDiscussionComment deletes a discussion comment or reply by its node ID.
@@ -370,13 +354,8 @@ func DiscussionCommentExists(ctx context.Context, g *GitHubClient, commentID str
 }
 
 // CreateDiscussion creates a new discussion in a repository.
-func CreateDiscussion(ctx context.Context, g *GitHubClient, input CreateDiscussionInput) (*Discussion, error) {
-	return g.CreateDiscussion(ctx, client.CreateDiscussionInput{
-		RepositoryID: input.RepositoryID,
-		CategoryID:   input.CategoryID,
-		Title:        input.Title,
-		Body:         input.Body,
-	})
+func CreateDiscussion(ctx context.Context, g *GitHubClient, input CreateDiscussionOption) (*Discussion, error) {
+	return g.CreateDiscussion(ctx, input)
 }
 
 // GetDiscussionReactions retrieves all reactions on a discussion.

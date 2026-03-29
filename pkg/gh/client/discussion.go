@@ -348,8 +348,8 @@ func (g *GitHubClient) ListDiscussionCategories(ctx context.Context, owner strin
 	return allCategories, nil
 }
 
-// CreateDiscussionInput is the input for creating a discussion.
-type CreateDiscussionInput struct {
+// CreateDiscussionOption is the input for creating a discussion.
+type CreateDiscussionOption struct {
 	RepositoryID string `json:"repositoryId"`
 	CategoryID   string `json:"categoryId"`
 	Title        string `json:"title"`
@@ -357,7 +357,7 @@ type CreateDiscussionInput struct {
 }
 
 // CreateDiscussion creates a new discussion in a repository using GraphQL mutation.
-func (g *GitHubClient) CreateDiscussion(ctx context.Context, input CreateDiscussionInput) (*Discussion, error) {
+func (g *GitHubClient) CreateDiscussion(ctx context.Context, input CreateDiscussionOption) (*Discussion, error) {
 	graphql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
 		return nil, err
@@ -412,14 +412,8 @@ func (g *GitHubClient) DeleteDiscussion(ctx context.Context, discussionID string
 	return graphql.Mutate(ctx, &mutation, input, nil)
 }
 
-// UpdateDiscussionInput is the input for updating a discussion body.
-type UpdateDiscussionInput struct {
-	DiscussionID string `json:"discussionId"`
-	Body         string `json:"body"`
-}
-
 // UpdateDiscussion updates the body of an existing discussion.
-func (g *GitHubClient) UpdateDiscussion(ctx context.Context, input UpdateDiscussionInput) error {
+func (g *GitHubClient) UpdateDiscussion(ctx context.Context, discussionID, body string) error {
 	graphql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
 		return err
@@ -439,8 +433,8 @@ func (g *GitHubClient) UpdateDiscussion(ctx context.Context, input UpdateDiscuss
 	}
 
 	gqlInput := UpdateDiscussionInput{
-		DiscussionID: githubv4.ID(input.DiscussionID),
-		Body:         githubv4.String(input.Body),
+		DiscussionID: githubv4.ID(discussionID),
+		Body:         githubv4.String(body),
 	}
 
 	return graphql.Mutate(ctx, &mutation, gqlInput, nil)
@@ -578,49 +572,6 @@ type AddDiscussionCommentInput struct {
 type AddReactionInput struct {
 	SubjectID githubv4.ID              `json:"subjectId"`
 	Content   githubv4.ReactionContent `json:"content"`
-}
-
-// GetNodeReactions retrieves all reactions on any reactionable node (discussion, comment, reply) by its GraphQL node ID.
-func (g *GitHubClient) GetNodeReactions(ctx context.Context, nodeID string) ([]Reaction, error) {
-	graphql, err := g.GetOrCreateGraphQLClient()
-	if err != nil {
-		return nil, err
-	}
-
-	var query struct {
-		Node struct {
-			Reactable struct {
-				Reactions struct {
-					Nodes    []rawReaction
-					PageInfo struct {
-						EndCursor   githubv4.String
-						HasNextPage bool
-					}
-				} `graphql:"reactions(first: $first, after: $cursor)"`
-			} `graphql:"... on Reactable"`
-		} `graphql:"node(id: $id)"`
-	}
-
-	variables := map[string]any{
-		"id":     githubv4.ID(nodeID),
-		"first":  githubv4.Int(100),
-		"cursor": (*githubv4.String)(nil),
-	}
-
-	var allReactions []Reaction
-	for {
-		if err := graphql.Query(ctx, &query, variables); err != nil {
-			return nil, err
-		}
-		for _, r := range query.Node.Reactable.Reactions.Nodes {
-			allReactions = append(allReactions, r.toReaction())
-		}
-		if !query.Node.Reactable.Reactions.PageInfo.HasNextPage {
-			break
-		}
-		variables["cursor"] = githubv4.NewString(query.Node.Reactable.Reactions.PageInfo.EndCursor)
-	}
-	return allReactions, nil
 }
 
 // GetDiscussionReactions retrieves all reactions on a discussion.
