@@ -562,9 +562,9 @@ func GetRepositoryNodeID(ctx context.Context, g *GitHubClient, repo repository.R
 	if err != nil {
 		return "", err
 	}
-	// githubv4.ID is an interface{}; the underlying value is a string.
+	// githubv4.ID is an interface{}; the underlying value is expected to be a string.
 	if s, ok := id.(string); ok {
 		return s, nil
 	}
-	return fmt.Sprintf("%v", id), nil
+	return "", fmt.Errorf("unexpected repository node ID type %T", id)
 }
