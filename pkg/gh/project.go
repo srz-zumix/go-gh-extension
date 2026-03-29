@@ -93,7 +93,7 @@ func ListProjectV2Items(ctx context.Context, g *GitHubClient, owner string, numb
 	}
 }
 
-// GetOwnerNodeID returns the GraphQL node ID for a user or organization login as a string.
+// GetOwnerNodeID returns the GraphQL node ID for a user or organization login as a *string.
 func GetOwnerNodeID(ctx context.Context, g *GitHubClient, login string) (*string, error) {
 	return g.GetOwnerNodeID(ctx, login)
 }
