@@ -30,7 +30,7 @@ func GetDiscussion(ctx context.Context, g *GitHubClient, repo repository.Reposit
 	// Get label names from discussion
 	var labelNames []string
 	for _, labelNode := range discussion.Labels.Nodes {
-		labelNames = append(labelNames, string(labelNode.Name))
+		labelNames = append(labelNames, labelNode.Name)
 	}
 
 	// Get full label information using ListLabels
@@ -76,7 +76,7 @@ func AddDiscussionLabels(ctx context.Context, g *GitHubClient, repo repository.R
 	}
 
 	// Add labels to discussion
-	discussionID := string(discussion.ID)
+	discussionID := discussion.ID
 	if err := g.AddLabelsToDiscussion(ctx, discussionID, labelIDs); err != nil {
 		return nil, fmt.Errorf("failed to add labels to discussion #%d in repository '%s/%s': %w", discussionNumber, repo.Owner, repo.Name, err)
 	}
@@ -124,7 +124,7 @@ func RemoveDiscussionLabels(ctx context.Context, g *GitHubClient, repo repositor
 	}
 
 	// Remove labels from discussion
-	discussionID := string(discussion.ID)
+	discussionID := discussion.ID
 	if err := g.RemoveLabelsFromDiscussion(ctx, discussionID, labelIDs); err != nil {
 		return nil, fmt.Errorf("failed to remove labels from discussion #%d in repository '%s/%s': %w", discussionNumber, repo.Owner, repo.Name, err)
 	}
@@ -149,7 +149,7 @@ func ClearDiscussionLabels(ctx context.Context, g *GitHubClient, repo repository
 	// Get current labels from discussion
 	var labelIDs []string
 	for _, labelNode := range discussion.Labels.Nodes {
-		labelIDs = append(labelIDs, string(labelNode.ID))
+		labelIDs = append(labelIDs, labelNode.ID)
 	}
 
 	// If no labels, nothing to do
@@ -158,7 +158,7 @@ func ClearDiscussionLabels(ctx context.Context, g *GitHubClient, repo repository
 	}
 
 	// Remove all labels from discussion
-	discussionID := string(discussion.ID)
+	discussionID := discussion.ID
 	if err := g.RemoveLabelsFromDiscussion(ctx, discussionID, labelIDs); err != nil {
 		return fmt.Errorf("failed to clear labels from discussion #%d in repository '%s/%s': %w", discussionNumber, repo.Owner, repo.Name, err)
 	}
@@ -182,10 +182,10 @@ func SetDiscussionLabels(ctx context.Context, g *GitHubClient, repo repository.R
 	// Get current label IDs from discussion
 	var currentLabelIDs []string
 	for _, labelNode := range discussion.Labels.Nodes {
-		currentLabelIDs = append(currentLabelIDs, string(labelNode.ID))
+		currentLabelIDs = append(currentLabelIDs, labelNode.ID)
 	}
 
-	discussionID := string(discussion.ID)
+	discussionID := discussion.ID
 
 	// Remove all current labels if any exist
 	if len(currentLabelIDs) > 0 {
@@ -241,7 +241,7 @@ func GetDiscussionNumber(number any) (int, error) {
 	case int:
 		return t, nil
 	case *Discussion:
-		return int(t.Number), nil
+		return t.Number, nil
 	case *github.Discussion:
 		return t.GetNumber(), nil
 	default:
@@ -310,9 +310,9 @@ type CreateDiscussionOption = client.CreateDiscussionOption
 func getDiscussionNodeID(v any) string {
 	switch t := v.(type) {
 	case *Discussion:
-		return string(t.ID)
+		return t.ID
 	case Discussion:
-		return string(t.ID)
+		return t.ID
 	case string:
 		return t
 	default:

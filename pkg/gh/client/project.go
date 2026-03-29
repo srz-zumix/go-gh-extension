@@ -213,10 +213,10 @@ type projectV2ItemFieldValueNode struct {
 
 // projectV2ItemNode is the raw GraphQL node for a project item.
 type projectV2ItemNode struct {
-	ID         githubv4.String
-	Type       githubv4.String
-	IsArchived githubv4.Boolean
-	Content    projectV2ItemContentNode
+	ID          githubv4.String
+	Type        githubv4.String
+	IsArchived  githubv4.Boolean
+	Content     projectV2ItemContentNode
 	FieldValues struct {
 		Nodes []projectV2ItemFieldValueNode
 	} `graphql:"fieldValues(first: 20)"`
@@ -282,7 +282,7 @@ func (n *projectV2ItemNode) toProjectV2Item() ProjectV2Item {
 				item.FieldValues = append(item.FieldValues, ProjectV2FieldValue{
 					FieldName: fieldName,
 					ValueType: "DATE",
-					Date:      fv.AsDate.Date.Time.Format("2006-01-02"),
+					Date:      fv.AsDate.Date.Format("2006-01-02"),
 				})
 			}
 		} else if fv.AsSingleSelect.Name != nil {
@@ -651,11 +651,11 @@ type AddProjectV2DraftIssueInput struct {
 // ProjectV2FieldValueInput represents the value to set on a project item field.
 // Only one of Text/Number/Date/SingleSelectOptionID/IterationID should be set.
 type ProjectV2FieldValueInput struct {
-	Text                 *githubv4.String  `json:"text,omitempty"`
-	Number               *githubv4.Float   `json:"number,omitempty"`
-	Date                 *githubv4.Date    `json:"date,omitempty"`
-	SingleSelectOptionID *githubv4.String  `json:"singleSelectOptionId,omitempty"`
-	IterationID          *githubv4.String  `json:"iterationId,omitempty"`
+	Text                 *githubv4.String `json:"text,omitempty"`
+	Number               *githubv4.Float  `json:"number,omitempty"`
+	Date                 *githubv4.Date   `json:"date,omitempty"`
+	SingleSelectOptionID *githubv4.String `json:"singleSelectOptionId,omitempty"`
+	IterationID          *githubv4.String `json:"iterationId,omitempty"`
 }
 
 // UpdateProjectV2ItemFieldValueInput is the input for setting a field value on a project item.
