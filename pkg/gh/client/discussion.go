@@ -2,12 +2,42 @@ package client
 
 import (
 	"context"
+	"time"
 
 	"github.com/shurcooL/githubv4"
 )
 
-// Discussion represents a GitHub discussion
+// Discussion represents a GitHub discussion with plain Go types.
 type Discussion struct {
+	ID     string
+	Number int
+	Title  string
+	Body   string
+	Author struct {
+		Login string
+	}
+	Category struct {
+		Name string
+		Slug string
+	}
+	Labels struct {
+		Nodes []struct {
+			ID          string
+			Name        string
+			Color       string
+			Description *string
+		}
+	}
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	ClosedAt    *time.Time
+	Locked      bool
+	StateReason *string
+	URL         string
+}
+
+// rawDiscussion is the internal GraphQL representation of a discussion.
+type rawDiscussion struct {
 	ID     githubv4.String
 	Number githubv4.Int
 	Title  githubv4.String
@@ -35,6 +65,49 @@ type Discussion struct {
 	URL         githubv4.String
 }
 
+// toDiscussion converts a rawDiscussion to a plain-type Discussion.
+func (r rawDiscussion) toDiscussion() Discussion {
+	d := Discussion{
+		ID:        string(r.ID),
+		Number:    int(r.Number),
+		Title:     string(r.Title),
+		Body:      string(r.Body),
+		CreatedAt: r.CreatedAt.Time,
+		UpdatedAt: r.UpdatedAt.Time,
+		Locked:    bool(r.Locked),
+		URL:       string(r.URL),
+	}
+	d.Author.Login = string(r.Author.Login)
+	d.Category.Name = string(r.Category.Name)
+	d.Category.Slug = string(r.Category.Slug)
+	if r.ClosedAt != nil {
+		t := r.ClosedAt.Time
+		d.ClosedAt = &t
+	}
+	if r.StateReason != nil {
+		s := string(*r.StateReason)
+		d.StateReason = &s
+	}
+	for _, l := range r.Labels.Nodes {
+		node := struct {
+			ID          string
+			Name        string
+			Color       string
+			Description *string
+		}{
+			ID:    string(l.ID),
+			Name:  string(l.Name),
+			Color: string(l.Color),
+		}
+		if l.Description != nil {
+			s := string(*l.Description)
+			node.Description = &s
+		}
+		d.Labels.Nodes = append(d.Labels.Nodes, node)
+	}
+	return d
+}
+
 // GetDiscussion retrieves a specific discussion by number using GraphQL
 func (g *GitHubClient) GetDiscussion(ctx context.Context, owner string, repo string, number int) (*Discussion, error) {
 	graphql, err := g.GetOrCreateGraphQLClient()
@@ -44,7 +117,7 @@ func (g *GitHubClient) GetDiscussion(ctx context.Context, owner string, repo str
 
 	var query struct {
 		Repository struct {
-			Discussion Discussion `graphql:"discussion(number: $number)"`
+			Discussion rawDiscussion `graphql:"discussion(number: $number)"`
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
@@ -58,7 +131,8 @@ func (g *GitHubClient) GetDiscussion(ctx context.Context, owner string, repo str
 		return nil, err
 	}
 
-	return &query.Repository.Discussion, nil
+	d := query.Repository.Discussion.toDiscussion()
+	return &d, nil
 }
 
 // ListDiscussions retrieves all discussions for a repository using GraphQL
@@ -71,7 +145,7 @@ func (g *GitHubClient) ListDiscussions(ctx context.Context, owner string, repo s
 	var query struct {
 		Repository struct {
 			Discussions struct {
-				Nodes    []Discussion
+				Nodes    []rawDiscussion
 				PageInfo struct {
 					EndCursor   githubv4.String
 					HasNextPage bool
@@ -92,7 +166,9 @@ func (g *GitHubClient) ListDiscussions(ctx context.Context, owner string, repo s
 		if err := graphql.Query(ctx, &query, variables); err != nil {
 			return nil, err
 		}
-		allDiscussions = append(allDiscussions, query.Repository.Discussions.Nodes...)
+		for _, d := range query.Repository.Discussions.Nodes {
+			allDiscussions = append(allDiscussions, d.toDiscussion())
+		}
 		if !query.Repository.Discussions.PageInfo.HasNextPage {
 			break
 		}
@@ -174,7 +250,7 @@ func (g *GitHubClient) SearchDiscussions(ctx context.Context, query string, firs
 	var searchQuery struct {
 		Search struct {
 			Nodes []struct {
-				Discussion Discussion `graphql:"... on Discussion"`
+				Discussion rawDiscussion `graphql:"... on Discussion"`
 			}
 			PageInfo struct {
 				EndCursor   githubv4.String
@@ -195,7 +271,7 @@ func (g *GitHubClient) SearchDiscussions(ctx context.Context, query string, firs
 			return nil, err
 		}
 		for _, node := range searchQuery.Search.Nodes {
-			allDiscussions = append(allDiscussions, node.Discussion)
+			allDiscussions = append(allDiscussions, node.Discussion.toDiscussion())
 		}
 		if !searchQuery.Search.PageInfo.HasNextPage {
 			break
@@ -206,11 +282,27 @@ func (g *GitHubClient) SearchDiscussions(ctx context.Context, query string, firs
 	return allDiscussions, nil
 }
 
-// DiscussionCategory represents a discussion category in a repository.
+// DiscussionCategory represents a discussion category with plain Go types.
 type DiscussionCategory struct {
+	ID   string
+	Name string
+	Slug string
+}
+
+// rawDiscussionCategory is the internal GraphQL representation of a discussion category.
+type rawDiscussionCategory struct {
 	ID   githubv4.String
 	Name githubv4.String
 	Slug githubv4.String
+}
+
+// toDiscussionCategory converts a rawDiscussionCategory to a plain-type DiscussionCategory.
+func (r rawDiscussionCategory) toDiscussionCategory() DiscussionCategory {
+	return DiscussionCategory{
+		ID:   string(r.ID),
+		Name: string(r.Name),
+		Slug: string(r.Slug),
+	}
 }
 
 // ListDiscussionCategories retrieves all discussion categories for a repository using GraphQL.
@@ -223,7 +315,7 @@ func (g *GitHubClient) ListDiscussionCategories(ctx context.Context, owner strin
 	var query struct {
 		Repository struct {
 			DiscussionCategories struct {
-				Nodes    []DiscussionCategory
+				Nodes    []rawDiscussionCategory
 				PageInfo struct {
 					EndCursor   githubv4.String
 					HasNextPage bool
@@ -244,7 +336,9 @@ func (g *GitHubClient) ListDiscussionCategories(ctx context.Context, owner strin
 		if err := graphql.Query(ctx, &query, variables); err != nil {
 			return nil, err
 		}
-		allCategories = append(allCategories, query.Repository.DiscussionCategories.Nodes...)
+		for _, c := range query.Repository.DiscussionCategories.Nodes {
+			allCategories = append(allCategories, c.toDiscussionCategory())
+		}
 		if !query.Repository.DiscussionCategories.PageInfo.HasNextPage {
 			break
 		}
@@ -256,10 +350,10 @@ func (g *GitHubClient) ListDiscussionCategories(ctx context.Context, owner strin
 
 // CreateDiscussionInput is the input for creating a discussion.
 type CreateDiscussionInput struct {
-	RepositoryID githubv4.ID     `json:"repositoryId"`
-	CategoryID   githubv4.ID     `json:"categoryId"`
-	Title        githubv4.String `json:"title"`
-	Body         githubv4.String `json:"body"`
+	RepositoryID string `json:"repositoryId"`
+	CategoryID   string `json:"categoryId"`
+	Title        string `json:"title"`
+	Body         string `json:"body"`
 }
 
 // CreateDiscussion creates a new discussion in a repository using GraphQL mutation.
@@ -271,15 +365,30 @@ func (g *GitHubClient) CreateDiscussion(ctx context.Context, input CreateDiscuss
 
 	var mutation struct {
 		CreateDiscussion struct {
-			Discussion Discussion
+			Discussion rawDiscussion
 		} `graphql:"createDiscussion(input: $input)"`
 	}
 
-	if err := graphql.Mutate(ctx, &mutation, input, nil); err != nil {
+	type CreateDiscussionInput struct {
+		RepositoryID githubv4.ID     `json:"repositoryId"`
+		CategoryID   githubv4.ID     `json:"categoryId"`
+		Title        githubv4.String `json:"title"`
+		Body         githubv4.String `json:"body"`
+	}
+
+	gqlInput := CreateDiscussionInput{
+		RepositoryID: githubv4.ID(input.RepositoryID),
+		CategoryID:   githubv4.ID(input.CategoryID),
+		Title:        githubv4.String(input.Title),
+		Body:         githubv4.String(input.Body),
+	}
+
+	if err := graphql.Mutate(ctx, &mutation, gqlInput, nil); err != nil {
 		return nil, err
 	}
 
-	return &mutation.CreateDiscussion.Discussion, nil
+	d := mutation.CreateDiscussion.Discussion.toDiscussion()
+	return &d, nil
 }
 
 // DeleteDiscussion deletes a discussion by its node ID.
@@ -303,18 +412,97 @@ func (g *GitHubClient) DeleteDiscussion(ctx context.Context, discussionID string
 	return graphql.Mutate(ctx, &mutation, input, nil)
 }
 
-// Reaction represents a single reaction on a discussion or comment.
+// UpdateDiscussionInput is the input for updating a discussion body.
+type UpdateDiscussionInput struct {
+	DiscussionID string `json:"discussionId"`
+	Body         string `json:"body"`
+}
+
+// UpdateDiscussion updates the body of an existing discussion.
+func (g *GitHubClient) UpdateDiscussion(ctx context.Context, input UpdateDiscussionInput) error {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+
+	var mutation struct {
+		UpdateDiscussion struct {
+			Discussion struct {
+				ID githubv4.String
+			}
+		} `graphql:"updateDiscussion(input: $input)"`
+	}
+
+	type UpdateDiscussionInput struct {
+		DiscussionID githubv4.ID     `json:"discussionId"`
+		Body         githubv4.String `json:"body"`
+	}
+
+	gqlInput := UpdateDiscussionInput{
+		DiscussionID: githubv4.ID(input.DiscussionID),
+		Body:         githubv4.String(input.Body),
+	}
+
+	return graphql.Mutate(ctx, &mutation, gqlInput, nil)
+}
+
+// DeleteDiscussionComment deletes a discussion comment (or reply) by its node ID.
+func (g *GitHubClient) DeleteDiscussionComment(ctx context.Context, commentID string) error {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+
+	var mutation struct {
+		DeleteDiscussionComment struct {
+			ClientMutationID githubv4.String
+		} `graphql:"deleteDiscussionComment(input: $input)"`
+	}
+
+	type DeleteDiscussionCommentInput struct {
+		ID githubv4.ID `json:"id"`
+	}
+
+	input := DeleteDiscussionCommentInput{ID: githubv4.ID(commentID)}
+	return graphql.Mutate(ctx, &mutation, input, nil)
+}
+
+// Reaction represents a single reaction on a discussion or comment with plain Go types.
 type Reaction struct {
+	Content string
+	User    struct {
+		Login string
+	}
+}
+
+// rawReaction is the internal GraphQL representation of a reaction.
+type rawReaction struct {
 	Content githubv4.String
 	User    struct {
 		Login githubv4.String
 	}
 }
 
-// DiscussionCommentReply represents a reply to a top-level discussion comment.
+// toReaction converts a rawReaction to a plain-type Reaction.
+func (r rawReaction) toReaction() Reaction {
+	react := Reaction{Content: string(r.Content)}
+	react.User.Login = string(r.User.Login)
+	return react
+}
+
+// DiscussionCommentReply represents a reply to a top-level discussion comment with plain Go types.
+type DiscussionCommentReply struct {
+	ID     string
+	Body   string
+	Author struct {
+		Login string
+	}
+}
+
+// rawDiscussionCommentReply is the internal GraphQL representation of a discussion comment reply.
 // Reactions are not included inline to avoid exceeding GraphQL node limits;
 // use GetNodeReactions to fetch them separately.
-type DiscussionCommentReply struct {
+type rawDiscussionCommentReply struct {
 	ID     githubv4.String
 	Body   githubv4.String
 	Author struct {
@@ -322,22 +510,63 @@ type DiscussionCommentReply struct {
 	}
 }
 
-// DiscussionComment represents a top-level comment on a discussion.
+// toDiscussionCommentReply converts a rawDiscussionCommentReply to a plain-type DiscussionCommentReply.
+func (r rawDiscussionCommentReply) toDiscussionCommentReply() DiscussionCommentReply {
+	reply := DiscussionCommentReply{
+		ID:   string(r.ID),
+		Body: string(r.Body),
+	}
+	reply.Author.Login = string(r.Author.Login)
+	return reply
+}
+
+// DiscussionComment represents a top-level comment on a discussion with plain Go types.
 type DiscussionComment struct {
+	ID     string
+	Body   string
+	Author struct {
+		Login string
+	}
+	Reactions struct {
+		Nodes []Reaction
+	}
+	Replies struct {
+		Nodes []DiscussionCommentReply
+	}
+}
+
+// rawDiscussionComment is the internal GraphQL representation of a discussion comment.
+type rawDiscussionComment struct {
 	ID     githubv4.String
 	Body   githubv4.String
 	Author struct {
 		Login githubv4.String
 	}
 	Reactions struct {
-		Nodes []Reaction
+		Nodes []rawReaction
 	} `graphql:"reactions(first: 100)"`
 	Replies struct {
-		Nodes []DiscussionCommentReply
+		Nodes []rawDiscussionCommentReply
 	} `graphql:"replies(first: 100)"`
 }
 
-// AddDiscussionCommentInput is the input for adding a comment to a discussion.
+// toDiscussionComment converts a rawDiscussionComment to a plain-type DiscussionComment.
+func (r rawDiscussionComment) toDiscussionComment() DiscussionComment {
+	c := DiscussionComment{
+		ID:   string(r.ID),
+		Body: string(r.Body),
+	}
+	c.Author.Login = string(r.Author.Login)
+	for _, reaction := range r.Reactions.Nodes {
+		c.Reactions.Nodes = append(c.Reactions.Nodes, reaction.toReaction())
+	}
+	for _, reply := range r.Replies.Nodes {
+		c.Replies.Nodes = append(c.Replies.Nodes, reply.toDiscussionCommentReply())
+	}
+	return c
+}
+
+// AddDiscussionCommentInput is the internal GraphQL input for adding a comment to a discussion.
 // Set ReplyToID to add a reply to an existing top-level comment.
 type AddDiscussionCommentInput struct {
 	DiscussionID githubv4.ID     `json:"discussionId"`
@@ -345,7 +574,7 @@ type AddDiscussionCommentInput struct {
 	ReplyToID    *githubv4.ID    `json:"replyToId,omitempty"`
 }
 
-// AddReactionInput is the input for adding a reaction to a subject (discussion or comment).
+// AddReactionInput is the internal GraphQL input for adding a reaction to a subject.
 type AddReactionInput struct {
 	SubjectID githubv4.ID              `json:"subjectId"`
 	Content   githubv4.ReactionContent `json:"content"`
@@ -362,7 +591,7 @@ func (g *GitHubClient) GetNodeReactions(ctx context.Context, nodeID string) ([]R
 		Node struct {
 			Reactable struct {
 				Reactions struct {
-					Nodes    []Reaction
+					Nodes    []rawReaction
 					PageInfo struct {
 						EndCursor   githubv4.String
 						HasNextPage bool
@@ -383,7 +612,9 @@ func (g *GitHubClient) GetNodeReactions(ctx context.Context, nodeID string) ([]R
 		if err := graphql.Query(ctx, &query, variables); err != nil {
 			return nil, err
 		}
-		allReactions = append(allReactions, query.Node.Reactable.Reactions.Nodes...)
+		for _, r := range query.Node.Reactable.Reactions.Nodes {
+			allReactions = append(allReactions, r.toReaction())
+		}
 		if !query.Node.Reactable.Reactions.PageInfo.HasNextPage {
 			break
 		}
@@ -403,7 +634,7 @@ func (g *GitHubClient) GetDiscussionReactions(ctx context.Context, owner, repo s
 		Repository struct {
 			Discussion struct {
 				Reactions struct {
-					Nodes    []Reaction
+					Nodes    []rawReaction
 					PageInfo struct {
 						EndCursor   githubv4.String
 						HasNextPage bool
@@ -426,7 +657,9 @@ func (g *GitHubClient) GetDiscussionReactions(ctx context.Context, owner, repo s
 		if err := graphql.Query(ctx, &query, variables); err != nil {
 			return nil, err
 		}
-		allReactions = append(allReactions, query.Repository.Discussion.Reactions.Nodes...)
+		for _, r := range query.Repository.Discussion.Reactions.Nodes {
+			allReactions = append(allReactions, r.toReaction())
+		}
 		if !query.Repository.Discussion.Reactions.PageInfo.HasNextPage {
 			break
 		}
@@ -447,7 +680,7 @@ func (g *GitHubClient) ListDiscussionComments(ctx context.Context, owner, repo s
 		Repository struct {
 			Discussion struct {
 				Comments struct {
-					Nodes    []DiscussionComment
+					Nodes    []rawDiscussionComment
 					PageInfo struct {
 						EndCursor   githubv4.String
 						HasNextPage bool
@@ -470,7 +703,9 @@ func (g *GitHubClient) ListDiscussionComments(ctx context.Context, owner, repo s
 		if err := graphql.Query(ctx, &query, variables); err != nil {
 			return nil, err
 		}
-		allComments = append(allComments, query.Repository.Discussion.Comments.Nodes...)
+		for _, c := range query.Repository.Discussion.Comments.Nodes {
+			allComments = append(allComments, c.toDiscussionComment())
+		}
 		if !query.Repository.Discussion.Comments.PageInfo.HasNextPage {
 			break
 		}
