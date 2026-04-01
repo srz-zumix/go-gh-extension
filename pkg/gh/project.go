@@ -80,16 +80,17 @@ func ListProjectV2Fields(ctx context.Context, g *GitHubClient, owner string, num
 }
 
 // ListProjectV2Items lists all items for a ProjectV2, including content and field values.
-func ListProjectV2Items(ctx context.Context, g *GitHubClient, owner string, number int) ([]ProjectV2Item, error) {
+// When includeArchived is true, archived items are included in the results.
+func ListProjectV2Items(ctx context.Context, g *GitHubClient, owner string, number int, includeArchived bool) ([]ProjectV2Item, error) {
 	ownerType, err := DetectOwnerType(ctx, g, owner)
 	if err != nil {
 		return nil, err
 	}
 	switch ownerType {
 	case OwnerTypeOrg:
-		return g.ListOrgProjectV2Items(ctx, owner, number, 50)
+		return g.ListOrgProjectV2Items(ctx, owner, number, 50, includeArchived)
 	case OwnerTypeUser:
-		return g.ListUserProjectV2Items(ctx, owner, number, 50)
+		return g.ListUserProjectV2Items(ctx, owner, number, 50, includeArchived)
 	default:
 		return nil, fmt.Errorf("unknown owner type for '%s'", owner)
 	}

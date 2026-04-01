@@ -603,13 +603,17 @@ func (g *GitHubClient) ListOrgProjectV2Fields(ctx context.Context, org string, n
 }
 
 // ListUserProjectV2Items lists all items for a user's ProjectV2.
-// It tries to include archived items first; if the server does not support the
-// includeArchived argument (e.g. older GitHub Enterprise Server), it falls back
-// to a query without that argument.
-func (g *GitHubClient) ListUserProjectV2Items(ctx context.Context, login string, number int, first int) ([]ProjectV2Item, error) {
+// When includeArchived is true, it tries to include archived items; if the server does not
+// support the includeArchived argument (e.g. older GitHub Enterprise Server), it falls back
+// to a query without that argument. When includeArchived is false, the no-archived query is
+// used directly.
+func (g *GitHubClient) ListUserProjectV2Items(ctx context.Context, login string, number int, first int, includeArchived bool) ([]ProjectV2Item, error) {
 	gql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
 		return nil, err
+	}
+	if !includeArchived {
+		return g.listUserProjectV2ItemsNoArchived(ctx, gql, login, number, first)
 	}
 	variables := map[string]any{
 		"owner":       githubv4.String(login),
@@ -667,13 +671,17 @@ func (g *GitHubClient) listUserProjectV2ItemsNoArchived(ctx context.Context, gql
 }
 
 // ListOrgProjectV2Items lists all items for an org's ProjectV2.
-// It tries to include archived items first; if the server does not support the
-// includeArchived argument (e.g. older GitHub Enterprise Server), it falls back
-// to a query without that argument.
-func (g *GitHubClient) ListOrgProjectV2Items(ctx context.Context, org string, number int, first int) ([]ProjectV2Item, error) {
+// When includeArchived is true, it tries to include archived items; if the server does not
+// support the includeArchived argument (e.g. older GitHub Enterprise Server), it falls back
+// to a query without that argument. When includeArchived is false, the no-archived query is
+// used directly.
+func (g *GitHubClient) ListOrgProjectV2Items(ctx context.Context, org string, number int, first int, includeArchived bool) ([]ProjectV2Item, error) {
 	gql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
 		return nil, err
+	}
+	if !includeArchived {
+		return g.listOrgProjectV2ItemsNoArchived(ctx, gql, org, number, first)
 	}
 	variables := map[string]any{
 		"owner":       githubv4.String(org),
