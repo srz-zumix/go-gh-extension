@@ -14,10 +14,12 @@ import (
 type ProjectV2 = client.ProjectV2
 type ProjectV2Field = client.ProjectV2Field
 type ProjectV2SingleSelectOption = client.ProjectV2SingleSelectOption
+type ProjectV2IterationOption = client.ProjectV2IterationOption
 type ProjectV2ItemType = client.ProjectV2ItemType
 type ProjectV2ItemContent = client.ProjectV2ItemContent
 type ProjectV2FieldValue = client.ProjectV2FieldValue
 type ProjectV2Item = client.ProjectV2Item
+type ProjectV2View = client.ProjectV2View
 
 // Re-export item type constants.
 const (
@@ -93,6 +95,23 @@ func ListProjectV2Items(ctx context.Context, g *GitHubClient, owner string, numb
 	}
 }
 
+// ListProjectV2Views lists all views for a ProjectV2.
+// The GitHub GraphQL API supports reading views but does not expose a createProjectV2View mutation.
+func ListProjectV2Views(ctx context.Context, g *GitHubClient, owner string, number int) ([]ProjectV2View, error) {
+	ownerType, err := DetectOwnerType(ctx, g, owner)
+	if err != nil {
+		return nil, err
+	}
+	switch ownerType {
+	case OwnerTypeOrg:
+		return g.ListOrgProjectV2Views(ctx, owner, number)
+	case OwnerTypeUser:
+		return g.ListUserProjectV2Views(ctx, owner, number)
+	default:
+		return nil, fmt.Errorf("unknown owner type for '%s'", owner)
+	}
+}
+
 // GetOwnerNodeID returns the GraphQL node ID for a user or organization login as a *string.
 func GetOwnerNodeID(ctx context.Context, g *GitHubClient, login string) (*string, error) {
 	return g.GetOwnerNodeID(ctx, login)
@@ -136,8 +155,7 @@ func DeleteProjectV2(ctx context.Context, g *GitHubClient, projectID string) err
 
 // CreateProjectV2Field creates a custom field in a GitHub Project v2.
 // For SINGLE_SELECT fields, pass the options; for others, pass nil.
-// Returns the created field's ID and name.
-func CreateProjectV2Field(ctx context.Context, g *GitHubClient, projectID string, dataType string, name string, options []ProjectV2SingleSelectOption) (string, string, error) {
+func CreateProjectV2Field(ctx context.Context, g *GitHubClient, projectID string, dataType string, name string, options []ProjectV2SingleSelectOption) error {
 	input := client.CreateProjectV2FieldInput{
 		ProjectID: githubv4.ID(projectID),
 		DataType:  githubv4.String(dataType),
@@ -157,6 +175,41 @@ func CreateProjectV2Field(ctx context.Context, g *GitHubClient, projectID string
 	return g.CreateProjectV2Field(ctx, input)
 }
 
+// CreateProjectV2IterationField creates an ITERATION custom field in a GitHub Project v2.
+// iterations contains the source iterations to replicate; startDate and duration are taken
+// from the first iteration, or fall back to a sane default if empty.
+func CreateProjectV2IterationField(ctx context.Context, g *GitHubClient, projectID string, name string, iterations []ProjectV2IterationOption) error {
+	var startDate githubv4.String
+	var duration githubv4.Int
+	if len(iterations) > 0 {
+		startDate = githubv4.String(iterations[0].StartDate)
+		duration = githubv4.Int(iterations[0].Duration)
+	} else {
+		// Provide a minimal default so the field can be created.
+		startDate = githubv4.String("2024-01-01")
+		duration = githubv4.Int(14)
+	}
+	iters := make([]client.ProjectV2IterationInput, len(iterations))
+	for i, it := range iterations {
+		iters[i] = client.ProjectV2IterationInput{
+			Title:     githubv4.String(it.Title),
+			StartDate: githubv4.String(it.StartDate),
+			Duration:  githubv4.Int(it.Duration),
+		}
+	}
+	input := client.CreateProjectV2FieldInput{
+		ProjectID: githubv4.ID(projectID),
+		DataType:  githubv4.String("ITERATION"),
+		Name:      githubv4.String(name),
+		IterationConfiguration: &client.ProjectV2IterationFieldConfigInput{
+			StartDate:  startDate,
+			Duration:   duration,
+			Iterations: iters,
+		},
+	}
+	return g.CreateProjectV2Field(ctx, input)
+}
+
 // AddProjectV2DraftIssue adds a draft issue to a GitHub Project v2.
 // Returns the created item's node ID.
 func AddProjectV2DraftIssue(ctx context.Context, g *GitHubClient, projectID string, title string, body string) (string, error) {
@@ -165,6 +218,15 @@ func AddProjectV2DraftIssue(ctx context.Context, g *GitHubClient, projectID stri
 		ProjectID: githubv4.ID(projectID),
 		Title:     githubv4.String(title),
 		Body:      &b,
+	})
+}
+
+// AddProjectV2ItemByID links an existing issue or PR to a GitHub Project v2 by its node ID.
+// Returns the created project item's node ID.
+func AddProjectV2ItemByID(ctx context.Context, g *GitHubClient, projectID string, contentNodeID string) (string, error) {
+	return g.AddProjectV2ItemByID(ctx, client.AddProjectV2ItemByIdInput{
+		ProjectID: githubv4.ID(projectID),
+		ContentID: githubv4.ID(contentNodeID),
 	})
 }
 
@@ -217,9 +279,29 @@ func SetProjectV2ItemSingleSelectValue(ctx context.Context, g *GitHubClient, pro
 	})
 }
 
+// SetProjectV2ItemIterationValue sets an ITERATION field value for a project item.
+// iterationID is the destination field iteration's node ID.
+func SetProjectV2ItemIterationValue(ctx context.Context, g *GitHubClient, projectID, itemID, fieldID, iterationID string) error {
+	it := githubv4.String(iterationID)
+	return g.UpdateProjectV2ItemFieldValue(ctx, client.UpdateProjectV2ItemFieldValueInput{
+		ProjectID: githubv4.ID(projectID),
+		ItemID:    githubv4.ID(itemID),
+		FieldID:   githubv4.ID(fieldID),
+		Value:     client.ProjectV2FieldValueInput{IterationID: &it},
+	})
+}
+
 // DeleteProjectV2Item removes an item from a GitHub Project v2.
 func DeleteProjectV2Item(ctx context.Context, g *GitHubClient, projectID, itemID string) error {
 	return g.DeleteProjectV2Item(ctx, client.DeleteProjectV2ItemInput{
+		ProjectID: githubv4.ID(projectID),
+		ItemID:    githubv4.ID(itemID),
+	})
+}
+
+// ArchiveProjectV2Item archives an item in a GitHub Project v2.
+func ArchiveProjectV2Item(ctx context.Context, g *GitHubClient, projectID, itemID string) error {
+	return g.ArchiveProjectV2Item(ctx, client.ArchiveProjectV2ItemInput{
 		ProjectID: githubv4.ID(projectID),
 		ItemID:    githubv4.ID(itemID),
 	})
