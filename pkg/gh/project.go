@@ -177,16 +177,24 @@ func CreateProjectV2Field(ctx context.Context, g *GitHubClient, projectID string
 
 // CreateProjectV2IterationField creates an ITERATION custom field in a GitHub Project v2.
 // iterations contains the source iterations to replicate; startDate and duration are taken
-// from the first iteration, or fall back to a sane default if empty.
+// from the first iteration, or fall back to a sane default if empty or not provided.
 func CreateProjectV2IterationField(ctx context.Context, g *GitHubClient, projectID string, name string, iterations []ProjectV2IterationOption) error {
 	var startDate githubv4.String
 	var duration githubv4.Int
 	if len(iterations) > 0 {
-		startDate = githubv4.String(iterations[0].StartDate)
-		duration = githubv4.Int(iterations[0].Duration)
-	} else {
-		// Provide a minimal default so the field can be created.
+		// Use values from the first iteration if they are set.
+		if iterations[0].StartDate != "" {
+			startDate = githubv4.String(iterations[0].StartDate)
+		}
+		if iterations[0].Duration > 0 {
+			duration = githubv4.Int(iterations[0].Duration)
+		}
+	}
+	// Provide minimal defaults if the first iteration does not specify them or no iterations are given.
+	if startDate == "" {
 		startDate = githubv4.String("2024-01-01")
+	}
+	if duration == 0 {
 		duration = githubv4.Int(14)
 	}
 	iters := make([]client.ProjectV2IterationInput, len(iterations))
