@@ -183,17 +183,22 @@ func CreateProjectV2IterationField(ctx context.Context, g *GitHubClient, project
 	var startDate githubv4.String
 	var duration githubv4.Int
 	if len(iterations) > 0 {
-		// Use values from the first iteration if they are set.
-		if iterations[0].StartDate != "" {
-			startDate = githubv4.String(iterations[0].StartDate)
-		}
-		if iterations[0].Duration > 0 {
-			duration = githubv4.Int(iterations[0].Duration)
+		// Find the first iteration that has StartDate and Duration set.
+		for _, it := range iterations {
+			if startDate == "" && it.StartDate != "" {
+				startDate = githubv4.String(it.StartDate)
+			}
+			if duration == 0 && it.Duration > 0 {
+				duration = githubv4.Int(it.Duration)
+			}
+			if startDate != "" && duration != 0 {
+				break
+			}
 		}
 	}
 	// Provide minimal defaults if the first iteration does not specify them or no iterations are given.
 	if startDate == "" {
-		startDate = githubv4.String("2024-01-01")
+		startDate = githubv4.String(time.Now().Format("2006-01-02"))
 	}
 	if duration == 0 {
 		duration = githubv4.Int(14)

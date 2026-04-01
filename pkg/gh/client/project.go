@@ -4,7 +4,6 @@ package client
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/shurcooL/githubv4"
 )
@@ -413,13 +412,6 @@ func processItems(nodes []projectV2ItemNode) []ProjectV2Item {
 	return result
 }
 
-// isUnsupportedArgumentError reports whether the error indicates that the GraphQL server
-// does not accept a particular argument (e.g. older GitHub Enterprise Server versions that
-// do not yet support the includeArchived argument on the items field).
-func isUnsupportedArgumentError(err error) bool {
-	return strings.Contains(err.Error(), "doesn't accept argument")
-}
-
 // ─────────────────────────────────────────
 // Queries
 // ─────────────────────────────────────────
@@ -630,9 +622,6 @@ func (g *GitHubClient) ListUserProjectV2Items(ctx context.Context, login string,
 	var all []ProjectV2Item
 	for {
 		if err := gql.Query(ctx, &queryWithArchived, variables); err != nil {
-			if isUnsupportedArgumentError(err) {
-				return g.listUserProjectV2ItemsNoArchived(ctx, gql, login, number, first)
-			}
 			return nil, err
 		}
 		all = append(all, processItems(queryWithArchived.User.ProjectV2.Items.Nodes)...)
@@ -698,9 +687,6 @@ func (g *GitHubClient) ListOrgProjectV2Items(ctx context.Context, org string, nu
 	var all []ProjectV2Item
 	for {
 		if err := gql.Query(ctx, &queryWithArchived, variables); err != nil {
-			if isUnsupportedArgumentError(err) {
-				return g.listOrgProjectV2ItemsNoArchived(ctx, gql, org, number, first)
-			}
 			return nil, err
 		}
 		all = append(all, processItems(queryWithArchived.Organization.ProjectV2.Items.Nodes)...)
