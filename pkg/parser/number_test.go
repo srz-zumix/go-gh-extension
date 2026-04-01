@@ -411,3 +411,91 @@ func TestGetMilestoneNumberFromString(t *testing.T) {
 		})
 	}
 }
+
+func TestGetProjectNumberFromString(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    int
+		wantErr bool
+	}{
+		{
+			name:  "valid positive number",
+			input: "123",
+			want:  123,
+		},
+		{
+			name:  "number with hash prefix",
+			input: "#456",
+			want:  456,
+		},
+		{
+			name:  "valid org project URL",
+			input: "https://github.com/orgs/myorg/projects/789",
+			want:  789,
+		},
+		{
+			name:  "valid user project URL",
+			input: "https://github.com/users/myuser/projects/42",
+			want:  42,
+		},
+		{
+			name:    "zero number",
+			input:   "0",
+			wantErr: true,
+		},
+		{
+			name:    "negative number",
+			input:   "-1",
+			wantErr: true,
+		},
+		{
+			name:    "non-numeric string",
+			input:   "abc",
+			wantErr: true,
+		},
+		{
+			name:    "empty string",
+			input:   "",
+			wantErr: true,
+		},
+		{
+			name:    "issue URL",
+			input:   "https://github.com/owner/repo/issues/123",
+			wantErr: true,
+		},
+		{
+			name:    "pull request URL",
+			input:   "https://github.com/owner/repo/pull/123",
+			wantErr: true,
+		},
+		{
+			name:    "discussion URL",
+			input:   "https://github.com/owner/repo/discussions/123",
+			wantErr: true,
+		},
+		{
+			name:    "milestone URL",
+			input:   "https://github.com/owner/repo/milestone/123",
+			wantErr: true,
+		},
+		{
+			name:    "malformed URL",
+			input:   "https://not a valid url",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GetProjectNumberFromString(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetProjectNumberFromString() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && got != tt.want {
+				t.Errorf("GetProjectNumberFromString() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

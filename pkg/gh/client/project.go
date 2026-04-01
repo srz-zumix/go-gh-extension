@@ -4,6 +4,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/shurcooL/githubv4"
 )
@@ -63,10 +64,9 @@ type ProjectV2ItemContent struct {
 	ID     string
 	Title  string
 	Body   string
-	URL    string   // empty for DraftIssue
-	Number int      // 0 for DraftIssue
-	Author string   // empty for DraftIssue
-	Labels []string // label names; populated for Issue and PullRequest items
+	URL    string // empty for DraftIssue
+	Number int    // 0 for DraftIssue
+	Author string // empty for DraftIssue
 }
 
 // ProjectV2FieldValue represents a resolved custom-field value for a project item.
@@ -208,9 +208,6 @@ type projectV2ItemContentNode struct {
 		Body   githubv4.String
 		URL    githubv4.String
 		Author struct{ Login githubv4.String }
-		Labels struct {
-			Nodes []struct{ Name githubv4.String }
-		} `graphql:"labels(first: 20)"`
 	} `graphql:"... on Issue"`
 	AsPullRequest struct {
 		ID     githubv4.String
@@ -219,9 +216,6 @@ type projectV2ItemContentNode struct {
 		Body   githubv4.String
 		URL    githubv4.String
 		Author struct{ Login githubv4.String }
-		Labels struct {
-			Nodes []struct{ Name githubv4.String }
-		} `graphql:"labels(first: 20)"`
 	} `graphql:"... on PullRequest"`
 }
 
@@ -277,10 +271,6 @@ func (n *projectV2ItemNode) toProjectV2Item() ProjectV2Item {
 			Body:  string(n.Content.AsDraftIssue.Body),
 		}
 	case ProjectV2ItemTypeIssue:
-		labels := make([]string, len(n.Content.AsIssue.Labels.Nodes))
-		for i, l := range n.Content.AsIssue.Labels.Nodes {
-			labels[i] = string(l.Name)
-		}
 		item.Content = ProjectV2ItemContent{
 			Type:   ProjectV2ItemTypeIssue,
 			ID:     string(n.Content.AsIssue.ID),
@@ -289,13 +279,8 @@ func (n *projectV2ItemNode) toProjectV2Item() ProjectV2Item {
 			Body:   string(n.Content.AsIssue.Body),
 			URL:    string(n.Content.AsIssue.URL),
 			Author: string(n.Content.AsIssue.Author.Login),
-			Labels: labels,
 		}
 	case ProjectV2ItemTypePullRequest:
-		labels := make([]string, len(n.Content.AsPullRequest.Labels.Nodes))
-		for i, l := range n.Content.AsPullRequest.Labels.Nodes {
-			labels[i] = string(l.Name)
-		}
 		item.Content = ProjectV2ItemContent{
 			Type:   ProjectV2ItemTypePullRequest,
 			ID:     string(n.Content.AsPullRequest.ID),
@@ -304,7 +289,6 @@ func (n *projectV2ItemNode) toProjectV2Item() ProjectV2Item {
 			Body:   string(n.Content.AsPullRequest.Body),
 			URL:    string(n.Content.AsPullRequest.URL),
 			Author: string(n.Content.AsPullRequest.Author.Login),
-			Labels: labels,
 		}
 	default:
 		item.Content = ProjectV2ItemContent{Type: ProjectV2ItemTypeRedacted}
@@ -399,6 +383,18 @@ type projectV2ItemsQueryResult struct {
 	} `graphql:"items(first: $itemsFirst, after: $itemsCursor, includeArchived: true)"`
 }
 
+// projectV2ItemsQueryResultNoArchived is used as a fallback for servers that do not support
+// the includeArchived argument (e.g. older GitHub Enterprise Server versions).
+type projectV2ItemsQueryResultNoArchived struct {
+	Items struct {
+		Nodes    []projectV2ItemNode
+		PageInfo struct {
+			EndCursor   githubv4.String
+			HasNextPage bool
+		}
+	} `graphql:"items(first: $itemsFirst, after: $itemsCursor)"`
+}
+
 func processFields(nodes []projectV2FieldConfigNode) []ProjectV2Field {
 	var result []ProjectV2Field
 	for i := range nodes {
@@ -415,6 +411,13 @@ func processItems(nodes []projectV2ItemNode) []ProjectV2Item {
 		result[i] = nodes[i].toProjectV2Item()
 	}
 	return result
+}
+
+// isUnsupportedArgumentError reports whether the error indicates that the GraphQL server
+// does not accept a particular argument (e.g. older GitHub Enterprise Server versions that
+// do not yet support the includeArchived argument on the items field).
+func isUnsupportedArgumentError(err error) bool {
+	return strings.Contains(err.Error(), "doesn't accept argument")
 }
 
 // ─────────────────────────────────────────
@@ -600,14 +603,47 @@ func (g *GitHubClient) ListOrgProjectV2Fields(ctx context.Context, org string, n
 }
 
 // ListUserProjectV2Items lists all items for a user's ProjectV2.
+// It tries to include archived items first; if the server does not support the
+// includeArchived argument (e.g. older GitHub Enterprise Server), it falls back
+// to a query without that argument.
 func (g *GitHubClient) ListUserProjectV2Items(ctx context.Context, login string, number int, first int) ([]ProjectV2Item, error) {
 	gql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
 		return nil, err
 	}
-	var query struct {
+	variables := map[string]any{
+		"owner":       githubv4.String(login),
+		"number":      githubv4.Int(number),
+		"itemsFirst":  githubv4.Int(first),
+		"itemsCursor": (*githubv4.String)(nil),
+	}
+	// Try with includeArchived first.
+	var queryWithArchived struct {
 		User struct {
 			ProjectV2 projectV2ItemsQueryResult `graphql:"projectV2(number: $number)"`
+		} `graphql:"user(login: $owner)"`
+	}
+	var all []ProjectV2Item
+	for {
+		if err := gql.Query(ctx, &queryWithArchived, variables); err != nil {
+			if isUnsupportedArgumentError(err) {
+				return g.listUserProjectV2ItemsNoArchived(ctx, gql, login, number, first)
+			}
+			return nil, err
+		}
+		all = append(all, processItems(queryWithArchived.User.ProjectV2.Items.Nodes)...)
+		if !queryWithArchived.User.ProjectV2.Items.PageInfo.HasNextPage {
+			break
+		}
+		variables["itemsCursor"] = githubv4.NewString(queryWithArchived.User.ProjectV2.Items.PageInfo.EndCursor)
+	}
+	return all, nil
+}
+
+func (g *GitHubClient) listUserProjectV2ItemsNoArchived(ctx context.Context, gql *githubv4.Client, login string, number int, first int) ([]ProjectV2Item, error) {
+	var query struct {
+		User struct {
+			ProjectV2 projectV2ItemsQueryResultNoArchived `graphql:"projectV2(number: $number)"`
 		} `graphql:"user(login: $owner)"`
 	}
 	variables := map[string]any{
@@ -631,14 +667,47 @@ func (g *GitHubClient) ListUserProjectV2Items(ctx context.Context, login string,
 }
 
 // ListOrgProjectV2Items lists all items for an org's ProjectV2.
+// It tries to include archived items first; if the server does not support the
+// includeArchived argument (e.g. older GitHub Enterprise Server), it falls back
+// to a query without that argument.
 func (g *GitHubClient) ListOrgProjectV2Items(ctx context.Context, org string, number int, first int) ([]ProjectV2Item, error) {
 	gql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
 		return nil, err
 	}
-	var query struct {
+	variables := map[string]any{
+		"owner":       githubv4.String(org),
+		"number":      githubv4.Int(number),
+		"itemsFirst":  githubv4.Int(first),
+		"itemsCursor": (*githubv4.String)(nil),
+	}
+	// Try with includeArchived first.
+	var queryWithArchived struct {
 		Organization struct {
 			ProjectV2 projectV2ItemsQueryResult `graphql:"projectV2(number: $number)"`
+		} `graphql:"organization(login: $owner)"`
+	}
+	var all []ProjectV2Item
+	for {
+		if err := gql.Query(ctx, &queryWithArchived, variables); err != nil {
+			if isUnsupportedArgumentError(err) {
+				return g.listOrgProjectV2ItemsNoArchived(ctx, gql, org, number, first)
+			}
+			return nil, err
+		}
+		all = append(all, processItems(queryWithArchived.Organization.ProjectV2.Items.Nodes)...)
+		if !queryWithArchived.Organization.ProjectV2.Items.PageInfo.HasNextPage {
+			break
+		}
+		variables["itemsCursor"] = githubv4.NewString(queryWithArchived.Organization.ProjectV2.Items.PageInfo.EndCursor)
+	}
+	return all, nil
+}
+
+func (g *GitHubClient) listOrgProjectV2ItemsNoArchived(ctx context.Context, gql *githubv4.Client, org string, number int, first int) ([]ProjectV2Item, error) {
+	var query struct {
+		Organization struct {
+			ProjectV2 projectV2ItemsQueryResultNoArchived `graphql:"projectV2(number: $number)"`
 		} `graphql:"organization(login: $owner)"`
 	}
 	variables := map[string]any{
