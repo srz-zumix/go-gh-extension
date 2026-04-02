@@ -64,14 +64,14 @@ func (g *GitHubClient) bearerToken() string {
 }
 
 // rawHTTPTransport returns the raw network transport without any authentication
-// wrappers. Falls back to http.DefaultTransport if the chain is not recognized.
+// wrappers. Falls back to the unwrapped transport if the chain is not recognized.
 // Used by operations that must set their own authentication (e.g. NuGet Basic auth).
 func (g *GitHubClient) rawHTTPTransport() http.RoundTripper {
 	tr := unwrapTransport(g.client.Client().Transport)
 	if rtg, ok := tr.(rawTransportGetter); ok {
 		return rtg.RawTransport()
 	}
-	return http.DefaultTransport
+	return tr
 }
 
 // GetClient returns the underlying GitHub client
