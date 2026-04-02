@@ -59,14 +59,14 @@ func (g *projectV2ItemFieldGetters) GetField(item *client.ProjectV2Item, field s
 	// Fall back to custom field values.
 	for _, fv := range item.FieldValues {
 		if strings.EqualFold(fv.FieldName, field) {
-			return projectV2FieldValueString(&fv)
+			return projectV2FieldValueString(fv)
 		}
 	}
 	return ""
 }
 
 // projectV2FieldValueString formats a field value as a string.
-func projectV2FieldValueString(fv *client.ProjectV2FieldValue) string {
+func projectV2FieldValueString(fv client.ProjectV2FieldValue) string {
 	switch fv.ValueType {
 	case "TEXT":
 		return fv.Text
@@ -106,10 +106,10 @@ func (r *Renderer) RenderProjectV2Items(items []client.ProjectV2Item, headers []
 		cfg.Row.Formatting.AutoWrap = tw.WrapNone
 	})
 
-	for _, item := range items {
+	for i := range items {
 		row := make([]string, len(headers))
-		for i, header := range headers {
-			row[i] = getter.GetField(&item, header)
+		for j, header := range headers {
+			row[j] = getter.GetField(&items[i], header)
 		}
 		table.Append(row)
 	}
