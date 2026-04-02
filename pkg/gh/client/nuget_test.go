@@ -89,7 +89,7 @@ func TestNuGetDownloadURL(t *testing.T) {
 			owner:       "myorg",
 			packageName: "MyPackage",
 			version:     "1.0.0",
-			expected:    "https://ghe.example.com/_registry/nuget/myorg/download/mypackage/1.0.0/mypackage.1.0.0.nupkg",
+			expected:    "https://nuget.ghe.example.com/myorg/download/mypackage/1.0.0/mypackage.1.0.0.nupkg",
 		},
 	}
 	for _, tt := range tests {
