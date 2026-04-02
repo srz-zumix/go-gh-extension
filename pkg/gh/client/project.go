@@ -718,9 +718,9 @@ type AddProjectV2DraftIssueInput struct {
 	Body      *githubv4.String `json:"body,omitempty"`
 }
 
-// AddProjectV2ItemByIdInput is the input for linking an existing issue or PR to a Project v2.
-// The name matches the GraphQL schema type AddProjectV2ItemByIdInput exactly.
-type AddProjectV2ItemByIdInput struct {
+// AddProjectV2ItemByIDInput is the input for linking an existing issue or PR to a Project v2.
+// The JSON tags map to the GraphQL schema type AddProjectV2ItemByIdInput.
+type AddProjectV2ItemByIDInput struct {
 	ProjectID githubv4.ID `json:"projectId"`
 	ContentID githubv4.ID `json:"contentId"`
 }
