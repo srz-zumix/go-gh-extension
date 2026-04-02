@@ -48,6 +48,20 @@ func (g *GitHubClient) ClearIssueLabels(ctx context.Context, owner string, repo 
 	return nil
 }
 
+// CreateIssue creates a new issue in the given repository.
+// Returns the created issue, including its node ID.
+func (g *GitHubClient) CreateIssue(ctx context.Context, owner, repo, title, body string, labels []string) (*github.Issue, error) {
+	req := &github.IssueRequest{
+		Title: github.Ptr(title),
+		Body:  github.Ptr(body),
+	}
+	if len(labels) > 0 {
+		req.Labels = &labels
+	}
+	issue, _, err := g.client.Issues.Create(ctx, owner, repo, req)
+	return issue, err
+}
+
 func (g *GitHubClient) CreateIssueComment(ctx context.Context, owner string, repo string, number int, body string) (*github.IssueComment, error) {
 	comment, _, err := g.client.Issues.CreateComment(ctx, owner, repo, number, &github.IssueComment{Body: &body})
 	if err != nil {
