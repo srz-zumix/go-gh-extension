@@ -85,8 +85,8 @@ func projectV2FieldValueString(fv client.ProjectV2FieldValue) string {
 	return ""
 }
 
-// ProjectV2Fields lists the built-in field names available for projects list --field flag completion.
-var ProjectV2Fields = []string{"ID", "NUMBER", "TITLE", "STATE", "PUBLIC", "URL"}
+// ProjectV2ProjectListFields lists the built-in project list output columns available for projects list --field flag completion.
+var ProjectV2ProjectListFields = []string{"ID", "NUMBER", "TITLE", "STATE", "PUBLIC", "URL"}
 
 // RenderProjectsV2 renders a table of GitHub Project v2 projects with the specified headers.
 func (r *Renderer) RenderProjectsV2(projects []client.ProjectV2, headers []string) error {
