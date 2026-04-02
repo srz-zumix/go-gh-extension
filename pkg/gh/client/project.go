@@ -902,9 +902,7 @@ func (g *GitHubClient) ArchiveProjectV2Item(ctx context.Context, input ArchivePr
 	}
 	var mutation struct {
 		ArchiveProjectV2Item struct {
-			Item struct {
-				ID githubv4.String
-			}
+			ClientMutationID githubv4.String `graphql:"clientMutationId"`
 		} `graphql:"archiveProjectV2Item(input: $input)"`
 	}
 	return gql.Mutate(ctx, &mutation, input, nil)
