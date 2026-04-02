@@ -379,18 +379,6 @@ type projectV2ItemsQueryResult struct {
 			EndCursor   githubv4.String
 			HasNextPage bool
 		}
-	} `graphql:"items(first: $itemsFirst, after: $itemsCursor, includeArchived: true)"`
-}
-
-// projectV2ItemsQueryResultNoArchived is used as a fallback for servers that do not support
-// the includeArchived argument (e.g. older GitHub Enterprise Server versions).
-type projectV2ItemsQueryResultNoArchived struct {
-	Items struct {
-		Nodes    []projectV2ItemNode
-		PageInfo struct {
-			EndCursor   githubv4.String
-			HasNextPage bool
-		}
 	} `graphql:"items(first: $itemsFirst, after: $itemsCursor)"`
 }
 
@@ -595,48 +583,14 @@ func (g *GitHubClient) ListOrgProjectV2Fields(ctx context.Context, org string, n
 }
 
 // ListUserProjectV2Items lists all items for a user's ProjectV2.
-// When includeArchived is true, it tries to include archived items; if the server does not
-// support the includeArchived argument (e.g. older GitHub Enterprise Server), it falls back
-// to a query without that argument. When includeArchived is false, the no-archived query is
-// used directly.
-func (g *GitHubClient) ListUserProjectV2Items(ctx context.Context, login string, number int, first int, includeArchived bool) ([]ProjectV2Item, error) {
+func (g *GitHubClient) ListUserProjectV2Items(ctx context.Context, login string, number int, first int) ([]ProjectV2Item, error) {
 	gql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
 		return nil, err
 	}
-	if !includeArchived {
-		return g.listUserProjectV2ItemsNoArchived(ctx, gql, login, number, first)
-	}
-	variables := map[string]any{
-		"owner":       githubv4.String(login),
-		"number":      githubv4.Int(number),
-		"itemsFirst":  githubv4.Int(first),
-		"itemsCursor": (*githubv4.String)(nil),
-	}
-	// Try with includeArchived first.
-	var queryWithArchived struct {
-		User struct {
-			ProjectV2 projectV2ItemsQueryResult `graphql:"projectV2(number: $number)"`
-		} `graphql:"user(login: $owner)"`
-	}
-	var all []ProjectV2Item
-	for {
-		if err := gql.Query(ctx, &queryWithArchived, variables); err != nil {
-			return nil, err
-		}
-		all = append(all, processItems(queryWithArchived.User.ProjectV2.Items.Nodes)...)
-		if !queryWithArchived.User.ProjectV2.Items.PageInfo.HasNextPage {
-			break
-		}
-		variables["itemsCursor"] = githubv4.NewString(queryWithArchived.User.ProjectV2.Items.PageInfo.EndCursor)
-	}
-	return all, nil
-}
-
-func (g *GitHubClient) listUserProjectV2ItemsNoArchived(ctx context.Context, gql *githubv4.Client, login string, number int, first int) ([]ProjectV2Item, error) {
 	var query struct {
 		User struct {
-			ProjectV2 projectV2ItemsQueryResultNoArchived `graphql:"projectV2(number: $number)"`
+			ProjectV2 projectV2ItemsQueryResult `graphql:"projectV2(number: $number)"`
 		} `graphql:"user(login: $owner)"`
 	}
 	variables := map[string]any{
@@ -660,48 +614,14 @@ func (g *GitHubClient) listUserProjectV2ItemsNoArchived(ctx context.Context, gql
 }
 
 // ListOrgProjectV2Items lists all items for an org's ProjectV2.
-// When includeArchived is true, it tries to include archived items; if the server does not
-// support the includeArchived argument (e.g. older GitHub Enterprise Server), it falls back
-// to a query without that argument. When includeArchived is false, the no-archived query is
-// used directly.
-func (g *GitHubClient) ListOrgProjectV2Items(ctx context.Context, org string, number int, first int, includeArchived bool) ([]ProjectV2Item, error) {
+func (g *GitHubClient) ListOrgProjectV2Items(ctx context.Context, org string, number int, first int) ([]ProjectV2Item, error) {
 	gql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
 		return nil, err
 	}
-	if !includeArchived {
-		return g.listOrgProjectV2ItemsNoArchived(ctx, gql, org, number, first)
-	}
-	variables := map[string]any{
-		"owner":       githubv4.String(org),
-		"number":      githubv4.Int(number),
-		"itemsFirst":  githubv4.Int(first),
-		"itemsCursor": (*githubv4.String)(nil),
-	}
-	// Try with includeArchived first.
-	var queryWithArchived struct {
-		Organization struct {
-			ProjectV2 projectV2ItemsQueryResult `graphql:"projectV2(number: $number)"`
-		} `graphql:"organization(login: $owner)"`
-	}
-	var all []ProjectV2Item
-	for {
-		if err := gql.Query(ctx, &queryWithArchived, variables); err != nil {
-			return nil, err
-		}
-		all = append(all, processItems(queryWithArchived.Organization.ProjectV2.Items.Nodes)...)
-		if !queryWithArchived.Organization.ProjectV2.Items.PageInfo.HasNextPage {
-			break
-		}
-		variables["itemsCursor"] = githubv4.NewString(queryWithArchived.Organization.ProjectV2.Items.PageInfo.EndCursor)
-	}
-	return all, nil
-}
-
-func (g *GitHubClient) listOrgProjectV2ItemsNoArchived(ctx context.Context, gql *githubv4.Client, org string, number int, first int) ([]ProjectV2Item, error) {
 	var query struct {
 		Organization struct {
-			ProjectV2 projectV2ItemsQueryResultNoArchived `graphql:"projectV2(number: $number)"`
+			ProjectV2 projectV2ItemsQueryResult `graphql:"projectV2(number: $number)"`
 		} `graphql:"organization(login: $owner)"`
 	}
 	variables := map[string]any{
