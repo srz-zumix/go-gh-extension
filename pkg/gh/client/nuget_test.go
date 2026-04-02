@@ -34,13 +34,13 @@ func TestNuGetRegistryBase(t *testing.T) {
 			name:     "GHES host",
 			host:     "ghe.example.com",
 			owner:    "myorg",
-			expected: "https://ghe.example.com/_registry/nuget/myorg",
+			expected: "https://nuget.ghe.example.com/myorg",
 		},
 		{
 			name:     "GHES short host",
 			host:     "ghe.internal",
 			owner:    "myorg",
-			expected: "https://ghe.internal/_registry/nuget/myorg",
+			expected: "https://nuget.ghe.internal/myorg",
 		},
 	}
 	for _, tt := range tests {
@@ -89,7 +89,7 @@ func TestNuGetDownloadURL(t *testing.T) {
 			owner:       "myorg",
 			packageName: "MyPackage",
 			version:     "1.0.0",
-			expected:    "https://ghe.example.com/_registry/nuget/myorg/download/mypackage/1.0.0/mypackage.1.0.0.nupkg",
+			expected:    "https://nuget.ghe.example.com/myorg/download/mypackage/1.0.0/mypackage.1.0.0.nupkg",
 		},
 	}
 	for _, tt := range tests {
@@ -122,7 +122,7 @@ func TestNuGetPushURL(t *testing.T) {
 			name:     "GHES host",
 			host:     "ghe.example.com",
 			owner:    "myorg",
-			expected: "https://ghe.example.com/_registry/nuget/myorg",
+			expected: "https://nuget.ghe.example.com/myorg",
 		},
 	}
 	for _, tt := range tests {

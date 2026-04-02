@@ -34,22 +34,44 @@ type tokenGetter interface {
 	Token() string
 }
 
-// bearerToken returns the access token configured in this client's transport.
-// It unwraps getOnlyRoundTripper if present and uses a type assertion to read the token.
-// Returns an empty string if no token is available.
-func (g *GitHubClient) bearerToken() string {
-	tr := g.client.Client().Transport
-	// Unwrap getOnlyRoundTripper since it delegates to the inner transport
+// rawTransportGetter is implemented by transports that expose their inner network
+// transport for callers that need to configure their own authentication.
+type rawTransportGetter interface {
+	RawTransport() http.RoundTripper
+}
+
+// unwrapTransport strips known wrapper layers (e.g. getOnlyRoundTripper) from tr
+// and returns the innermost transport available.
+func unwrapTransport(tr http.RoundTripper) http.RoundTripper {
 	type unwrapper interface {
 		Unwrap() http.RoundTripper
 	}
 	if u, ok := tr.(unwrapper); ok {
-		tr = u.Unwrap()
+		return u.Unwrap()
 	}
+	return tr
+}
+
+// bearerToken returns the access token configured in this client's transport.
+// It unwraps getOnlyRoundTripper if present and uses a type assertion to read the token.
+// Returns an empty string if no token is available.
+func (g *GitHubClient) bearerToken() string {
+	tr := unwrapTransport(g.client.Client().Transport)
 	if tg, ok := tr.(tokenGetter); ok {
 		return tg.Token()
 	}
 	return ""
+}
+
+// rawHTTPTransport returns the raw network transport without any authentication
+// wrappers. Falls back to the unwrapped transport if the chain is not recognized.
+// Used by operations that must set their own authentication (e.g. NuGet Basic auth).
+func (g *GitHubClient) rawHTTPTransport() http.RoundTripper {
+	tr := unwrapTransport(g.client.Client().Transport)
+	if rtg, ok := tr.(rawTransportGetter); ok {
+		return rtg.RawTransport()
+	}
+	return tr
 }
 
 // GetClient returns the underlying GitHub client
