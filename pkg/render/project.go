@@ -85,6 +85,62 @@ func projectV2FieldValueString(fv client.ProjectV2FieldValue) string {
 	return ""
 }
 
+// ProjectV2Fields lists the built-in field names available for projects list --field flag completion.
+var ProjectV2Fields = []string{"ID", "NUMBER", "TITLE", "STATE", "PUBLIC", "URL"}
+
+// RenderProjectsV2 renders a table of GitHub Project v2 projects with the specified headers.
+func (r *Renderer) RenderProjectsV2(projects []client.ProjectV2, headers []string) error {
+	if r.exporter != nil {
+		return r.RenderExportedData(projects)
+	}
+
+	if len(projects) == 0 {
+		r.writeLine("No projects.")
+		return nil
+	}
+
+	if len(headers) == 0 {
+		headers = []string{"NUMBER", "TITLE", "STATE", "URL"}
+	}
+
+	table := r.newTableWriter(headers)
+	table.Configure(func(cfg *tablewriter.Config) {
+		cfg.Row.Formatting.AutoWrap = tw.WrapNone
+	})
+
+	for i := range projects {
+		p := &projects[i]
+		row := make([]string, len(headers))
+		for j, h := range headers {
+			row[j] = projectV2Field(p, h)
+		}
+		table.Append(row)
+	}
+	return table.Render()
+}
+
+// projectV2Field returns the string value for the given field name of a GitHub Project v2.
+func projectV2Field(p *client.ProjectV2, field string) string {
+	switch strings.ToUpper(field) {
+	case "ID":
+		return p.ID
+	case "NUMBER":
+		return fmt.Sprintf("%d", p.Number)
+	case "TITLE":
+		return p.Title
+	case "STATE":
+		if p.Closed {
+			return "closed"
+		}
+		return "open"
+	case "PUBLIC":
+		return ToString(p.Public)
+	case "URL":
+		return p.URL
+	}
+	return ""
+}
+
 // RenderProjectV2Items renders a table of project v2 items with the specified headers.
 func (r *Renderer) RenderProjectV2Items(items []client.ProjectV2Item, headers []string) error {
 	if r.exporter != nil {
