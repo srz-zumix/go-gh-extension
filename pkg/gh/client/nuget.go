@@ -270,7 +270,11 @@ func (g *GitHubClient) nugetResolveDownloadURL(ctx context.Context, owner, packa
 		slog.Debug("NuGet service index: request failed", "error", err)
 		return fallback
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.Debug("NuGet service index: failed to close response body", "error", err)
+		}
+	}()
 
 	switch resp.StatusCode {
 	case http.StatusOK:
