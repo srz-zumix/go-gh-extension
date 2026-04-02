@@ -122,7 +122,7 @@ func TestNuGetPushURL(t *testing.T) {
 			name:     "GHES host",
 			host:     "ghe.example.com",
 			owner:    "myorg",
-			expected: "https://ghe.example.com/_registry/nuget/myorg",
+			expected: "https://nuget.ghe.example.com/myorg",
 		},
 	}
 	for _, tt := range tests {
