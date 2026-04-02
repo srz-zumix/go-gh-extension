@@ -228,7 +228,12 @@ func (g *GitHubClient) fetchNuGetPackageBody(ctx context.Context, owner, package
 			} else {
 				slog.Debug("NuGet download redirect", "location", "invalid redirect URL")
 			}
-			currentURL = loc
+			parsedLoc, err := url.Parse(loc)
+			if err != nil {
+				return nil, fmt.Errorf("invalid redirect Location header: %w", err)
+			}
+			resolvedURL := resp.Request.URL.ResolveReference(parsedLoc)
+			currentURL = resolvedURL.String()
 		default:
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 			statusErr := fmt.Errorf("download failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
