@@ -1611,3 +1611,215 @@ func TestParseTeamURL(t *testing.T) {
 		})
 	}
 }
+
+func TestParseProjectURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    *ProjectURL
+		wantErr bool
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "whitespace only",
+			input: "   ",
+			want:  nil,
+		},
+		{
+			name:  "not a URL",
+			input: "my-project",
+			want:  nil,
+		},
+		{
+			name:  "valid org project URL (HTTPS)",
+			input: "https://github.com/orgs/my-org/projects/123",
+			want: &ProjectURL{
+				Url:    mustParseURL("https://github.com/orgs/my-org/projects/123"),
+				Host:   "github.com",
+				Owner:  "my-org",
+				Number: intPtr(123),
+			},
+		},
+		{
+			name:  "valid user project URL (HTTPS)",
+			input: "https://github.com/users/my-user/projects/456",
+			want: &ProjectURL{
+				Url:    mustParseURL("https://github.com/users/my-user/projects/456"),
+				Host:   "github.com",
+				Owner:  "my-user",
+				Number: intPtr(456),
+			},
+		},
+		{
+			name:  "valid org project URL (HTTP)",
+			input: "http://github.com/orgs/my-org/projects/789",
+			want: &ProjectURL{
+				Url:    mustParseURL("http://github.com/orgs/my-org/projects/789"),
+				Host:   "github.com",
+				Owner:  "my-org",
+				Number: intPtr(789),
+			},
+		},
+		{
+			name:  "project URL with trailing slash",
+			input: "https://github.com/orgs/my-org/projects/1/",
+			want: &ProjectURL{
+				Url:    mustParseURL("https://github.com/orgs/my-org/projects/1/"),
+				Host:   "github.com",
+				Owner:  "my-org",
+				Number: intPtr(1),
+			},
+		},
+		{
+			name:  "project URL with query parameters",
+			input: "https://github.com/orgs/my-org/projects/2?query=is%3Aopen",
+			want: &ProjectURL{
+				Url:    mustParseURL("https://github.com/orgs/my-org/projects/2?query=is%3Aopen"),
+				Host:   "github.com",
+				Owner:  "my-org",
+				Number: intPtr(2),
+			},
+		},
+		{
+			name:  "project URL with fragment",
+			input: "https://github.com/orgs/my-org/projects/3#readme",
+			want: &ProjectURL{
+				Url:    mustParseURL("https://github.com/orgs/my-org/projects/3#readme"),
+				Host:   "github.com",
+				Owner:  "my-org",
+				Number: intPtr(3),
+			},
+		},
+		{
+			name:  "project URL with whitespace",
+			input: "  https://github.com/orgs/my-org/projects/4  ",
+			want: &ProjectURL{
+				Url:    mustParseURL("https://github.com/orgs/my-org/projects/4"),
+				Host:   "github.com",
+				Owner:  "my-org",
+				Number: intPtr(4),
+			},
+		},
+		{
+			name:  "GitHub Enterprise org project URL",
+			input: "https://github.example.com/orgs/enterprise-org/projects/10",
+			want: &ProjectURL{
+				Url:    mustParseURL("https://github.example.com/orgs/enterprise-org/projects/10"),
+				Host:   "github.example.com",
+				Owner:  "enterprise-org",
+				Number: intPtr(10),
+			},
+		},
+		{
+			name:  "owner name with hyphen",
+			input: "https://github.com/orgs/my-org-name/projects/5",
+			want: &ProjectURL{
+				Url:    mustParseURL("https://github.com/orgs/my-org-name/projects/5"),
+				Host:   "github.com",
+				Owner:  "my-org-name",
+				Number: intPtr(5),
+			},
+		},
+		{
+			name:    "URL with invalid project number (zero)",
+			input:   "https://github.com/orgs/my-org/projects/0",
+			wantErr: true,
+		},
+		{
+			name:    "URL with invalid project number (negative)",
+			input:   "https://github.com/orgs/my-org/projects/-1",
+			wantErr: true,
+		},
+		{
+			name:    "URL with non-numeric project number",
+			input:   "https://github.com/orgs/my-org/projects/abc",
+			wantErr: true,
+		},
+		{
+			name:    "URL without project number",
+			input:   "https://github.com/orgs/my-org/projects/",
+			wantErr: true,
+		},
+		{
+			name:    "URL missing projects segment",
+			input:   "https://github.com/orgs/my-org",
+			wantErr: true,
+		},
+		{
+			name:    "not a project URL (repo issues)",
+			input:   "https://github.com/owner/repo/issues/123",
+			wantErr: true,
+		},
+		{
+			name:    "not a project URL (pull request)",
+			input:   "https://github.com/owner/repo/pull/123",
+			wantErr: true,
+		},
+		{
+			name:    "not a project URL (milestone)",
+			input:   "https://github.com/owner/repo/milestone/123",
+			wantErr: true,
+		},
+		{
+			name:    "not a project URL (team)",
+			input:   "https://github.com/orgs/my-org/teams/my-team",
+			wantErr: true,
+		},
+		{
+			name:    "path prefix is not orgs or users",
+			input:   "https://github.com/repos/my-org/projects/1",
+			wantErr: true,
+		},
+		{
+			name:    "malformed URL",
+			input:   "https://not a valid url",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseProjectURL(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseProjectURL() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil {
+				return
+			}
+
+			if (got == nil) != (tt.want == nil) {
+				t.Errorf("ParseProjectURL() = %v, want %v", got, tt.want)
+				return
+			}
+
+			if got == nil {
+				return
+			}
+
+			// Compare URL
+			if got.Url.String() != tt.want.Url.String() {
+				t.Errorf("ParseProjectURL() Url = %v, want %v", got.Url, tt.want.Url)
+			}
+
+			// Compare Host
+			if got.Host != tt.want.Host {
+				t.Errorf("ParseProjectURL() Host = %v, want %v", got.Host, tt.want.Host)
+			}
+
+			// Compare Owner
+			if got.Owner != tt.want.Owner {
+				t.Errorf("ParseProjectURL() Owner = %v, want %v", got.Owner, tt.want.Owner)
+			}
+
+			// Compare Number
+			if !compareIntPtr(got.Number, tt.want.Number) {
+				t.Errorf("ParseProjectURL() Number = %v, want %v", ptrValue(got.Number), ptrValue(tt.want.Number))
+			}
+		})
+	}
+}

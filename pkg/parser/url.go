@@ -282,3 +282,56 @@ func ParseTeamURL(input string) (*TeamURL, error) {
 		TeamSlug: teamSlug,
 	}, nil
 }
+
+// ProjectURL represents a GitHub Project v2 parsed from a URL
+type ProjectURL struct {
+	Url    *url.URL
+	Host   string
+	Owner  string
+	Number *int
+}
+
+// ParseProjectURL parses a GitHub Project v2 URL and extracts the owner and project number.
+// Expected URL formats:
+//   - https://github.com/orgs/{org}/projects/{number}
+//   - https://github.com/users/{user}/projects/{number}
+//
+// Returns ProjectURL containing the owner and project number, or an error if parsing fails.
+func ParseProjectURL(input string) (*ProjectURL, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return nil, nil
+	}
+
+	if !strings.HasPrefix(input, "http://") && !strings.HasPrefix(input, "https://") {
+		return nil, nil
+	}
+
+	parsedURL, err := url.Parse(input)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	pathParts := strings.Split(strings.Trim(parsedURL.Path, "/"), "/")
+	// Expected format: orgs/{org}/projects/{number} or users/{user}/projects/{number}
+	if len(pathParts) < 4 || (pathParts[0] != "orgs" && pathParts[0] != "users") || pathParts[2] != "projects" {
+		return nil, fmt.Errorf("not a project URL: %s", input)
+	}
+
+	owner := pathParts[1]
+	if owner == "" {
+		return nil, fmt.Errorf("invalid project URL: %s", input)
+	}
+
+	num, ok := parseNumberFromPath(pathParts, 3)
+	if !ok {
+		return nil, fmt.Errorf("invalid project number in URL: %s", input)
+	}
+
+	return &ProjectURL{
+		Url:    parsedURL,
+		Host:   parsedURL.Host,
+		Owner:  owner,
+		Number: &num,
+	}, nil
+}

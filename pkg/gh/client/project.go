@@ -22,11 +22,13 @@ type ProjectV2 struct {
 
 // ProjectV2Field represents a resolved field (column) in a GitHub Project v2.
 // Options is populated only for SINGLE_SELECT fields.
+// Iterations is populated only for ITERATION fields.
 type ProjectV2Field struct {
-	ID       string
-	Name     string
-	DataType string // TEXT, NUMBER, DATE, SINGLE_SELECT, ITERATION, TITLE, ASSIGNEES, etc.
-	Options  []ProjectV2SingleSelectOption
+	ID         string
+	Name       string
+	DataType   string // TEXT, NUMBER, DATE, SINGLE_SELECT, ITERATION, TITLE, ASSIGNEES, etc.
+	Options    []ProjectV2SingleSelectOption
+	Iterations []ProjectV2IterationOption
 }
 
 // ProjectV2SingleSelectOption represents an option in a SINGLE_SELECT field.
@@ -35,6 +37,14 @@ type ProjectV2SingleSelectOption struct {
 	Name        string
 	Color       string
 	Description string
+}
+
+// ProjectV2IterationOption represents a single iteration in an ITERATION field.
+type ProjectV2IterationOption struct {
+	ID        string
+	Title     string
+	StartDate string // YYYY-MM-DD
+	Duration  int    // days
 }
 
 // ProjectV2ItemType represents the type of content in a project item.
@@ -59,16 +69,17 @@ type ProjectV2ItemContent struct {
 }
 
 // ProjectV2FieldValue represents a resolved custom-field value for a project item.
-// Only TEXT, NUMBER, DATE, and SINGLE_SELECT value types are read.
 // Inspect ValueType to determine which field is meaningful.
 type ProjectV2FieldValue struct {
 	FieldName      string
-	ValueType      string   // TEXT, NUMBER, DATE, SINGLE_SELECT
+	ValueType      string   // TEXT, NUMBER, DATE, SINGLE_SELECT, ITERATION
 	Text           string   // for TEXT
 	Number         *float64 // for NUMBER
 	Date           string   // for DATE, formatted as YYYY-MM-DD
 	SelectName     string   // for SINGLE_SELECT
 	SelectOptionID string   // for SINGLE_SELECT
+	IterationID    string   // for ITERATION
+	IterationTitle string   // for ITERATION, used for name-based matching
 }
 
 // ProjectV2Item represents an item in a GitHub Project v2.
@@ -104,9 +115,18 @@ type projectV2FieldConfigNode struct {
 		}
 	} `graphql:"... on ProjectV2SingleSelectField"`
 	AsIterationField struct {
-		ID       githubv4.String
-		Name     githubv4.String
-		DataType githubv4.String
+		ID            githubv4.String
+		Name          githubv4.String
+		DataType      githubv4.String
+		Configuration struct {
+			Duration   githubv4.Int
+			Iterations []struct {
+				ID        githubv4.String
+				Title     githubv4.String
+				StartDate githubv4.String
+				Duration  githubv4.Int
+			}
+		}
 	} `graphql:"... on ProjectV2IterationField"`
 }
 
@@ -136,10 +156,20 @@ func (n *projectV2FieldConfigNode) toProjectV2Field() ProjectV2Field {
 		}
 	}
 	if n.AsIterationField.ID != "" {
+		iters := make([]ProjectV2IterationOption, len(n.AsIterationField.Configuration.Iterations))
+		for i, it := range n.AsIterationField.Configuration.Iterations {
+			iters[i] = ProjectV2IterationOption{
+				ID:        string(it.ID),
+				Title:     string(it.Title),
+				StartDate: string(it.StartDate),
+				Duration:  int(it.Duration),
+			}
+		}
 		return ProjectV2Field{
-			ID:       string(n.AsIterationField.ID),
-			Name:     string(n.AsIterationField.Name),
-			DataType: string(n.AsIterationField.DataType),
+			ID:         string(n.AsIterationField.ID),
+			Name:       string(n.AsIterationField.Name),
+			DataType:   string(n.AsIterationField.DataType),
+			Iterations: iters,
 		}
 	}
 	return ProjectV2Field{}
@@ -189,7 +219,7 @@ type projectV2ItemContentNode struct {
 }
 
 // projectV2ItemFieldValueNode is the inline-fragment representation of
-// ProjectV2ItemFieldValue. Only TEXT, NUMBER, DATE, and SINGLE_SELECT types are read.
+// ProjectV2ItemFieldValue. TEXT, NUMBER, DATE, SINGLE_SELECT, and ITERATION types are read.
 type projectV2ItemFieldValueNode struct {
 	AsText struct {
 		Text  *githubv4.String
@@ -208,6 +238,11 @@ type projectV2ItemFieldValueNode struct {
 		OptionID *githubv4.String `graphql:"optionId"`
 		Field    fieldConfigNameRef
 	} `graphql:"... on ProjectV2ItemFieldSingleSelectValue"`
+	AsIteration struct {
+		IterationID *githubv4.String `graphql:"iterationId"`
+		Title       *githubv4.String
+		Field       fieldConfigNameRef
+	} `graphql:"... on ProjectV2ItemFieldIterationValue"`
 }
 
 // projectV2ItemNode is the raw GraphQL node for a project item.
@@ -297,14 +332,35 @@ func (n *projectV2ItemNode) toProjectV2Item() ProjectV2Item {
 					SelectOptionID: optID,
 				})
 			}
+		} else if fv.AsIteration.IterationID != nil {
+			if fieldName := fv.AsIteration.Field.name(); fieldName != "" {
+				title := ""
+				if fv.AsIteration.Title != nil {
+					title = string(*fv.AsIteration.Title)
+				}
+				item.FieldValues = append(item.FieldValues, ProjectV2FieldValue{
+					FieldName:      fieldName,
+					ValueType:      "ITERATION",
+					IterationID:    string(*fv.AsIteration.IterationID),
+					IterationTitle: title,
+				})
+			}
 		}
 	}
 	return item
 }
 
 // ─────────────────────────────────────────
-// Query types for fields and items (shared between user/org variants)
+// Query types for fields, items, and views (shared between user/org variants)
 // ─────────────────────────────────────────
+
+// ProjectV2View represents a view in a GitHub Project v2.
+// The GitHub GraphQL API supports reading views but does not expose a createProjectV2View mutation.
+type ProjectV2View struct {
+	ID     string
+	Name   string
+	Layout string // BOARD_LAYOUT, TABLE_LAYOUT, ROADMAP_LAYOUT
+}
 
 type projectV2FieldsQueryResult struct {
 	Fields struct {
@@ -632,12 +688,27 @@ type CreateProjectV2FieldSingleSelectOptionInput struct {
 	Description githubv4.String `json:"description"`
 }
 
+// ProjectV2IterationInput is a single iteration entry for iteration field creation.
+type ProjectV2IterationInput struct {
+	Title     githubv4.String `json:"title"`
+	StartDate githubv4.String `json:"startDate"` // YYYY-MM-DD
+	Duration  githubv4.Int    `json:"duration"`  // days
+}
+
+// ProjectV2IterationFieldConfigInput is the configuration for creating an ITERATION field.
+type ProjectV2IterationFieldConfigInput struct {
+	StartDate  githubv4.String           `json:"startDate"` // YYYY-MM-DD
+	Duration   githubv4.Int              `json:"duration"`  // days
+	Iterations []ProjectV2IterationInput `json:"iterations"`
+}
+
 // CreateProjectV2FieldInput is the input for creating a custom field in a Project v2.
 type CreateProjectV2FieldInput struct {
-	ProjectID           githubv4.ID                                   `json:"projectId"`
-	DataType            githubv4.String                               `json:"dataType"`
-	Name                githubv4.String                               `json:"name"`
-	SingleSelectOptions []CreateProjectV2FieldSingleSelectOptionInput `json:"singleSelectOptions,omitempty"`
+	ProjectID              githubv4.ID                                   `json:"projectId"`
+	DataType               githubv4.String                               `json:"dataType"`
+	Name                   githubv4.String                               `json:"name"`
+	SingleSelectOptions    []CreateProjectV2FieldSingleSelectOptionInput `json:"singleSelectOptions,omitempty"`
+	IterationConfiguration *ProjectV2IterationFieldConfigInput           `json:"iterationConfiguration,omitempty"`
 }
 
 // AddProjectV2DraftIssueInput is the input for adding a draft issue to a Project v2.
@@ -645,6 +716,13 @@ type AddProjectV2DraftIssueInput struct {
 	ProjectID githubv4.ID      `json:"projectId"`
 	Title     githubv4.String  `json:"title"`
 	Body      *githubv4.String `json:"body,omitempty"`
+}
+
+// AddProjectV2ItemByIdInput is the input for linking an existing issue or PR to a Project v2.
+// The JSON tags map to the GraphQL schema type AddProjectV2ItemByIdInput.
+type AddProjectV2ItemByIdInput struct {
+	ProjectID githubv4.ID `json:"projectId"`
+	ContentID githubv4.ID `json:"contentId"`
 }
 
 // ProjectV2FieldValueInput represents the value to set on a project item field.
@@ -667,6 +745,12 @@ type UpdateProjectV2ItemFieldValueInput struct {
 
 // DeleteProjectV2ItemInput is the input for removing an item from a Project v2.
 type DeleteProjectV2ItemInput struct {
+	ProjectID githubv4.ID `json:"projectId"`
+	ItemID    githubv4.ID `json:"itemId"`
+}
+
+// ArchiveProjectV2ItemInput is the input for archiving an item in a Project v2.
+type ArchiveProjectV2ItemInput struct {
 	ProjectID githubv4.ID `json:"projectId"`
 	ItemID    githubv4.ID `json:"itemId"`
 }
@@ -728,22 +812,18 @@ func (g *GitHubClient) DeleteProjectV2(ctx context.Context, input DeleteProjectV
 }
 
 // CreateProjectV2Field creates a custom field in a GitHub Project v2.
-// Returns the created field's ID and name.
-func (g *GitHubClient) CreateProjectV2Field(ctx context.Context, input CreateProjectV2FieldInput) (string, string, error) {
+func (g *GitHubClient) CreateProjectV2Field(ctx context.Context, input CreateProjectV2FieldInput) error {
 	gql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
-		return "", "", err
+		return err
 	}
+	// Request only clientMutationId to avoid schema differences across GitHub versions.
 	var mutation struct {
 		CreateProjectV2Field struct {
-			ProjectV2Field projectV2FieldConfigNode
+			ClientMutationID githubv4.String `graphql:"clientMutationId"`
 		} `graphql:"createProjectV2Field(input: $input)"`
 	}
-	if err := gql.Mutate(ctx, &mutation, input, nil); err != nil {
-		return "", "", err
-	}
-	f := mutation.CreateProjectV2Field.ProjectV2Field.toProjectV2Field()
-	return f.ID, f.Name, nil
+	return gql.Mutate(ctx, &mutation, input, nil)
 }
 
 // AddProjectV2DraftIssue adds a draft issue to a GitHub Project v2.
@@ -766,6 +846,26 @@ func (g *GitHubClient) AddProjectV2DraftIssue(ctx context.Context, input AddProj
 	return string(mutation.AddProjectV2DraftIssue.ProjectItem.ID), nil
 }
 
+// AddProjectV2ItemByID links an existing issue or PR (by node ID) to a GitHub Project v2.
+// Returns the created project item's node ID.
+func (g *GitHubClient) AddProjectV2ItemByID(ctx context.Context, input AddProjectV2ItemByIdInput) (string, error) {
+	gql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return "", err
+	}
+	var mutation struct {
+		AddProjectV2ItemById struct {
+			Item struct {
+				ID githubv4.String
+			}
+		} `graphql:"addProjectV2ItemById(input: $input)"`
+	}
+	if err := gql.Mutate(ctx, &mutation, input, nil); err != nil {
+		return "", err
+	}
+	return string(mutation.AddProjectV2ItemById.Item.ID), nil
+}
+
 // UpdateProjectV2ItemFieldValue sets the value of a custom field for a project item.
 func (g *GitHubClient) UpdateProjectV2ItemFieldValue(ctx context.Context, input UpdateProjectV2ItemFieldValueInput) error {
 	gql, err := g.GetOrCreateGraphQLClient()
@@ -774,9 +874,7 @@ func (g *GitHubClient) UpdateProjectV2ItemFieldValue(ctx context.Context, input 
 	}
 	var mutation struct {
 		UpdateProjectV2ItemFieldValue struct {
-			ProjectV2Item struct {
-				ID githubv4.String
-			}
+			ClientMutationID githubv4.String `graphql:"clientMutationId"`
 		} `graphql:"updateProjectV2ItemFieldValue(input: $input)"`
 	}
 	return gql.Mutate(ctx, &mutation, input, nil)
@@ -794,4 +892,118 @@ func (g *GitHubClient) DeleteProjectV2Item(ctx context.Context, input DeleteProj
 		} `graphql:"deleteProjectV2Item(input: $input)"`
 	}
 	return gql.Mutate(ctx, &mutation, input, nil)
+}
+
+// ArchiveProjectV2Item archives an item in a GitHub Project v2.
+func (g *GitHubClient) ArchiveProjectV2Item(ctx context.Context, input ArchiveProjectV2ItemInput) error {
+	gql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+	var mutation struct {
+		ArchiveProjectV2Item struct {
+			ClientMutationID githubv4.String `graphql:"clientMutationId"`
+		} `graphql:"archiveProjectV2Item(input: $input)"`
+	}
+	return gql.Mutate(ctx, &mutation, input, nil)
+}
+
+// ListUserProjectV2Views lists all views for a user's ProjectV2.
+// The GitHub GraphQL API supports reading views but does not expose a createProjectV2View mutation.
+func (g *GitHubClient) ListUserProjectV2Views(ctx context.Context, login string, number int) ([]ProjectV2View, error) {
+	gql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+	var query struct {
+		User struct {
+			ProjectV2 struct {
+				Views struct {
+					Nodes []struct {
+						ID     githubv4.String
+						Name   githubv4.String
+						Layout githubv4.String
+					}
+					PageInfo struct {
+						EndCursor   githubv4.String
+						HasNextPage bool
+					}
+				} `graphql:"views(first: $first, after: $cursor)"`
+			} `graphql:"projectV2(number: $number)"`
+		} `graphql:"user(login: $owner)"`
+	}
+	variables := map[string]any{
+		"owner":  githubv4.String(login),
+		"number": githubv4.Int(number),
+		"first":  githubv4.Int(50),
+		"cursor": (*githubv4.String)(nil),
+	}
+	var all []ProjectV2View
+	for {
+		if err := gql.Query(ctx, &query, variables); err != nil {
+			return nil, err
+		}
+		for _, n := range query.User.ProjectV2.Views.Nodes {
+			all = append(all, ProjectV2View{
+				ID:     string(n.ID),
+				Name:   string(n.Name),
+				Layout: string(n.Layout),
+			})
+		}
+		if !query.User.ProjectV2.Views.PageInfo.HasNextPage {
+			break
+		}
+		variables["cursor"] = githubv4.NewString(query.User.ProjectV2.Views.PageInfo.EndCursor)
+	}
+	return all, nil
+}
+
+// ListOrgProjectV2Views lists all views for an org's ProjectV2.
+// The GitHub GraphQL API supports reading views but does not expose a createProjectV2View mutation.
+func (g *GitHubClient) ListOrgProjectV2Views(ctx context.Context, org string, number int) ([]ProjectV2View, error) {
+	gql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+	var query struct {
+		Organization struct {
+			ProjectV2 struct {
+				Views struct {
+					Nodes []struct {
+						ID     githubv4.String
+						Name   githubv4.String
+						Layout githubv4.String
+					}
+					PageInfo struct {
+						EndCursor   githubv4.String
+						HasNextPage bool
+					}
+				} `graphql:"views(first: $first, after: $cursor)"`
+			} `graphql:"projectV2(number: $number)"`
+		} `graphql:"organization(login: $owner)"`
+	}
+	variables := map[string]any{
+		"owner":  githubv4.String(org),
+		"number": githubv4.Int(number),
+		"first":  githubv4.Int(50),
+		"cursor": (*githubv4.String)(nil),
+	}
+	var all []ProjectV2View
+	for {
+		if err := gql.Query(ctx, &query, variables); err != nil {
+			return nil, err
+		}
+		for _, n := range query.Organization.ProjectV2.Views.Nodes {
+			all = append(all, ProjectV2View{
+				ID:     string(n.ID),
+				Name:   string(n.Name),
+				Layout: string(n.Layout),
+			})
+		}
+		if !query.Organization.ProjectV2.Views.PageInfo.HasNextPage {
+			break
+		}
+		variables["cursor"] = githubv4.NewString(query.Organization.ProjectV2.Views.PageInfo.EndCursor)
+	}
+	return all, nil
 }

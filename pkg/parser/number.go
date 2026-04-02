@@ -56,3 +56,13 @@ func GetMilestoneNumberFromString(s string) (int, error) {
 	}
 	return 0, fmt.Errorf("unable to parse milestone number from: %s", s)
 }
+
+func GetProjectNumberFromString(s string) (int, error) {
+	if num, err := GetNumberFromString(s); err == nil && num > 0 {
+		return num, nil
+	}
+	if project, err := ParseProjectURL(s); err == nil && project != nil && project.Number != nil {
+		return *project.Number, nil
+	}
+	return 0, fmt.Errorf("unable to parse project number from: %s", s)
+}
