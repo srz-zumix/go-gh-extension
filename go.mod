@@ -7,7 +7,7 @@ require (
 	github.com/cli/go-gh/v2 v2.13.0
 	github.com/cli/shurcooL-graphql v0.0.4
 	github.com/ddddddO/gtree v1.13.5
-	github.com/fatih/color v1.18.0
+	github.com/fatih/color v1.19.0
 	github.com/google/go-github/v84 v84.0.0
 	github.com/google/go-querystring v1.2.0
 	github.com/olekukonko/tablewriter v1.1.4
@@ -82,7 +82,7 @@ require (
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/term v0.40.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
