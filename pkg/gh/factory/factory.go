@@ -279,6 +279,12 @@ func (rt roundTripper) Token() string {
 	return rt.accessToken
 }
 
+// RawTransport returns the underlying network transport without the auth wrapper.
+// Used by callers that need to set their own authentication (e.g. NuGet Basic auth).
+func (rt roundTripper) RawTransport() http.RoundTripper {
+	return rt.transport
+}
+
 type getOnlyRoundTripper struct {
 	transport http.RoundTripper
 }
