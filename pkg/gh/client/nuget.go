@@ -220,7 +220,14 @@ func (g *GitHubClient) fetchNuGetPackageBody(ctx context.Context, owner, package
 			if nugetIsLoginRedirect(loc) {
 				return nil, fmt.Errorf("authentication failed: server redirected to login page; ensure the gh auth token has 'read:packages' scope (run: gh auth refresh -h %s --scopes read:packages)", githubHost)
 			}
-			slog.Debug("NuGet download redirect", "location", loc)
+			// Log redirect location without query parameters to avoid leaking credentials (e.g. SAS tokens).
+			if u, err := url.Parse(loc); err == nil {
+				u.RawQuery = ""
+				u.Fragment = ""
+				slog.Debug("NuGet download redirect", "location", u.String())
+			} else {
+				slog.Debug("NuGet download redirect", "location", "invalid redirect URL")
+			}
 			currentURL = loc
 		default:
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
