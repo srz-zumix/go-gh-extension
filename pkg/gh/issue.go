@@ -129,6 +129,12 @@ func SetIssueLabels(ctx context.Context, g *GitHubClient, repo repository.Reposi
 	return result, nil
 }
 
+// CreateIssue creates a new issue in the given repository.
+// Returns the created issue, including its node ID.
+func CreateIssue(ctx context.Context, g *GitHubClient, repo repository.Repository, title, body string, labels []string) (*github.Issue, error) {
+	return g.CreateIssue(ctx, repo.Owner, repo.Name, title, body, labels)
+}
+
 func AddIssueLabels(ctx context.Context, g *GitHubClient, repo repository.Repository, issue any, labels []string) ([]*github.Label, error) {
 	number, err := GetIssueNumber(issue)
 	if err != nil {
