@@ -421,7 +421,7 @@ func getRepositorySubmodulesInternal(ctx context.Context, g *GitHubClient, repo 
 	if recursive {
 		for i, submodule := range allSubmodules {
 			if repo.Host == submodule.Repository.Host {
-				key := repoKey(submodule.Repository)
+				key := repoKey(g, submodule.Repository)
 				if _, seen := visited[key]; seen {
 					logger.Warn("circular submodule reference detected, skipping", "submodule", submodule.Name, "repo", submodule.Repository.Owner+"/"+submodule.Repository.Name)
 					continue
