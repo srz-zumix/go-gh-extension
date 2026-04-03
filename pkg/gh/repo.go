@@ -12,6 +12,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v84/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
+	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
 type RepositorySubmodule = client.RepositorySubmodule
@@ -392,18 +393,41 @@ func CheckRepositoryPermissionWithSubmodules(ctx context.Context, g *GitHubClien
 	return repoRermissions, hasPermissions, nil
 }
 
+func repoKey(repo repository.Repository) string {
+	return repo.Host + "/" + repo.Owner + "/" + repo.Name
+}
+
 func GetRepositorySubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool) ([]RepositorySubmodule, error) {
+	visited := map[string]struct{}{
+		repoKey(repo): {},
+	}
+	return getRepositorySubmodulesInternal(ctx, g, repo, recursive, visited)
+}
+
+func getRepositorySubmodulesInternal(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool, visited map[string]struct{}) ([]RepositorySubmodule, error) {
+	logger.Debug("getting submodules", "repo", repo.Owner+"/"+repo.Name, "recursive", recursive)
 	allSubmodules, err := g.GetRepositorySubmodules(ctx, repo.Owner, repo.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get submodules for repository %s/%s: %w", repo.Owner, repo.Name, err)
 	}
+	logger.Debug("found submodules", "repo", repo.Owner+"/"+repo.Name, "count", len(allSubmodules))
 	if recursive {
 		for i, submodule := range allSubmodules {
 			if repo.Host == submodule.Repository.Host {
-				allSubmodules[i].Submodules, err = GetRepositorySubmodules(ctx, g, submodule.Repository, recursive)
+				key := repoKey(submodule.Repository)
+				if _, seen := visited[key]; seen {
+					logger.Warn("circular submodule reference detected, skipping", "submodule", submodule.Name, "repo", submodule.Repository.Owner+"/"+submodule.Repository.Name)
+					continue
+				}
+				logger.Debug("recursing into submodule", "submodule", submodule.Name, "repo", submodule.Repository.Owner+"/"+submodule.Repository.Name)
+				visited[key] = struct{}{}
+				allSubmodules[i].Submodules, err = getRepositorySubmodulesInternal(ctx, g, submodule.Repository, recursive, visited)
+				delete(visited, key)
 				if err != nil {
 					return nil, fmt.Errorf("failed to get nested submodules for submodule %s: %w", submodule.Name, err)
 				}
+			} else {
+				logger.Debug("skipping submodule on different host", "submodule", submodule.Name, "host", submodule.Repository.Host)
 			}
 		}
 	}
