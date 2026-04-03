@@ -393,13 +393,20 @@ func CheckRepositoryPermissionWithSubmodules(ctx context.Context, g *GitHubClien
 	return repoRermissions, hasPermissions, nil
 }
 
-func repoKey(repo repository.Repository) string {
-	return repo.Host + "/" + repo.Owner + "/" + repo.Name
+func repoKey(g *GitHubClient, repo repository.Repository) string {
+	host := repo.Host
+	if host == "" && g != nil {
+		host = g.Host()
+	}
+
+	// Normalize repository coordinates so circular detection is case-insensitive
+	// and treats implicit and explicit hosts as the same repository.
+	return strings.ToLower(host) + "/" + strings.ToLower(repo.Owner) + "/" + strings.ToLower(repo.Name)
 }
 
 func GetRepositorySubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool) ([]RepositorySubmodule, error) {
 	visited := map[string]struct{}{
-		repoKey(repo): {},
+		repoKey(g, repo): {},
 	}
 	return getRepositorySubmodulesInternal(ctx, g, repo, recursive, visited)
 }
