@@ -31,7 +31,7 @@ func LoadFile(filePath string) (*UserMappingFile, error) {
 	}
 	var f UserMappingFile
 	if err := yaml.Unmarshal(data, &f); err != nil {
-		return nil, fmt.Errorf("failed to parse mapping file: %w", err)
+		return nil, fmt.Errorf("failed to parse mapping file %q: %w", filePath, err)
 	}
 	return &f, nil
 }
