@@ -41,7 +41,7 @@ func Load(filePath string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]string)
+	result := make(map[string]string, len(mappingFile.Users))
 	for _, mapping := range mappingFile.Users {
 		result[mapping.Src] = mapping.Dst
 	}
