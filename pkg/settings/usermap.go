@@ -2,6 +2,7 @@ package settings
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
@@ -12,14 +13,14 @@ import (
 // UserMapping represents a single user mapping from a source login to a destination login,
 // optionally identified by email address.
 type UserMapping struct {
-	Src   string `yaml:"src"`
-	Dst   string `yaml:"dst"`
-	Email string `yaml:"email"`
+	Src   string `json:"src" yaml:"src"`
+	Dst   string `json:"dst" yaml:"dst"`
+	Email string `json:"email" yaml:"email"`
 }
 
 // UserMappingFile represents the YAML structure for user mappings.
 type UserMappingFile struct {
-	Users []UserMapping `yaml:"users"`
+	Users []UserMapping `json:"users" yaml:"users"`
 }
 
 // LoadFile reads a YAML mapping file and returns the parsed UserMappingFile.
@@ -117,7 +118,11 @@ func NewCompiledMappings(file *UserMappingFile) (*CompiledMappings, error) {
 	for _, m := range file.Users {
 		if regexp.QuoteMeta(m.Src) == m.Src {
 			// Plain literal: store in the exact-match map.
-			cm.bySrc[m.Src] = m.Dst
+			if _, exists := cm.bySrc[m.Src]; exists {
+				slog.Warn("duplicate src value in mapping file, skipping", "src", m.Src)
+			} else {
+				cm.bySrc[m.Src] = m.Dst
+			}
 		} else {
 			// Contains regex metacharacters: compile and store for regex scanning.
 			re, err := regexp.Compile("^(?:" + m.Src + ")$")
@@ -127,7 +132,11 @@ func NewCompiledMappings(file *UserMappingFile) (*CompiledMappings, error) {
 			cm.entries = append(cm.entries, compiledMapping{mapping: m, srcRegex: re})
 		}
 		if m.Email != "" {
-			cm.byEmail[strings.ToLower(m.Email)] = m
+			if _, exists := cm.byEmail[strings.ToLower(m.Email)]; exists {
+				slog.Warn("duplicate email value in mapping file, skipping", "email", m.Email)
+			} else {
+				cm.byEmail[strings.ToLower(m.Email)] = m
+			}
 		}
 	}
 	return cm, nil
