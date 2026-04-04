@@ -5,9 +5,10 @@ import (
 	"log/slog"
 	"os"
 	"regexp"
-	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
 // UserMapping represents a single user mapping from a source login to a destination login,
@@ -103,10 +104,13 @@ func NewCompiledMappings(file *UserMappingFile) (*CompiledMappings, error) {
 			cm.entries = append(cm.entries, compiledMapping{mapping: m, srcRegex: re})
 		}
 		if m.Email != "" {
-			if _, exists := cm.byEmail[strings.ToLower(m.Email)]; exists {
+			normalizedEmail := parser.NormalizeEmail(m.Email)
+			if normalizedEmail == "" {
+				slog.Warn("email value is blank after trimming, skipping", "email", m.Email)
+			} else if _, exists := cm.byEmail[normalizedEmail]; exists {
 				slog.Warn("duplicate email value in mapping file, skipping", "email", m.Email)
 			} else {
-				cm.byEmail[strings.ToLower(m.Email)] = m
+				cm.byEmail[normalizedEmail] = m
 			}
 		}
 	}
@@ -140,9 +144,9 @@ func (c *CompiledMappings) ResolveSrc(login string) (string, bool) {
 }
 
 // ResolveEmail returns the UserMapping for the given email address.
-// Matching is case-insensitive; email addresses differing only by case are treated as equal.
+// Matching is case-insensitive and ignores leading/trailing whitespace.
 // Returns (UserMapping{}, false) if not found.
 func (c *CompiledMappings) ResolveEmail(email string) (UserMapping, bool) {
-	m, ok := c.byEmail[strings.ToLower(email)]
+	m, ok := c.byEmail[parser.NormalizeEmail(email)]
 	return m, ok
 }
