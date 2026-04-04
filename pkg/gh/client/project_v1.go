@@ -4,7 +4,17 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/http"
 )
+
+// inertiaPreview is the Accept header value required by all GitHub Projects (classic) v1 API endpoints.
+// Without this preview header the endpoints return 404 even when Classic Projects are enabled.
+const inertiaPreview = "application/vnd.github.inertia-preview+json"
+
+// setInertiaPreview sets the Accept header required by the Classic Projects v1 API on req.
+func setInertiaPreview(req *http.Request) {
+	req.Header.Set("Accept", inertiaPreview)
+}
 
 // ProjectV1 represents a GitHub Project (classic).
 type ProjectV1 struct {
@@ -77,6 +87,7 @@ func (g *GitHubClient) listProjectsV1(ctx context.Context, basePath string) ([]P
 		if err != nil {
 			return nil, err
 		}
+		setInertiaPreview(req)
 		var projects []ProjectV1
 		resp, err := g.client.Do(ctx, req, &projects)
 		if err != nil {
@@ -104,6 +115,7 @@ func (g *GitHubClient) ListProjectV1Columns(ctx context.Context, projectID int64
 		if err != nil {
 			return nil, err
 		}
+		setInertiaPreview(req)
 		var columns []ProjectV1Column
 		resp, err := g.client.Do(ctx, req, &columns)
 		if err != nil {
@@ -128,6 +140,7 @@ func (g *GitHubClient) createProjectV1(ctx context.Context, path, name, body str
 	if err != nil {
 		return nil, err
 	}
+	setInertiaPreview(req)
 	var project ProjectV1
 	if _, err := g.client.Do(ctx, req, &project); err != nil {
 		return nil, err
@@ -156,6 +169,7 @@ func (g *GitHubClient) DeleteProjectV1(ctx context.Context, projectID int64) err
 	if err != nil {
 		return err
 	}
+	setInertiaPreview(req)
 	_, err = g.client.Do(ctx, req, nil)
 	return err
 }
@@ -169,6 +183,7 @@ func (g *GitHubClient) CreateProjectV1Column(ctx context.Context, projectID int6
 	if err != nil {
 		return nil, err
 	}
+	setInertiaPreview(req)
 	var col ProjectV1Column
 	if _, err := g.client.Do(ctx, req, &col); err != nil {
 		return nil, err
@@ -185,6 +200,7 @@ func (g *GitHubClient) CreateProjectV1Card(ctx context.Context, columnID int64, 
 	if err != nil {
 		return nil, err
 	}
+	setInertiaPreview(req)
 	var card ProjectV1Card
 	if _, err := g.client.Do(ctx, req, &card); err != nil {
 		return nil, err
@@ -202,6 +218,7 @@ func (g *GitHubClient) ListProjectV1Cards(ctx context.Context, columnID int64) (
 		if err != nil {
 			return nil, err
 		}
+		setInertiaPreview(req)
 		var cards []ProjectV1Card
 		resp, err := g.client.Do(ctx, req, &cards)
 		if err != nil {

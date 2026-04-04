@@ -14,31 +14,31 @@ type ProjectV1 = client.ProjectV1
 type ProjectV1Column = client.ProjectV1Column
 type ProjectV1Card = client.ProjectV1Card
 
-// ListProjectsV1 lists all classic projects for an owner (org or user) or repository.
-// If repoName is non-empty, the repository's projects are listed.
+// ListProjectsV1 lists all classic projects for a repository owner or repository.
+// If repo.Name is non-empty, the repository's projects are listed.
 // Otherwise, the owner's projects are listed with automatic org/user detection.
-func ListProjectsV1(ctx context.Context, g *GitHubClient, owner, repoName string) ([]ProjectV1, error) {
-	if repoName != "" {
-		return g.ListRepoProjectsV1(ctx, owner, repoName)
+func ListProjectsV1(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]ProjectV1, error) {
+	if repo.Name != "" {
+		return g.ListRepoProjectsV1(ctx, repo.Owner, repo.Name)
 	}
-	ownerType, err := DetectOwnerType(ctx, g, owner)
+	ownerType, err := DetectOwnerType(ctx, g, repo.Owner)
 	if err != nil {
 		return nil, err
 	}
 	switch ownerType {
 	case OwnerTypeOrg:
-		return g.ListOrgProjectsV1(ctx, owner)
+		return g.ListOrgProjectsV1(ctx, repo.Owner)
 	case OwnerTypeUser:
-		return g.ListUserProjectsV1(ctx, owner)
+		return g.ListUserProjectsV1(ctx, repo.Owner)
 	default:
-		return nil, fmt.Errorf("unknown owner type for '%s'", owner)
+		return nil, fmt.Errorf("unknown owner type for '%s'", repo.Owner)
 	}
 }
 
-// GetProjectV1ByNumber finds a classic project by owner, optional repository name, and project number.
+// GetProjectV1ByNumber finds a classic project by repository (or owner) and project number.
 // It lists all matching projects and returns the first one with the given number.
-func GetProjectV1ByNumber(ctx context.Context, g *GitHubClient, owner, repoName string, number int) (*ProjectV1, error) {
-	projects, err := ListProjectsV1(ctx, g, owner, repoName)
+func GetProjectV1ByNumber(ctx context.Context, g *GitHubClient, repo repository.Repository, number int) (*ProjectV1, error) {
+	projects, err := ListProjectsV1(ctx, g, repo)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func GetProjectV1ByNumber(ctx context.Context, g *GitHubClient, owner, repoName 
 			return &projects[i], nil
 		}
 	}
-	return nil, fmt.Errorf("project #%d not found for '%s'", number, owner)
+	return nil, fmt.Errorf("project #%d not found for '%s'", number, repo.Owner)
 }
 
 // ListProjectV1Columns lists all columns for a classic project.
@@ -60,24 +60,24 @@ func ListProjectV1Cards(ctx context.Context, g *GitHubClient, repo repository.Re
 	return g.ListProjectV1Cards(ctx, columnID)
 }
 
-// CreateProjectV1 creates a classic project for an owner or repository.
-// If repoName is non-empty, the project is created in that repository.
+// CreateProjectV1 creates a classic project under repo.
+// If repo.Name is non-empty, the project is created in that repository.
 // Otherwise, the owner type is detected and the appropriate endpoint is used.
-func CreateProjectV1(ctx context.Context, g *GitHubClient, owner, repoName, name, body string) (*ProjectV1, error) {
-	if repoName != "" {
-		return g.CreateRepoProjectV1(ctx, owner, repoName, name, body)
+func CreateProjectV1(ctx context.Context, g *GitHubClient, repo repository.Repository, name, body string) (*ProjectV1, error) {
+	if repo.Name != "" {
+		return g.CreateRepoProjectV1(ctx, repo.Owner, repo.Name, name, body)
 	}
-	ownerType, err := DetectOwnerType(ctx, g, owner)
+	ownerType, err := DetectOwnerType(ctx, g, repo.Owner)
 	if err != nil {
 		return nil, err
 	}
 	switch ownerType {
 	case OwnerTypeOrg:
-		return g.CreateOrgProjectV1(ctx, owner, name, body)
+		return g.CreateOrgProjectV1(ctx, repo.Owner, name, body)
 	case OwnerTypeUser:
 		return g.CreateUserProjectV1(ctx, name, body)
 	default:
-		return nil, fmt.Errorf("unknown owner type for '%s'", owner)
+		return nil, fmt.Errorf("unknown owner type for '%s'", repo.Owner)
 	}
 }
 
