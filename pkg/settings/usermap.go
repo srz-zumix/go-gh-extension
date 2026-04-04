@@ -58,8 +58,8 @@ func Marshal(mappings []UserMapping) ([]byte, error) {
 	return yaml.Marshal(mappingFile)
 }
 
-// Write serializes mappings to YAML and writes them to the given file path.
-// If filePath is empty, the data is written to w (typically os.Stdout).
+// Write serializes mappings to YAML and writes them to filePath when it is not empty.
+// It always returns the marshaled YAML bytes.
 func Write(filePath string, mappings []UserMapping) ([]byte, error) {
 	data, err := Marshal(mappings)
 	if err != nil {
