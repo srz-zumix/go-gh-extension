@@ -26,7 +26,7 @@ type UserMappingFile struct {
 func LoadFile(filePath string) (*UserMappingFile, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read mapping file: %w", err)
+		return nil, fmt.Errorf("failed to read mapping file %q: %w", filePath, err)
 	}
 	var f UserMappingFile
 	if err := yaml.Unmarshal(data, &f); err != nil {
