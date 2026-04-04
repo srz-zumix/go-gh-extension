@@ -347,9 +347,9 @@ func TestNewCompiledMappings_EmptyDstRegexSkipped(t *testing.T) {
 	))
 	require.NoError(t, err)
 
-	// First entry is skipped (empty dst); second entry should NOT be reached
-	// because duplicate regex src is still appended — but the first (empty dst)
-	// entry is skipped so the second should match.
+	// The first regex mapping is skipped because it has an empty dst.
+	// Therefore, the second mapping becomes the first applicable regex entry
+	// and should match.
 	dst, ok := cm.ResolveSrc("legacy-alice")
 	assert.True(t, ok)
 	assert.Equal(t, "alice", dst)
