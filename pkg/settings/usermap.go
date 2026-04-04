@@ -88,7 +88,10 @@ func NewCompiledMappings(file *UserMappingFile) (*CompiledMappings, error) {
 		byEmail: make(map[string]UserMapping, len(file.Users)),
 	}
 	for _, m := range file.Users {
-		if regexp.QuoteMeta(m.Src) == m.Src {
+		if m.Dst == "" {
+			slog.Warn("dst value is empty, skipping", "src", m.Src)
+			continue
+		} else if regexp.QuoteMeta(m.Src) == m.Src {
 			// Plain literal: store in the exact-match map.
 			if _, exists := cm.bySrc[m.Src]; exists {
 				slog.Warn("duplicate src value in mapping file, skipping", "src", m.Src)
