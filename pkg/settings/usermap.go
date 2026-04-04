@@ -135,8 +135,9 @@ func (c *CompiledMappings) ResolveSrc(login string) (string, bool) {
 		return dst, true
 	}
 	for _, e := range c.entries {
-		if e.srcRegex.MatchString(login) {
-			dst := e.srcRegex.ReplaceAllString(login, e.mapping.Dst)
+		match := e.srcRegex.FindStringSubmatchIndex(login)
+		if match != nil {
+			dst := string(e.srcRegex.ExpandString(nil, e.mapping.Dst, login, match))
 			return dst, true
 		}
 	}
