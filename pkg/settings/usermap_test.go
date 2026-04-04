@@ -57,21 +57,6 @@ func TestLoadFile_InvalidYAML(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// --- Load ---
-
-func TestLoad(t *testing.T) {
-	path := writeYAML(t, `users:
-  - src: alice
-    dst: alice-new
-  - src: bob
-    dst: bob-new
-`)
-	m, err := settings.Load(path)
-	require.NoError(t, err)
-	assert.Equal(t, "alice-new", m["alice"])
-	assert.Equal(t, "bob-new", m["bob"])
-}
-
 // --- Marshal / Write ---
 
 func TestMarshal(t *testing.T) {
@@ -110,24 +95,6 @@ func TestWrite_NoFile(t *testing.T) {
 	data, err := settings.Write("", mappings)
 	require.NoError(t, err)
 	assert.NotEmpty(t, data)
-}
-
-// --- LoadByEmail ---
-
-func TestLoadByEmail(t *testing.T) {
-	path := writeYAML(t, `users:
-  - src: alice
-    dst: alice-new
-    email: alice@example.com
-  - src: bob
-    dst: bob-new
-`)
-	m, err := settings.LoadByEmail(path)
-	require.NoError(t, err)
-	require.Contains(t, m, "alice@example.com")
-	assert.Equal(t, "alice", m["alice@example.com"].Src)
-	// bob has no email, so it must not appear
-	assert.Len(t, m, 1)
 }
 
 // --- NewCompiledMappings ---

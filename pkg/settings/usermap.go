@@ -36,19 +36,6 @@ func LoadFile(filePath string) (*UserMappingFile, error) {
 	return &f, nil
 }
 
-// Load reads a YAML mapping file and returns a map of src login to dst login.
-func Load(filePath string) (map[string]string, error) {
-	mappingFile, err := LoadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]string, len(mappingFile.Users))
-	for _, mapping := range mappingFile.Users {
-		result[mapping.Src] = mapping.Dst
-	}
-	return result, nil
-}
-
 // Marshal converts a list of user mappings to YAML bytes.
 func Marshal(mappings []UserMapping) ([]byte, error) {
 	mappingFile := UserMappingFile{Users: mappings}
@@ -68,22 +55,6 @@ func Write(filePath string, mappings []UserMapping) ([]byte, error) {
 		}
 	}
 	return data, nil
-}
-
-// LoadByEmail reads a mapping file and returns a map of email to UserMapping.
-// Email keys are stored in lowercase to allow case-insensitive lookup by the caller.
-func LoadByEmail(filePath string) (map[string]UserMapping, error) {
-	f, err := LoadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]UserMapping, len(f.Users))
-	for _, m := range f.Users {
-		if m.Email != "" {
-			result[strings.ToLower(m.Email)] = m
-		}
-	}
-	return result, nil
 }
 
 // compiledMapping holds a UserMapping with its pre-compiled src regex.
