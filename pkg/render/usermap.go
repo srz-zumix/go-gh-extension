@@ -46,6 +46,11 @@ func (r *Renderer) RenderUserMappings(mappings []settings.UserMapping, headers [
 		return r.RenderExportedData(mappings)
 	}
 
+	if len(mappings) == 0 {
+		r.writeLine("No user mappings found.")
+		return nil
+	}
+
 	if len(headers) == 0 {
 		headers = []string{"SRC", "DST", "EMAIL"}
 	}

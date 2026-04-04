@@ -30,8 +30,11 @@ func FindMannequinByLogin(ctx context.Context, g *GitHubClient, repo repository.
 }
 
 // FindMannequinByEmail finds a mannequin by email in the organization.
-// Returns nil if not found.
+// Returns nil if not found. Returns nil immediately if email is empty.
 func FindMannequinByEmail(ctx context.Context, g *GitHubClient, repo repository.Repository, email string) (*client.Mannequin, error) {
+	if email == "" {
+		return nil, nil
+	}
 	mannequins, err := ListMannequins(ctx, g, repo, nil)
 	if err != nil {
 		return nil, err
