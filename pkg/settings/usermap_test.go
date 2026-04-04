@@ -209,6 +209,58 @@ func TestResolveSrc_ExactBeforeRegex(t *testing.T) {
 	assert.Equal(t, "alice-specific", dst)
 }
 
+// When multiple regex patterns match, the first entry in the YAML (file order) wins.
+func TestResolveSrc_RegexFirstMatchWins(t *testing.T) {
+	cm, err := settings.NewCompiledMappings(newFile(
+		settings.UserMapping{Src: "prefix-(.*)", Dst: "first-$1"},
+		settings.UserMapping{Src: "prefix-(.*)", Dst: "second-$1"},
+	))
+	require.NoError(t, err)
+
+	dst, ok := cm.ResolveSrc("prefix-alice")
+	assert.True(t, ok)
+	assert.Equal(t, "first-alice", dst)
+}
+
+// When multiple regex patterns could match, the earlier entry in the YAML wins.
+func TestResolveSrc_RegexOrderPreserved(t *testing.T) {
+	cm, err := settings.NewCompiledMappings(newFile(
+		settings.UserMapping{Src: "a.*", Dst: "matched-by-a"},
+		settings.UserMapping{Src: ".*lice", Dst: "matched-by-lice"},
+	))
+	require.NoError(t, err)
+
+	// "alice" matches both patterns; the first entry must win.
+	dst, ok := cm.ResolveSrc("alice")
+	assert.True(t, ok)
+	assert.Equal(t, "matched-by-a", dst)
+
+	// "bob" matches neither entry.
+	_, ok = cm.ResolveSrc("bob")
+	assert.False(t, ok)
+
+	// "malice" only matches the second pattern.
+	dst, ok = cm.ResolveSrc("malice")
+	assert.True(t, ok)
+	assert.Equal(t, "matched-by-lice", dst)
+}
+
+// File order is preserved when loaded via NewCompiledMappingsFromFile.
+func TestResolveSrc_FileOrderPreserved(t *testing.T) {
+	path := writeYAML(t, `users:
+  - src: "a.*"
+    dst: first
+  - src: ".*lice"
+    dst: second
+`)
+	cm, err := settings.NewCompiledMappingsFromFile(path)
+	require.NoError(t, err)
+
+	dst, ok := cm.ResolveSrc("alice")
+	assert.True(t, ok)
+	assert.Equal(t, "first", dst)
+}
+
 // Regex must not match a partial string (anchored with ^...$).
 func TestResolveSrc_FullStringAnchor(t *testing.T) {
 	cm, err := settings.NewCompiledMappings(newFile(
