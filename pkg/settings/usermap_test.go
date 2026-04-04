@@ -315,3 +315,110 @@ func TestNewCompiledMappingsFromFile_NotFound(t *testing.T) {
 	_, err := settings.NewCompiledMappingsFromFile(filepath.Join(t.TempDir(), "missing.yaml"))
 	assert.Error(t, err)
 }
+
+// --- NewCompiledMappings: nil guard ---
+
+func TestNewCompiledMappings_NilFile(t *testing.T) {
+	_, err := settings.NewCompiledMappings(nil)
+	assert.Error(t, err)
+}
+
+// --- NewCompiledMappings: empty dst is skipped ---
+
+func TestNewCompiledMappings_EmptyDstSkipped(t *testing.T) {
+	cm, err := settings.NewCompiledMappings(newFile(
+		settings.UserMapping{Src: "alice", Dst: ""},
+		settings.UserMapping{Src: "bob", Dst: "bob-new"},
+	))
+	require.NoError(t, err)
+
+	_, ok := cm.ResolveSrc("alice")
+	assert.False(t, ok, "entry with empty dst must be skipped")
+
+	dst, ok := cm.ResolveSrc("bob")
+	assert.True(t, ok)
+	assert.Equal(t, "bob-new", dst)
+}
+
+func TestNewCompiledMappings_EmptyDstRegexSkipped(t *testing.T) {
+	cm, err := settings.NewCompiledMappings(newFile(
+		settings.UserMapping{Src: "legacy-(.*)", Dst: ""},
+		settings.UserMapping{Src: "legacy-(.*)", Dst: "$1"},
+	))
+	require.NoError(t, err)
+
+	// First entry is skipped (empty dst); second entry should NOT be reached
+	// because duplicate regex src is still appended — but the first (empty dst)
+	// entry is skipped so the second should match.
+	dst, ok := cm.ResolveSrc("legacy-alice")
+	assert.True(t, ok)
+	assert.Equal(t, "alice", dst)
+}
+
+// --- NewCompiledMappings: duplicate literal src (first wins) ---
+
+func TestNewCompiledMappings_DuplicateLiteralSrcFirstWins(t *testing.T) {
+	cm, err := settings.NewCompiledMappings(newFile(
+		settings.UserMapping{Src: "alice", Dst: "first"},
+		settings.UserMapping{Src: "alice", Dst: "second"},
+	))
+	require.NoError(t, err)
+
+	dst, ok := cm.ResolveSrc("alice")
+	assert.True(t, ok)
+	assert.Equal(t, "first", dst)
+}
+
+// --- NewCompiledMappings: duplicate email (first wins) ---
+
+func TestNewCompiledMappings_DuplicateEmailFirstWins(t *testing.T) {
+	cm, err := settings.NewCompiledMappings(newFile(
+		settings.UserMapping{Src: "alice", Dst: "first", Email: "alice@example.com"},
+		settings.UserMapping{Src: "alice2", Dst: "second", Email: "alice@example.com"},
+	))
+	require.NoError(t, err)
+
+	m, ok := cm.ResolveEmail("alice@example.com")
+	assert.True(t, ok)
+	assert.Equal(t, "first", m.Dst)
+}
+
+// --- NewCompiledMappings: blank email after trimming is skipped ---
+
+func TestNewCompiledMappings_BlankEmailSkipped(t *testing.T) {
+	cm, err := settings.NewCompiledMappings(newFile(
+		settings.UserMapping{Src: "alice", Dst: "alice-new", Email: "   "},
+	))
+	require.NoError(t, err)
+
+	_, ok := cm.ResolveEmail("   ")
+	assert.False(t, ok, "blank-after-trim email must not be indexed")
+}
+
+// --- ResolveEmail: case-insensitive and trims whitespace ---
+
+func TestResolveEmail_CaseInsensitive(t *testing.T) {
+	cm, err := settings.NewCompiledMappings(newFile(
+		settings.UserMapping{Src: "alice", Dst: "alice-new", Email: "Alice@Example.COM"},
+	))
+	require.NoError(t, err)
+
+	m, ok := cm.ResolveEmail("alice@example.com")
+	assert.True(t, ok)
+	assert.Equal(t, "alice-new", m.Dst)
+
+	m, ok = cm.ResolveEmail("ALICE@EXAMPLE.COM")
+	assert.True(t, ok)
+	assert.Equal(t, "alice-new", m.Dst)
+}
+
+func TestResolveEmail_TrimSpace(t *testing.T) {
+	cm, err := settings.NewCompiledMappings(newFile(
+		settings.UserMapping{Src: "alice", Dst: "alice-new", Email: "alice@example.com"},
+	))
+	require.NoError(t, err)
+
+	m, ok := cm.ResolveEmail("  alice@example.com  ")
+	assert.True(t, ok)
+	assert.Equal(t, "alice-new", m.Dst)
+}
