@@ -35,16 +35,10 @@ func LoadFile(filePath string) (*File, error) {
 
 // Load reads a YAML mapping file and returns a map of src login to dst login.
 func Load(filePath string) (map[string]string, error) {
-	data, err := os.ReadFile(filePath)
+	mappingFile, err := LoadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read mapping file: %w", err)
+		return nil, err
 	}
-
-	var mappingFile File
-	if err := yaml.Unmarshal(data, &mappingFile); err != nil {
-		return nil, fmt.Errorf("failed to parse mapping file: %w", err)
-	}
-
 	result := make(map[string]string)
 	for _, mapping := range mappingFile.Users {
 		result[mapping.Src] = mapping.Dst
