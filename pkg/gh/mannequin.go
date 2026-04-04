@@ -29,6 +29,22 @@ func FindMannequinByLogin(ctx context.Context, g *GitHubClient, repo repository.
 	return m, nil
 }
 
+// FindMannequinByEmail finds a mannequin by email in the organization.
+// Returns nil if not found.
+func FindMannequinByEmail(ctx context.Context, g *GitHubClient, repo repository.Repository, email string) (*client.Mannequin, error) {
+	mannequins, err := ListMannequins(ctx, g, repo, nil)
+	if err != nil {
+		return nil, err
+	}
+	for i := range mannequins {
+		m := &mannequins[i]
+		if m.Email != nil && string(*m.Email) == email {
+			return m, nil
+		}
+	}
+	return nil, nil
+}
+
 // CreateAttributionInvitation creates an attribution invitation to claim a mannequin in the organization.
 func CreateAttributionInvitation(ctx context.Context, g *GitHubClient, repo repository.Repository, ownerID, sourceID, targetID string) error {
 	err := g.CreateAttributionInvitation(ctx, ownerID, sourceID, targetID)
