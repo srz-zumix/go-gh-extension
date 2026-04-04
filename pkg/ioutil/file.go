@@ -1,27 +1,32 @@
 package ioutil
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 )
 
-// ReplaceFile atomically installs srcPath at dstPath by renaming.
-// On systems where os.Rename cannot overwrite an existing file (e.g. Windows),
-// the destination is removed first and the rename is retried.
+// ReplaceFile installs srcPath at dstPath by renaming.
+// On platforms where os.Rename atomically replaces an existing file (e.g. Unix),
+// the replacement is atomic. On platforms where os.Rename cannot overwrite an
+// existing file (e.g. Windows), the destination is removed first and the rename
+// is retried; this is best-effort and not atomic — dstPath may be briefly absent
+// or left missing if the rename fails after the remove.
 // srcPath is consumed by this call; it is the caller's responsibility to clean
 // it up if an error is returned.
 func ReplaceFile(srcPath, dstPath string) error {
-	if err := os.Rename(srcPath, dstPath); err == nil {
+	renameErr := os.Rename(srcPath, dstPath)
+	if renameErr == nil {
 		return nil
 	}
 
-	// Rename failed — check whether the destination exists.
-	if _, statErr := os.Stat(dstPath); statErr != nil {
-		if os.IsNotExist(statErr) {
-			// Destination does not exist; return the original rename error.
-			return os.Rename(srcPath, dstPath)
-		}
-		return statErr
+	// Only attempt remove+retry when the rename failed specifically because
+	// the destination already exists (e.g. Windows does not allow os.Rename
+	// to overwrite an existing file). For any other failure (missing source,
+	// permission denied, cross-device move, etc.) return the original error
+	// without touching dstPath to avoid data loss.
+	if !errors.Is(renameErr, os.ErrExist) {
+		return renameErr
 	}
 
 	if removeErr := os.Remove(dstPath); removeErr != nil && !os.IsNotExist(removeErr) {
