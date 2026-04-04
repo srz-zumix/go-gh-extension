@@ -91,28 +91,38 @@ type compiledMapping struct {
 	srcRegex *regexp.Regexp
 }
 
-// CompiledMappings holds pre-compiled UserMapping entries for efficient regex-based matching.
-// The src field of each entry is treated as a full-string anchored regular expression,
-// so plain strings without regex metacharacters behave as exact matches.
-// The dst field may contain $N or ${name} capture-group references.
+// CompiledMappings holds pre-compiled UserMapping entries for efficient matching.
+// Plain src values (no regex metacharacters) are stored in bySrc for O(1) exact lookup.
+// src values containing regex metacharacters are compiled and stored in entries for
+// linear regex scanning. The dst field of regex entries may contain $N or ${name}
+// capture-group references.
 type CompiledMappings struct {
-	entries []compiledMapping
+	entries []compiledMapping // regex-only entries
+	bySrc   map[string]string // exact src -> dst for O(1) lookup
 	byEmail map[string]UserMapping
 }
 
-// NewCompiledMappings compiles all src fields as full-string anchored regular expressions
-// and builds an email-keyed lookup table.
+// NewCompiledMappings builds a CompiledMappings from a UserMappingFile.
+// Plain src values are stored in an exact-match map for O(1) lookup.
+// src values containing regex metacharacters are compiled and kept for linear regex scanning.
 func NewCompiledMappings(file *UserMappingFile) (*CompiledMappings, error) {
 	cm := &CompiledMappings{
 		entries: make([]compiledMapping, 0, len(file.Users)),
+		bySrc:   make(map[string]string, len(file.Users)),
 		byEmail: make(map[string]UserMapping, len(file.Users)),
 	}
 	for _, m := range file.Users {
-		re, err := regexp.Compile("^(?:" + m.Src + ")$")
-		if err != nil {
-			return nil, fmt.Errorf("invalid regex in src field %q: %w", m.Src, err)
+		if regexp.QuoteMeta(m.Src) == m.Src {
+			// Plain literal: store in the exact-match map.
+			cm.bySrc[m.Src] = m.Dst
+		} else {
+			// Contains regex metacharacters: compile and store for regex scanning.
+			re, err := regexp.Compile("^(?:" + m.Src + ")$")
+			if err != nil {
+				return nil, fmt.Errorf("invalid regex in src field %q: %w", m.Src, err)
+			}
+			cm.entries = append(cm.entries, compiledMapping{mapping: m, srcRegex: re})
 		}
-		cm.entries = append(cm.entries, compiledMapping{mapping: m, srcRegex: re})
 		if m.Email != "" {
 			cm.byEmail[strings.ToLower(m.Email)] = m
 		}
@@ -130,16 +140,13 @@ func NewCompiledMappingsFromFile(filePath string) (*CompiledMappings, error) {
 }
 
 // ResolveSrc resolves a login against src patterns, returning the dst login.
-// Exact matches are tried first (fast path); then regex patterns with $N group substitution.
+// Plain src entries are looked up in O(1) via an exact-match map.
+// If no exact match is found, regex entries are scanned linearly with $N group substitution.
 // Returns ("", false) if no matching entry is found.
 func (c *CompiledMappings) ResolveSrc(login string) (string, bool) {
-	// First pass: exact string match
-	for _, e := range c.entries {
-		if e.mapping.Src == login {
-			return e.mapping.Dst, true
-		}
+	if dst, ok := c.bySrc[login]; ok {
+		return dst, true
 	}
-	// Second pass: regex match with group substitution in dst
 	for _, e := range c.entries {
 		if e.srcRegex.MatchString(login) {
 			dst := e.srcRegex.ReplaceAllString(login, e.mapping.Dst)

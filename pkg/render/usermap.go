@@ -68,6 +68,6 @@ func (r *Renderer) RenderUserMappingsYAML(mappings []settings.UserMapping) error
 	if err != nil {
 		return fmt.Errorf("failed to marshal user mappings: %w", err)
 	}
-	_, err = fmt.Fprint(r.IO.Out, string(data))
-	return err
+	r.writeLine(string(data))
+	return nil
 }
