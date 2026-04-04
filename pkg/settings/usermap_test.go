@@ -261,14 +261,18 @@ func TestResolveSrc_FileOrderPreserved(t *testing.T) {
 	assert.Equal(t, "first", dst)
 }
 
-// Regex must not match a partial string (anchored with ^...$).
+// Regex must not match a partial string because matching is anchored with ^...$.
 func TestResolveSrc_FullStringAnchor(t *testing.T) {
 	cm, err := settings.NewCompiledMappings(newFile(
-		settings.UserMapping{Src: "ali", Dst: "x"},
+		settings.UserMapping{Src: "(ali)", Dst: "x"},
 	))
 	require.NoError(t, err)
 
-	_, ok := cm.ResolveSrc("alice")
+	dst, ok := cm.ResolveSrc("ali")
+	assert.True(t, ok)
+	assert.Equal(t, "x", dst)
+
+	_, ok = cm.ResolveSrc("alice")
 	assert.False(t, ok)
 }
 
