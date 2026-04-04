@@ -63,7 +63,7 @@ func Write(filePath string, mappings []UserMapping) ([]byte, error) {
 	}
 	if filePath != "" {
 		if err := os.WriteFile(filePath, data, 0o644); err != nil {
-			return nil, fmt.Errorf("failed to write mapping file '%s': %w", filePath, err)
+			return nil, fmt.Errorf("failed to write mapping file %q: %w", filePath, err)
 		}
 	}
 	return data, nil
