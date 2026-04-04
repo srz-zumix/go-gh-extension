@@ -12,8 +12,8 @@ import (
 
 // --- helpers ---
 
-func newFile(users ...settings.UserMapping) *settings.File {
-	return &settings.File{Users: users}
+func newFile(users ...settings.UserMapping) *settings.UserMappingFile {
+	return &settings.UserMappingFile{Users: users}
 }
 
 func writeYAML(t *testing.T, content string) string {

@@ -4,29 +4,31 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
-// UserMapping represents a single user mapping between two hosts.
+// UserMapping represents a single user mapping from a source login to a destination login,
+// optionally identified by email address.
 type UserMapping struct {
 	Src   string `yaml:"src"`
 	Dst   string `yaml:"dst"`
 	Email string `yaml:"email"`
 }
 
-// File represents the YAML structure for user mappings.
-type File struct {
+// UserMappingFile represents the YAML structure for user mappings.
+type UserMappingFile struct {
 	Users []UserMapping `yaml:"users"`
 }
 
-// LoadFile reads a YAML mapping file and returns the parsed File.
-func LoadFile(filePath string) (*File, error) {
+// LoadFile reads a YAML mapping file and returns the parsed UserMappingFile.
+func LoadFile(filePath string) (*UserMappingFile, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read mapping file: %w", err)
 	}
-	var f File
+	var f UserMappingFile
 	if err := yaml.Unmarshal(data, &f); err != nil {
 		return nil, fmt.Errorf("failed to parse mapping file: %w", err)
 	}
@@ -48,7 +50,7 @@ func Load(filePath string) (map[string]string, error) {
 
 // Marshal converts a list of user mappings to YAML bytes.
 func Marshal(mappings []UserMapping) ([]byte, error) {
-	mappingFile := File{Users: mappings}
+	mappingFile := UserMappingFile{Users: mappings}
 	return yaml.Marshal(mappingFile)
 }
 
@@ -68,6 +70,7 @@ func Write(filePath string, mappings []UserMapping) ([]byte, error) {
 }
 
 // LoadByEmail reads a mapping file and returns a map of email to UserMapping.
+// Email keys are stored in lowercase to allow case-insensitive lookup by the caller.
 func LoadByEmail(filePath string) (map[string]UserMapping, error) {
 	f, err := LoadFile(filePath)
 	if err != nil {
@@ -76,7 +79,7 @@ func LoadByEmail(filePath string) (map[string]UserMapping, error) {
 	result := make(map[string]UserMapping, len(f.Users))
 	for _, m := range f.Users {
 		if m.Email != "" {
-			result[m.Email] = m
+			result[strings.ToLower(m.Email)] = m
 		}
 	}
 	return result, nil
@@ -99,7 +102,7 @@ type CompiledMappings struct {
 
 // NewCompiledMappings compiles all src fields as full-string anchored regular expressions
 // and builds an email-keyed lookup table.
-func NewCompiledMappings(file *File) (*CompiledMappings, error) {
+func NewCompiledMappings(file *UserMappingFile) (*CompiledMappings, error) {
 	cm := &CompiledMappings{
 		entries: make([]compiledMapping, 0, len(file.Users)),
 		byEmail: make(map[string]UserMapping, len(file.Users)),
@@ -111,7 +114,7 @@ func NewCompiledMappings(file *File) (*CompiledMappings, error) {
 		}
 		cm.entries = append(cm.entries, compiledMapping{mapping: m, srcRegex: re})
 		if m.Email != "" {
-			cm.byEmail[m.Email] = m
+			cm.byEmail[strings.ToLower(m.Email)] = m
 		}
 	}
 	return cm, nil
@@ -146,9 +149,10 @@ func (c *CompiledMappings) ResolveSrc(login string) (string, bool) {
 	return "", false
 }
 
-// ResolveEmail returns the UserMapping for the given email address (exact match only).
+// ResolveEmail returns the UserMapping for the given email address.
+// Matching is case-insensitive; email addresses differing only by case are treated as equal.
 // Returns (UserMapping{}, false) if not found.
 func (c *CompiledMappings) ResolveEmail(email string) (UserMapping, bool) {
-	m, ok := c.byEmail[email]
+	m, ok := c.byEmail[strings.ToLower(email)]
 	return m, ok
 }
