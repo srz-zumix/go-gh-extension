@@ -52,7 +52,7 @@ func (r *Renderer) RenderUserMappings(mappings []settings.UserMapping, headers [
 	}
 
 	if len(headers) == 0 {
-		headers = []string{"SRC", "DST", "EMAIL"}
+		headers = UserMappingFieldList
 	}
 
 	getter := NewUserMappingFieldGetters()
