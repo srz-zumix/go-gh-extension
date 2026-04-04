@@ -73,6 +73,6 @@ func (r *Renderer) RenderUserMappingsYAML(mappings []settings.UserMapping) error
 	if err != nil {
 		return fmt.Errorf("failed to marshal user mappings: %w", err)
 	}
-	r.writeLine(string(data))
+	r.writeLine(strings.TrimSuffix(string(data), "\n"))
 	return nil
 }
