@@ -106,6 +106,9 @@ type CompiledMappings struct {
 // Plain src values are stored in an exact-match map for O(1) lookup.
 // src values containing regex metacharacters are compiled and kept for linear regex scanning.
 func NewCompiledMappings(file *UserMappingFile) (*CompiledMappings, error) {
+	if file == nil {
+		return nil, fmt.Errorf("usermap: NewCompiledMappings called with nil file")
+	}
 	cm := &CompiledMappings{
 		entries: make([]compiledMapping, 0, len(file.Users)),
 		bySrc:   make(map[string]string, len(file.Users)),
