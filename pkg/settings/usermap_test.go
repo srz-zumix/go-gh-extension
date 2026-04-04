@@ -106,7 +106,7 @@ func TestWrite_NoFile(t *testing.T) {
 	mappings := []settings.UserMapping{
 		{Src: "alice", Dst: "alice-new"},
 	}
-	// filePath="" means write to stdout path; should still return bytes
+	// filePath="" does not write to a file and should still return YAML bytes
 	data, err := settings.Write("", mappings)
 	require.NoError(t, err)
 	assert.NotEmpty(t, data)
