@@ -43,6 +43,57 @@ func TestContainerRegistry(t *testing.T) {
 	}
 }
 
+func TestDockerRegistry(t *testing.T) {
+	tests := []struct {
+		name     string
+		host     string
+		expected string
+	}{
+		{name: "github.com", host: "github.com", expected: "docker.pkg.github.com"},
+		{name: "empty host treated as github.com", host: "", expected: "docker.pkg.github.com"},
+		{name: "enterprise host", host: "github.example.com", expected: "docker.pkg.github.example.com"},
+		{name: "enterprise host short", host: "ghe.internal", expected: "docker.pkg.ghe.internal"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, DockerRegistry(tt.host))
+		})
+	}
+}
+
+func TestDockerImageBase(t *testing.T) {
+	tests := []struct {
+		name     string
+		repo     repository.Repository
+		pkg      string
+		expected string
+	}{
+		{
+			name:     "github.com",
+			repo:     repository.Repository{Host: "github.com", Owner: "MyOrg", Name: "repo"},
+			pkg:      "MyImage",
+			expected: "docker.pkg.github.com/myorg/repo/myimage",
+		},
+		{
+			name:     "empty host treated as github.com",
+			repo:     repository.Repository{Host: "", Owner: "MyOrg", Name: "repo"},
+			pkg:      "MyImage",
+			expected: "docker.pkg.github.com/myorg/repo/myimage",
+		},
+		{
+			name:     "enterprise host",
+			repo:     repository.Repository{Host: "ghe.internal", Owner: "MyOrg", Name: "repo"},
+			pkg:      "MyImage",
+			expected: "docker.pkg.ghe.internal/myorg/repo/myimage",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, DockerImageBase(tt.repo, tt.pkg))
+		})
+	}
+}
+
 func TestFilterVersions_NoFilter(t *testing.T) {
 	versions := []*github.PackageVersion{
 		makeVersion(1, &t1),
