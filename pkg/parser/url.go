@@ -283,20 +283,23 @@ func ParseTeamURL(input string) (*TeamURL, error) {
 	}, nil
 }
 
-// ProjectURL represents a GitHub Project v2 parsed from a URL
+// ProjectURL represents a parsed GitHub Project URL.
 type ProjectURL struct {
 	Url    *url.URL
-	Host   string
-	Owner  string
+	// Repo holds the host, owner, and (for repository-scoped classic projects) repo name.
+	Repo   *repository.Repository
 	Number *int
 }
 
-// ParseProjectURL parses a GitHub Project v2 URL and extracts the owner and project number.
+// ParseProjectURL parses a GitHub Project URL and extracts the owner (and optional repo) and project number.
 // Expected URL formats:
 //   - https://github.com/orgs/{org}/projects/{number}
 //   - https://github.com/users/{user}/projects/{number}
+//   - https://github.example.com/{owner}/{repo}/projects/{number} (repository-scoped classic project)
 //
-// Returns ProjectURL containing the owner and project number, or an error if parsing fails.
+// Returns a ProjectURL whose Repo field contains the host and owner for org/user-scoped projects,
+// or host, owner, and repo name for repository-scoped classic projects.
+// Returns an error if parsing fails.
 func ParseProjectURL(input string) (*ProjectURL, error) {
 	input = strings.TrimSpace(input)
 	if input == "" {
@@ -313,12 +316,19 @@ func ParseProjectURL(input string) (*ProjectURL, error) {
 	}
 
 	pathParts := strings.Split(strings.Trim(parsedURL.Path, "/"), "/")
-	// Expected format: orgs/{org}/projects/{number} or users/{user}/projects/{number}
-	if len(pathParts) < 4 || (pathParts[0] != "orgs" && pathParts[0] != "users") || pathParts[2] != "projects" {
+
+	var owner, repoName string
+	if len(pathParts) >= 4 && (pathParts[0] == "orgs" || pathParts[0] == "users") && pathParts[2] == "projects" {
+		// orgs/{org}/projects/{number} or users/{user}/projects/{number}
+		owner = pathParts[1]
+	} else if len(pathParts) >= 4 && pathParts[2] == "projects" {
+		// {owner}/{repo}/projects/{number} — repository-scoped classic project
+		owner = pathParts[0]
+		repoName = pathParts[1]
+	} else {
 		return nil, fmt.Errorf("not a project URL: %s", input)
 	}
 
-	owner := pathParts[1]
 	if owner == "" {
 		return nil, fmt.Errorf("invalid project URL: %s", input)
 	}
@@ -328,10 +338,14 @@ func ParseProjectURL(input string) (*ProjectURL, error) {
 		return nil, fmt.Errorf("invalid project number in URL: %s", input)
 	}
 
+	repo := repository.Repository{
+		Host:  parsedURL.Host,
+		Owner: owner,
+		Name:  repoName,
+	}
 	return &ProjectURL{
 		Url:    parsedURL,
-		Host:   parsedURL.Host,
-		Owner:  owner,
+		Repo:   &repo,
 		Number: &num,
 	}, nil
 }
