@@ -26,7 +26,7 @@ func AddUsermapFlag(cmd *cobra.Command, mappings **settings.CompiledMappings, us
 		}
 		compiled, err := settings.NewCompiledMappingsFromFile(mapFile)
 		if err != nil {
-			return fmt.Errorf("error loading mapping file '%s': %w", mapFile, err)
+			return fmt.Errorf("error loading mapping file %q: %w", mapFile, err)
 		}
 		*mappings = compiled
 		return nil
