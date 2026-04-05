@@ -575,7 +575,7 @@ func TestCompactEMUMappings_MultipleSuffixPairs(t *testing.T) {
 	assert.Contains(t, srcs, `(.+)_old`)
 }
 
-func TestCompactEMUMappings_RegexEntriesBeforeExact(t *testing.T) {
+func TestCompactEMUMappings_ExactEntriesBeforeRegex(t *testing.T) {
 	// Exact entries come first in the result slice, followed by regex entries.
 	// In NewCompiledMappings, exact entries are stored in the bySrc map (O(1) lookup)
 	// so their position relative to regex entries does not affect matching priority.
@@ -592,4 +592,37 @@ func TestCompactEMUMappings_RegexEntriesBeforeExact(t *testing.T) {
 func TestCompactEMUMappings_Empty(t *testing.T) {
 	result := settings.CompactEMUMappings(nil)
 	assert.Empty(t, result)
+}
+
+func TestCompactEMUMappings_MultipleCatchAllDstSuffixes(t *testing.T) {
+	// When srcSuffix=="" candidates have more than one distinct dst suffix,
+	// a single (.+) regex would shadow later (.+) rules, changing semantics.
+	// All such candidates must be kept as exact entries instead.
+	mappings := []settings.UserMapping{
+		{Src: "alice", Dst: "alice_new"},
+		{Src: "bob", Dst: "bob_prod"},
+	}
+	result := settings.CompactEMUMappings(mappings)
+	require.Len(t, result, 2)
+	for _, r := range result {
+		assert.NotEqual(t, `(.+)`, r.Src, "no catch-all regex should be emitted")
+	}
+	srcs := []string{result[0].Src, result[1].Src}
+	assert.Contains(t, srcs, "alice")
+	assert.Contains(t, srcs, "bob")
+}
+
+func TestCompactEMUMappings_MultipleCatchAllDstSuffixes_OrderPreserved(t *testing.T) {
+	// When falling back to exact entries, the original input order must be preserved,
+	// including interleaving with regular exact entries.
+	mappings := []settings.UserMapping{
+		{Src: "alice", Dst: "alice_new"},  // catch-all candidate → exact fallback
+		{Src: "zara", Dst: "carol"},       // base mismatch → exact
+		{Src: "bob", Dst: "bob_prod"},     // catch-all candidate → exact fallback
+	}
+	result := settings.CompactEMUMappings(mappings)
+	require.Len(t, result, 3)
+	assert.Equal(t, "alice", result[0].Src)
+	assert.Equal(t, "zara", result[1].Src)
+	assert.Equal(t, "bob", result[2].Src)
 }

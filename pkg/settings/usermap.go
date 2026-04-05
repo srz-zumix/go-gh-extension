@@ -200,53 +200,81 @@ func SplitEMUSuffix(login string) (base, suffix string) {
 // email fields, so email-based lookup remains available only for those entries.
 func CompactEMUMappings(mappings []UserMapping) []UserMapping {
 	type suffixPair struct{ src, dst string }
+	type exactCandidate struct {
+		m          UserMapping
+		isCatchAll bool // true when this entry is a catch-all candidate (srcSuffix == "")
+	}
 
 	seen := make(map[suffixPair]struct{})
 	var specificRegexEntries []UserMapping // patterns with an explicit _suffix (e.g. (.+)_corp)
-	var catchAllRegexEntries []UserMapping // catch-all patterns with no src suffix (e.g. (.+))
-	var exact []UserMapping
+	// catchAllRegexEntries holds deduplicated (.+) regex entries built from catch-all candidates.
+	// They are only emitted when all catch-all candidates share a single dst suffix.
+	var catchAllRegexEntries []UserMapping
+	// exactCandidates preserves input order across regular exact entries and catch-all candidates.
+	// isCatchAll marks entries that may be promoted to a regex if all share one dst suffix.
+	var exactCandidates []exactCandidate
+	catchAllDstSuffixes := make(map[string]struct{})
 
 	for _, m := range mappings {
 		if m.Dst == "" {
-			exact = append(exact, m)
+			exactCandidates = append(exactCandidates, exactCandidate{m: m})
 			continue
 		}
 		srcBase, srcSuffix := SplitEMUSuffix(m.Src)
 		dstBase, dstSuffix := SplitEMUSuffix(m.Dst)
 		if srcBase != dstBase {
-			exact = append(exact, m)
+			exactCandidates = append(exactCandidates, exactCandidate{m: m})
 			continue
 		}
-		// Both have no suffix and same base → same login, keep as exact
+		// Both have no suffix and same base → same login, keep as exact.
 		if srcSuffix == "" && dstSuffix == "" {
-			exact = append(exact, m)
+			exactCandidates = append(exactCandidates, exactCandidate{m: m})
 			continue
 		}
 		pair := suffixPair{src: srcSuffix, dst: dstSuffix}
-		if _, ok := seen[pair]; !ok {
-			seen[pair] = struct{}{}
-			var srcPattern, dstPattern string
-			if srcSuffix == "" {
-				srcPattern = `(.+)`
-			} else {
-				srcPattern = `(.+)_` + regexp.QuoteMeta(pair.src)
+		if srcSuffix == "" {
+			// Potential catch-all: defer the regex-vs-exact decision until all dst suffixes
+			// across all catch-all candidates are known. Record in exactCandidates so that
+			// order relative to other exact entries is preserved if the fallback is needed.
+			catchAllDstSuffixes[dstSuffix] = struct{}{}
+			exactCandidates = append(exactCandidates, exactCandidate{m: m, isCatchAll: true})
+			if _, ok := seen[pair]; !ok {
+				seen[pair] = struct{}{}
+				var dstPattern string
+				if dstSuffix == "" {
+					dstPattern = `$1`
+				} else {
+					dstPattern = `$1_` + strings.ReplaceAll(dstSuffix, "$", "$$")
+				}
+				catchAllRegexEntries = append(catchAllRegexEntries, UserMapping{Src: `(.+)`, Dst: dstPattern})
 			}
-			if dstSuffix == "" {
-				dstPattern = `$1`
-			} else {
-				dstPattern = `$1_` + strings.ReplaceAll(pair.dst, "$", "$$")
+		} else {
+			if _, ok := seen[pair]; !ok {
+				seen[pair] = struct{}{}
+				srcPattern := `(.+)_` + regexp.QuoteMeta(pair.src)
+				var dstPattern string
+				if dstSuffix == "" {
+					dstPattern = `$1`
+				} else {
+					dstPattern = `$1_` + strings.ReplaceAll(pair.dst, "$", "$$")
+				}
+				specificRegexEntries = append(specificRegexEntries, UserMapping{Src: srcPattern, Dst: dstPattern})
 			}
-			entry := UserMapping{
-				Src: srcPattern,
-				Dst: dstPattern,
-			}
-			// Catch-all patterns (no src suffix) must come after specific suffix patterns
-			// to prevent shadowing more specific rules like (.+)_corp.
-			if srcSuffix == "" {
-				catchAllRegexEntries = append(catchAllRegexEntries, entry)
-			} else {
-				specificRegexEntries = append(specificRegexEntries, entry)
-			}
+		}
+	}
+	// Emit the catch-all (.+) regex only when all catch-all candidates share a single dst suffix.
+	// Multiple distinct dst suffixes would cause the first (.+) rule to shadow all later (.+) rules,
+	// silently changing semantics; fall back to exact entries in that case.
+	useCatchAllRegex := len(catchAllDstSuffixes) == 1
+	if !useCatchAllRegex {
+		catchAllRegexEntries = nil
+	}
+	// Build the final exact slice in original input order, omitting catch-all candidates
+	// that have been promoted to a regex entry.
+	var exact []UserMapping
+	for _, e := range exactCandidates {
+		if !e.isCatchAll || !useCatchAllRegex {
+			exact = append(exact, e.m)
 		}
 	}
 	// Order: exact entries first, then specific regex entries, then catch-all regex entries.
