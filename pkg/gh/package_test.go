@@ -72,19 +72,19 @@ func TestDockerImageBase(t *testing.T) {
 			name:     "github.com",
 			repo:     repository.Repository{Host: "github.com", Owner: "MyOrg", Name: "repo"},
 			pkg:      "MyImage",
-			expected: "docker.pkg.github.com/myorg/myimage",
+			expected: "docker.pkg.github.com/myorg/repo/myimage",
 		},
 		{
 			name:     "empty host treated as github.com",
 			repo:     repository.Repository{Host: "", Owner: "MyOrg", Name: "repo"},
 			pkg:      "MyImage",
-			expected: "docker.pkg.github.com/myorg/myimage",
+			expected: "docker.pkg.github.com/myorg/repo/myimage",
 		},
 		{
 			name:     "enterprise host",
 			repo:     repository.Repository{Host: "ghe.internal", Owner: "MyOrg", Name: "repo"},
 			pkg:      "MyImage",
-			expected: "docker.pkg.ghe.internal/myorg/myimage",
+			expected: "docker.pkg.ghe.internal/myorg/repo/myimage",
 		},
 	}
 	for _, tt := range tests {
