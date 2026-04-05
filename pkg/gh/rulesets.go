@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
@@ -14,21 +15,34 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
+// bypassActorTypeUser is the GitHub bypass actor type for individual users.
+// This is not yet defined as a named constant in go-github, so we define it locally.
+const bypassActorTypeUser github.BypassActorType = "User"
+
+// BypassActorMeta holds extra metadata for a bypass actor entry exported from a ruleset.
+type BypassActorMeta struct {
+	Slug  string `json:"slug,omitempty"`  // team slug (for Team actors)
+	Name  string `json:"name,omitempty"`  // display name
+	Login string `json:"login,omitempty"` // user login (for User actors)
+}
+
 type RepositoryRulesetConfig struct {
-	ID           *int64                              `json:"id,omitempty"`
-	Name         string                              `json:"name"`
-	Target       *string                             `json:"target,omitempty"`
-	SourceType   *string                             `json:"source_type,omitempty"`
-	Source       string                              `json:"source"`
-	Enforcement  string                              `json:"enforcement"`
-	Conditions   *github.RepositoryRulesetConditions `json:"conditions,omitempty"`
-	Rules        *github.RepositoryRulesetRules      `json:"rules,omitempty"`
-	BypassActors []*github.BypassActor               `json:"bypass_actors,omitempty"`
+	ID               *int64                              `json:"id,omitempty"`
+	Name             string                              `json:"name"`
+	Target           *string                             `json:"target,omitempty"`
+	SourceType       *string                             `json:"source_type,omitempty"`
+	Source           string                              `json:"source"`
+	Enforcement      string                              `json:"enforcement"`
+	Conditions       *github.RepositoryRulesetConditions `json:"conditions,omitempty"`
+	Rules            *github.RepositoryRulesetRules      `json:"rules,omitempty"`
+	BypassActors     []*github.BypassActor               `json:"bypass_actors,omitempty"`
+	BypassActorsMeta map[string]*BypassActorMeta         `json:"bypass_actor_meta,omitempty"` // maps actor_id (string) to metadata
 }
 
 type RepositoryRulesetMigrateConfig struct {
 	Ruleset      *github.RepositoryRuleset
 	Teams        map[int64]*github.Team
+	Users        map[int64]*GitHubUser
 	CheckRuns    map[int64]*CheckRun
 	Repositories map[int64]*github.Repository
 }
@@ -233,6 +247,80 @@ func ImportRuleset(config *RepositoryRulesetConfig, ruleset *github.RepositoryRu
 	return ruleset
 }
 
+// BuildBypassActorsMeta fetches metadata for Team- and User-type bypass actors in a ruleset.
+// Returns a map from actor_id (as string) to BypassActorMeta.
+// Returns nil if no relevant bypass actors are present.
+func BuildBypassActorsMeta(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) map[string]*BypassActorMeta {
+	if ruleset == nil || len(ruleset.BypassActors) == 0 {
+		return nil
+	}
+	var meta map[string]*BypassActorMeta
+
+	// Collect team metadata
+	teams := GetRulesetActorsTeams(ctx, g, repo, ruleset)
+	for actorID, team := range teams {
+		if meta == nil {
+			meta = make(map[string]*BypassActorMeta)
+		}
+		key := strconv.FormatInt(actorID, 10)
+		meta[key] = &BypassActorMeta{
+			Slug: team.GetSlug(),
+			Name: team.GetName(),
+		}
+	}
+
+	// Collect user metadata
+	users := GetRulesetActorsUsers(ctx, g, ruleset)
+	for actorID, user := range users {
+		if meta == nil {
+			meta = make(map[string]*BypassActorMeta)
+		}
+		key := strconv.FormatInt(actorID, 10)
+		meta[key] = &BypassActorMeta{
+			Login: user.GetLogin(),
+			Name:  user.GetName(),
+		}
+	}
+
+	return meta
+}
+
+// ApplyUserMappingToRulesetConfig applies a user login mapping to User-type bypass actors in a RepositoryRulesetConfig.
+// For each User actor whose ID has a corresponding entry in BypassActorsMeta, the resolve function is called
+// with the source login to obtain the destination login.
+// The destination user is then looked up via the API and the actor_id is updated in place.
+// resolve maps source user login to destination login; return false to skip.
+func ApplyUserMappingToRulesetConfig(ctx context.Context, g *GitHubClient, _ repository.Repository, config *RepositoryRulesetConfig, resolve func(string) (string, bool)) error {
+	if config == nil || len(config.BypassActors) == 0 || len(config.BypassActorsMeta) == 0 {
+		return nil
+	}
+	for _, actor := range config.BypassActors {
+		if actor.ActorType == nil || *actor.ActorType != bypassActorTypeUser {
+			continue
+		}
+		if actor.ActorID == nil {
+			continue
+		}
+		key := strconv.FormatInt(*actor.ActorID, 10)
+		meta, ok := config.BypassActorsMeta[key]
+		if !ok || meta.Login == "" {
+			continue
+		}
+		dstLogin, ok := resolve(meta.Login)
+		if !ok {
+			continue
+		}
+		user, err := FindUser(ctx, g, dstLogin)
+		if err != nil {
+			logger.Warn("Bypass actor user not found in destination, keeping original actor_id", "login", dstLogin, "actor_id", *actor.ActorID)
+			continue
+		}
+		logger.Info("Bypass actor user remapped via usermap", "src_login", meta.Login, "dst_login", dstLogin, "dst_id", user.GetID())
+		*actor.ActorID = user.GetID()
+	}
+	return nil
+}
+
 func LoadRepositoryRulesetConfigFromReader(r io.Reader) (*RepositoryRulesetConfig, error) {
 	var config RepositoryRulesetConfig
 	jsonData, err := io.ReadAll(r)
@@ -262,6 +350,7 @@ func ExportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 	}
 
 	teams := GetRulesetActorsTeams(ctx, g, repo, ruleset)
+	users := GetRulesetActorsUsers(ctx, g, ruleset)
 
 	checkRuns, err := exportRulesetCheckRuns(ctx, g, repo, ruleset)
 	if err != nil {
@@ -293,6 +382,7 @@ func ExportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 	return &RepositoryRulesetMigrateConfig{
 		Ruleset:      ruleset,
 		Teams:        teams,
+		Users:        users,
 		CheckRuns:    checkRuns,
 		Repositories: repositories,
 	}, nil
@@ -353,7 +443,10 @@ func resolveGitHubActionsAppID(gitHubActionsAppID *int64, org *OrganizationProfi
 	return nil
 }
 
-func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, migrateConfig *RepositoryRulesetMigrateConfig, gitHubActionsAppID *int64) (*github.RepositoryRuleset, error) {
+// ImportMigrateRuleset imports a ruleset from a migrate config into the destination repository/org.
+// If resolve is non-nil, it is called with each User bypass actor's source login to obtain
+// the destination login, enabling cross-org user remapping via a usermap.
+func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, migrateConfig *RepositoryRulesetMigrateConfig, gitHubActionsAppID *int64, resolve func(string) (string, bool)) (*github.RepositoryRuleset, error) {
 	ruleset := migrateConfig.Ruleset
 	teams := GetRulesetActorsTeams(ctx, g, repo, ruleset)
 
@@ -369,6 +462,25 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 				logger.Warn("Bypass actor organization admin is not supported on user accounts, skipping...")
 				continue
 			}
+			newBypassActors = append(newBypassActors, actor)
+			continue
+		}
+		if *actor.ActorType == bypassActorTypeUser {
+			if resolve != nil {
+				if srcUser, ok := migrateConfig.Users[*actor.ActorID]; ok && srcUser.GetLogin() != "" {
+					if dstLogin, ok := resolve(srcUser.GetLogin()); ok {
+						dstUser, err := FindUser(ctx, g, dstLogin)
+						if err == nil {
+							logger.Info("User bypass actor remapped via usermap", "src_login", srcUser.GetLogin(), "dst_login", dstLogin, "dst_id", dstUser.GetID())
+							*actor.ActorID = dstUser.GetID()
+						} else {
+							logger.Warn("Bypass actor user not found in destination, keeping original actor_id", "login", dstLogin)
+						}
+					}
+				}
+			}
+			newBypassActors = append(newBypassActors, actor)
+			continue
 		}
 		if *actor.ActorType != github.BypassActorTypeTeam {
 			newBypassActors = append(newBypassActors, actor)
@@ -384,6 +496,7 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 				*actor.ActorID = t.GetID()
 				logger.Info("Team ID has been converted to team with same name in migration destination", "team", t.GetSlug(), "id", t.GetID())
 				newBypassActors = append(newBypassActors, actor)
+				continue
 			}
 		}
 		teamName := fmt.Sprintf("%d", *actor.ActorID)
@@ -680,6 +793,26 @@ func GetRulesetActorsTeams(ctx context.Context, g *GitHubClient, repo repository
 	}
 
 	return teams
+}
+
+// GetRulesetActorsUsers fetches user information for User-type bypass actors in a ruleset.
+// Returns a map from actor_id to GitHubUser.
+func GetRulesetActorsUsers(ctx context.Context, g *GitHubClient, ruleset *github.RepositoryRuleset) map[int64]*GitHubUser {
+	users := make(map[int64]*GitHubUser)
+	for _, actor := range ruleset.BypassActors {
+		if actor.ActorType == nil || actor.ActorID == nil {
+			continue
+		}
+		if *actor.ActorType == bypassActorTypeUser {
+			user, err := FindUserByID(ctx, g, *actor.ActorID)
+			if err != nil {
+				logger.Warn("Failed to get user by ID for bypass actor", "id", *actor.ActorID, "error", err)
+				continue
+			}
+			users[*actor.ActorID] = user
+		}
+	}
+	return users
 }
 
 func findIntegrationID(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, name string, appID *int64, app *github.App) (*CheckRun, error) {
