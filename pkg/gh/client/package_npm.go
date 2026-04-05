@@ -218,11 +218,7 @@ func (g *GitHubClient) DownloadNPMPackage(ctx context.Context, owner, packageNam
 	if err != nil {
 		return nil, fmt.Errorf("failed to download npm tarball: %w", err)
 	}
-	defer func() {
-		if closeErr := tarResp.Body.Close(); closeErr != nil {
-			_ = closeErr
-		}
-	}()
+	defer tarResp.Body.Close() // nolint
 
 	if tarResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(tarResp.Body)
