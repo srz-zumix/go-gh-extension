@@ -555,15 +555,17 @@ func TestCompactEMUMappings_MultipleSuffixPairs(t *testing.T) {
 }
 
 func TestCompactEMUMappings_RegexEntriesBeforeExact(t *testing.T) {
-	// Regex entries must precede exact entries in the result slice.
+	// Exact entries come first in the result slice, followed by regex entries.
+	// In NewCompiledMappings, exact entries are stored in the bySrc map (O(1) lookup)
+	// so their position relative to regex entries does not affect matching priority.
 	mappings := []settings.UserMapping{
 		{Src: "alice", Dst: "carol"},      // base mismatch → exact
 		{Src: "bob_corp", Dst: "bob_new"}, // regex
 	}
 	result := settings.CompactEMUMappings(mappings)
 	require.Len(t, result, 2)
-	assert.Equal(t, `(.+)_corp`, result[0].Src, "regex entry must come first")
-	assert.Equal(t, "alice", result[1].Src, "exact entry must come second")
+	assert.Equal(t, "alice", result[0].Src, "exact entry must come first")
+	assert.Equal(t, `(.+)_corp`, result[1].Src, "regex entry must come second")
 }
 
 func TestCompactEMUMappings_Empty(t *testing.T) {

@@ -227,6 +227,6 @@ func CompactEMUMappings(mappings []UserMapping) []UserMapping {
 			}
 		}
 	}
-	// Order: specific regex entries first, then catch-all regex entries, then exact entries.
-	return append(append(specificRegexEntries, catchAllRegexEntries...), exact...)
+	// Order: exact entries first, then specific regex entries, then catch-all regex entries.
+	return append(append(exact, specificRegexEntries...), catchAllRegexEntries...)
 }
