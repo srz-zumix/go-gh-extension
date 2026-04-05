@@ -457,6 +457,10 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 
 	newBypassActors := []*github.BypassActor{}
 	for _, actor := range ruleset.BypassActors {
+		if actor.ActorType == nil || actor.ActorID == nil {
+			logger.Warn("Bypass actor has nil ActorType or ActorID, skipping...")
+			continue
+		}
 		if *actor.ActorType == github.BypassActorTypeOrganizationAdmin {
 			if org.IsUser() {
 				logger.Warn("Bypass actor organization admin is not supported on user accounts, skipping...")
@@ -807,6 +811,9 @@ func GetRulesetActorsUsers(ctx context.Context, g *GitHubClient, ruleset *github
 			continue
 		}
 		if *actor.ActorType == bypassActorTypeUser {
+			if _, already := users[*actor.ActorID]; already {
+				continue
+			}
 			user, err := FindUserByID(ctx, g, *actor.ActorID)
 			if err != nil {
 				logger.Warn("Failed to get user by ID for bypass actor", "id", *actor.ActorID, "error", err)
