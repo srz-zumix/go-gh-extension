@@ -194,10 +194,10 @@ func SplitEMUSuffix(login string) (base, suffix string) {
 //
 // Pairs with empty dst, or where bases differ, are kept as exact entries.
 //
-// Note: email fields are intentionally omitted from the compacted output.
+// Note: email fields are omitted only from generated regex entries.
 // A single regex entry represents many users, so it cannot be associated with a
-// specific email address. Pass the compacted result to NewCompiledMappings only
-// when email-based lookup is not required.
+// specific email address. Exact entries kept in the output retain their original
+// email fields, so email-based lookup remains available only for those entries.
 func CompactEMUMappings(mappings []UserMapping) []UserMapping {
 	type suffixPair struct{ src, dst string }
 
