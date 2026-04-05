@@ -156,7 +156,8 @@ func (c *CompiledMappings) ResolveEmail(email string) (UserMapping, bool) {
 	return m, ok
 }
 
-// SplitEMUSuffix splits an EMU login "base_slug" into ("base", "slug").
+// SplitEMUSuffix splits an EMU login into a base and suffix by cutting at the last underscore.
+// For example, "alice_corp" → ("alice", "corp") and "alice_my_corp" → ("alice_my", "corp").
 // Returns (login, "") if there is no underscore or the underscore is at the end.
 func SplitEMUSuffix(login string) (base, suffix string) {
 	idx := strings.LastIndex(login, "_")
@@ -179,7 +180,8 @@ func CompactEMUMappings(mappings []UserMapping) []UserMapping {
 	type suffixPair struct{ src, dst string }
 
 	seen := make(map[suffixPair]struct{})
-	var regexEntries []UserMapping
+	var specificRegexEntries []UserMapping // patterns with an explicit _suffix (e.g. (.+)_corp)
+	var catchAllRegexEntries []UserMapping // catch-all patterns with no src suffix (e.g. (.+))
 	var exact []UserMapping
 
 	for _, m := range mappings {
@@ -212,11 +214,19 @@ func CompactEMUMappings(mappings []UserMapping) []UserMapping {
 			} else {
 				dstPattern = `$1_` + strings.ReplaceAll(pair.dst, "$", "$$")
 			}
-			regexEntries = append(regexEntries, UserMapping{
+			entry := UserMapping{
 				Src: srcPattern,
 				Dst: dstPattern,
-			})
+			}
+			// Catch-all patterns (no src suffix) must come after specific suffix patterns
+			// to prevent shadowing more specific rules like (.+)_corp.
+			if srcSuffix == "" {
+				catchAllRegexEntries = append(catchAllRegexEntries, entry)
+			} else {
+				specificRegexEntries = append(specificRegexEntries, entry)
+			}
 		}
 	}
-	return append(regexEntries, exact...)
+	// Order: specific regex entries first, then catch-all regex entries, then exact entries.
+	return append(append(specificRegexEntries, catchAllRegexEntries...), exact...)
 }
