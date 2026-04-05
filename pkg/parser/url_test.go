@@ -1639,8 +1639,7 @@ func TestParseProjectURL(t *testing.T) {
 			input: "https://github.com/orgs/my-org/projects/123",
 			want: &ProjectURL{
 				Url:    mustParseURL("https://github.com/orgs/my-org/projects/123"),
-				Host:   "github.com",
-				Owner:  "my-org",
+				Repo:   &repository.Repository{Host: "github.com", Owner: "my-org"},
 				Number: intPtr(123),
 			},
 		},
@@ -1649,8 +1648,7 @@ func TestParseProjectURL(t *testing.T) {
 			input: "https://github.com/users/my-user/projects/456",
 			want: &ProjectURL{
 				Url:    mustParseURL("https://github.com/users/my-user/projects/456"),
-				Host:   "github.com",
-				Owner:  "my-user",
+				Repo:   &repository.Repository{Host: "github.com", Owner: "my-user"},
 				Number: intPtr(456),
 			},
 		},
@@ -1659,8 +1657,7 @@ func TestParseProjectURL(t *testing.T) {
 			input: "http://github.com/orgs/my-org/projects/789",
 			want: &ProjectURL{
 				Url:    mustParseURL("http://github.com/orgs/my-org/projects/789"),
-				Host:   "github.com",
-				Owner:  "my-org",
+				Repo:   &repository.Repository{Host: "github.com", Owner: "my-org"},
 				Number: intPtr(789),
 			},
 		},
@@ -1669,8 +1666,7 @@ func TestParseProjectURL(t *testing.T) {
 			input: "https://github.com/orgs/my-org/projects/1/",
 			want: &ProjectURL{
 				Url:    mustParseURL("https://github.com/orgs/my-org/projects/1/"),
-				Host:   "github.com",
-				Owner:  "my-org",
+				Repo:   &repository.Repository{Host: "github.com", Owner: "my-org"},
 				Number: intPtr(1),
 			},
 		},
@@ -1679,8 +1675,7 @@ func TestParseProjectURL(t *testing.T) {
 			input: "https://github.com/orgs/my-org/projects/2?query=is%3Aopen",
 			want: &ProjectURL{
 				Url:    mustParseURL("https://github.com/orgs/my-org/projects/2?query=is%3Aopen"),
-				Host:   "github.com",
-				Owner:  "my-org",
+				Repo:   &repository.Repository{Host: "github.com", Owner: "my-org"},
 				Number: intPtr(2),
 			},
 		},
@@ -1689,8 +1684,7 @@ func TestParseProjectURL(t *testing.T) {
 			input: "https://github.com/orgs/my-org/projects/3#readme",
 			want: &ProjectURL{
 				Url:    mustParseURL("https://github.com/orgs/my-org/projects/3#readme"),
-				Host:   "github.com",
-				Owner:  "my-org",
+				Repo:   &repository.Repository{Host: "github.com", Owner: "my-org"},
 				Number: intPtr(3),
 			},
 		},
@@ -1699,8 +1693,7 @@ func TestParseProjectURL(t *testing.T) {
 			input: "  https://github.com/orgs/my-org/projects/4  ",
 			want: &ProjectURL{
 				Url:    mustParseURL("https://github.com/orgs/my-org/projects/4"),
-				Host:   "github.com",
-				Owner:  "my-org",
+				Repo:   &repository.Repository{Host: "github.com", Owner: "my-org"},
 				Number: intPtr(4),
 			},
 		},
@@ -1709,8 +1702,7 @@ func TestParseProjectURL(t *testing.T) {
 			input: "https://github.example.com/orgs/enterprise-org/projects/10",
 			want: &ProjectURL{
 				Url:    mustParseURL("https://github.example.com/orgs/enterprise-org/projects/10"),
-				Host:   "github.example.com",
-				Owner:  "enterprise-org",
+				Repo:   &repository.Repository{Host: "github.example.com", Owner: "enterprise-org"},
 				Number: intPtr(10),
 			},
 		},
@@ -1719,10 +1711,32 @@ func TestParseProjectURL(t *testing.T) {
 			input: "https://github.com/orgs/my-org-name/projects/5",
 			want: &ProjectURL{
 				Url:    mustParseURL("https://github.com/orgs/my-org-name/projects/5"),
-				Host:   "github.com",
-				Owner:  "my-org-name",
+				Repo:   &repository.Repository{Host: "github.com", Owner: "my-org-name"},
 				Number: intPtr(5),
 			},
+		},
+		{
+			name:  "repository-scoped classic project URL",
+			input: "https://github.com/my-org/my-repo/projects/1",
+			want: &ProjectURL{
+				Url:    mustParseURL("https://github.com/my-org/my-repo/projects/1"),
+				Repo:   &repository.Repository{Host: "github.com", Owner: "my-org", Name: "my-repo"},
+				Number: intPtr(1),
+			},
+		},
+		{
+			name:  "GHE repository-scoped classic project URL",
+			input: "https://github.example.com/my-org/my-repo/projects/1",
+			want: &ProjectURL{
+				Url:    mustParseURL("https://github.example.com/my-org/my-repo/projects/1"),
+				Repo:   &repository.Repository{Host: "github.example.com", Owner: "my-org", Name: "my-repo"},
+				Number: intPtr(1),
+			},
+		},
+		{
+			name:    "repository-scoped classic project URL with missing repo segment",
+			input:   "https://github.com/my-org/projects/1",
+			wantErr: true,
 		},
 		{
 			name:    "URL with invalid project number (zero)",
@@ -1770,11 +1784,6 @@ func TestParseProjectURL(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "path prefix is not orgs or users",
-			input:   "https://github.com/repos/my-org/projects/1",
-			wantErr: true,
-		},
-		{
 			name:    "malformed URL",
 			input:   "https://not a valid url",
 			wantErr: true,
@@ -1806,14 +1815,9 @@ func TestParseProjectURL(t *testing.T) {
 				t.Errorf("ParseProjectURL() Url = %v, want %v", got.Url, tt.want.Url)
 			}
 
-			// Compare Host
-			if got.Host != tt.want.Host {
-				t.Errorf("ParseProjectURL() Host = %v, want %v", got.Host, tt.want.Host)
-			}
-
-			// Compare Owner
-			if got.Owner != tt.want.Owner {
-				t.Errorf("ParseProjectURL() Owner = %v, want %v", got.Owner, tt.want.Owner)
+			// Compare Repo
+			if !compareRepo(got.Repo, tt.want.Repo) {
+				t.Errorf("ParseProjectURL() Repo = %v, want %v", got.Repo, tt.want.Repo)
 			}
 
 			// Compare Number
