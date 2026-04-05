@@ -48,13 +48,13 @@ func DockerRegistry(host string) string {
 }
 
 // DockerImageBase returns the base image path for a legacy Docker Package Registry image.
-// Owner and package are lowercased to comply with the OCI Distribution Spec.
+// Owner, repository name, and package are lowercased to comply with the OCI Distribution Spec.
 func DockerImageBase(repo repository.Repository, pkg string) string {
 	host := repo.Host
 	if host == "" {
 		host = defaultHost
 	}
-	return DockerRegistry(host) + "/" + strings.ToLower(repo.Owner) + "/" + strings.ToLower(pkg)
+	return DockerRegistry(host) + "/" + strings.ToLower(repo.Owner) + "/" + strings.ToLower(repo.Name) + "/" + strings.ToLower(pkg)
 }
 
 // NuGetRegistryBase returns the NuGet registry base URL for the given GitHub host and owner.
