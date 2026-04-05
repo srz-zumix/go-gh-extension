@@ -153,11 +153,7 @@ func (g *GitHubClient) DownloadNPMPackage(ctx context.Context, owner, packageNam
 	if err != nil {
 		return nil, fmt.Errorf("failed to get npm package metadata: %w", err)
 	}
-	defer func() {
-		if closeErr := metaResp.Body.Close(); closeErr != nil {
-			_ = closeErr
-		}
-	}()
+	defer metaResp.Body.Close() // nolint
 
 	switch {
 	case metaResp.StatusCode == http.StatusMovedPermanently ||
