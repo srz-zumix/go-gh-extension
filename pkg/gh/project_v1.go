@@ -47,7 +47,11 @@ func GetProjectV1ByNumber(ctx context.Context, g *GitHubClient, repo repository.
 			return &projects[i], nil
 		}
 	}
-	return nil, fmt.Errorf("project #%d not found for '%s'", number, repo.Owner)
+	repoScope := repo.Owner
+	if repo.Name != "" {
+		repoScope = repo.Owner + "/" + repo.Name
+	}
+	return nil, fmt.Errorf("project #%d not found for '%s'", number, repoScope)
 }
 
 // ListProjectV1Columns lists all columns for a classic project.
