@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -153,4 +154,69 @@ func (c *CompiledMappings) ResolveSrc(login string) (string, bool) {
 func (c *CompiledMappings) ResolveEmail(email string) (UserMapping, bool) {
 	m, ok := c.byEmail[parser.NormalizeEmail(email)]
 	return m, ok
+}
+
+// SplitEMUSuffix splits an EMU login "base_slug" into ("base", "slug").
+// Returns (login, "") if there is no underscore or the underscore is at the end.
+func SplitEMUSuffix(login string) (base, suffix string) {
+	idx := strings.LastIndex(login, "_")
+	if idx < 0 || idx == len(login)-1 {
+		return login, ""
+	}
+	return login[:idx], login[idx+1:]
+}
+
+// CompactEMUMappings groups matched pairs that share the same base login (login without the
+// EMU _<slug> suffix) into a single regex entry per (srcSuffix, dstSuffix) combination.
+//
+// Supported patterns:
+//   - both have suffix, same base:  src=alice_corp  dst=alice_new  → (.+)_corp → $1_new
+//   - src has suffix, dst has none: src=alice_corp  dst=alice      → (.+)_corp → $1
+//   - src has none, dst has suffix: src=alice       dst=alice_new  → (.+)      → $1_new
+//
+// Pairs with empty dst, or where bases differ, are kept as exact entries.
+func CompactEMUMappings(mappings []UserMapping) []UserMapping {
+	type suffixPair struct{ src, dst string }
+
+	seen := make(map[suffixPair]struct{})
+	var regexEntries []UserMapping
+	var exact []UserMapping
+
+	for _, m := range mappings {
+		if m.Dst == "" {
+			exact = append(exact, m)
+			continue
+		}
+		srcBase, srcSuffix := SplitEMUSuffix(m.Src)
+		dstBase, dstSuffix := SplitEMUSuffix(m.Dst)
+		if srcBase != dstBase {
+			exact = append(exact, m)
+			continue
+		}
+		// Both have no suffix and same base → same login, keep as exact
+		if srcSuffix == "" && dstSuffix == "" {
+			exact = append(exact, m)
+			continue
+		}
+		pair := suffixPair{src: srcSuffix, dst: dstSuffix}
+		if _, ok := seen[pair]; !ok {
+			seen[pair] = struct{}{}
+			var srcPattern, dstPattern string
+			if srcSuffix == "" {
+				srcPattern = `(.+)`
+			} else {
+				srcPattern = `(.+)_` + pair.src
+			}
+			if dstSuffix == "" {
+				dstPattern = `$1`
+			} else {
+				dstPattern = `$1_` + pair.dst
+			}
+			regexEntries = append(regexEntries, UserMapping{
+				Src: srcPattern,
+				Dst: dstPattern,
+			})
+		}
+	}
+	return append(regexEntries, exact...)
 }

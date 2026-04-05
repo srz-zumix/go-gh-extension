@@ -422,3 +422,151 @@ func TestResolveEmail_TrimSpace(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "alice-new", m.Dst)
 }
+
+// --- SplitEMUSuffix ---
+
+func TestSplitEMUSuffix_WithSuffix(t *testing.T) {
+	base, suffix := settings.SplitEMUSuffix("alice_corp")
+	assert.Equal(t, "alice", base)
+	assert.Equal(t, "corp", suffix)
+}
+
+func TestSplitEMUSuffix_MultipleSuffixes(t *testing.T) {
+	// Last underscore is used as the split point.
+	base, suffix := settings.SplitEMUSuffix("alice_foo_corp")
+	assert.Equal(t, "alice_foo", base)
+	assert.Equal(t, "corp", suffix)
+}
+
+func TestSplitEMUSuffix_NoUnderscore(t *testing.T) {
+	base, suffix := settings.SplitEMUSuffix("alice")
+	assert.Equal(t, "alice", base)
+	assert.Equal(t, "", suffix)
+}
+
+func TestSplitEMUSuffix_TrailingUnderscore(t *testing.T) {
+	// Underscore at the end is treated as no-suffix.
+	base, suffix := settings.SplitEMUSuffix("alice_")
+	assert.Equal(t, "alice_", base)
+	assert.Equal(t, "", suffix)
+}
+
+func TestSplitEMUSuffix_Empty(t *testing.T) {
+	base, suffix := settings.SplitEMUSuffix("")
+	assert.Equal(t, "", base)
+	assert.Equal(t, "", suffix)
+}
+
+// --- CompactEMUMappings ---
+
+func TestCompactEMUMappings_BothSuffix(t *testing.T) {
+	// alice_corp → alice_new  ⇒  (.+)_corp → $1_new
+	mappings := []settings.UserMapping{
+		{Src: "alice_corp", Dst: "alice_new"},
+		{Src: "bob_corp", Dst: "bob_new"},
+	}
+	result := settings.CompactEMUMappings(mappings)
+	require.Len(t, result, 1)
+	assert.Equal(t, `(.+)_corp`, result[0].Src)
+	assert.Equal(t, `$1_new`, result[0].Dst)
+}
+
+func TestCompactEMUMappings_SrcSuffixOnly(t *testing.T) {
+	// alice_corp → alice  ⇒  (.+)_corp → $1
+	mappings := []settings.UserMapping{
+		{Src: "alice_corp", Dst: "alice"},
+		{Src: "bob_corp", Dst: "bob"},
+	}
+	result := settings.CompactEMUMappings(mappings)
+	require.Len(t, result, 1)
+	assert.Equal(t, `(.+)_corp`, result[0].Src)
+	assert.Equal(t, `$1`, result[0].Dst)
+}
+
+func TestCompactEMUMappings_DstSuffixOnly(t *testing.T) {
+	// alice → alice_new  ⇒  (.+) → $1_new
+	mappings := []settings.UserMapping{
+		{Src: "alice", Dst: "alice_new"},
+		{Src: "bob", Dst: "bob_new"},
+	}
+	result := settings.CompactEMUMappings(mappings)
+	require.Len(t, result, 1)
+	assert.Equal(t, `(.+)`, result[0].Src)
+	assert.Equal(t, `$1_new`, result[0].Dst)
+}
+
+func TestCompactEMUMappings_NoSuffix_SameLogin(t *testing.T) {
+	// alice → alice  ⇒  kept as exact entry
+	mappings := []settings.UserMapping{
+		{Src: "alice", Dst: "alice"},
+	}
+	result := settings.CompactEMUMappings(mappings)
+	require.Len(t, result, 1)
+	assert.Equal(t, "alice", result[0].Src)
+	assert.Equal(t, "alice", result[0].Dst)
+}
+
+func TestCompactEMUMappings_BaseMismatch(t *testing.T) {
+	// Different base: alice_corp → carol_new  ⇒  kept as exact
+	mappings := []settings.UserMapping{
+		{Src: "alice_corp", Dst: "carol_new"},
+	}
+	result := settings.CompactEMUMappings(mappings)
+	require.Len(t, result, 1)
+	assert.Equal(t, "alice_corp", result[0].Src)
+	assert.Equal(t, "carol_new", result[0].Dst)
+}
+
+func TestCompactEMUMappings_EmptyDst(t *testing.T) {
+	// Empty dst is kept as exact entry.
+	mappings := []settings.UserMapping{
+		{Src: "alice_corp", Dst: ""},
+	}
+	result := settings.CompactEMUMappings(mappings)
+	require.Len(t, result, 1)
+	assert.Equal(t, "alice_corp", result[0].Src)
+}
+
+func TestCompactEMUMappings_DeduplicateSuffixPair(t *testing.T) {
+	// Same suffix pair seen twice: only one regex entry generated.
+	mappings := []settings.UserMapping{
+		{Src: "alice_corp", Dst: "alice_new"},
+		{Src: "bob_corp", Dst: "bob_new"},
+		{Src: "charlie_corp", Dst: "charlie_new"},
+	}
+	result := settings.CompactEMUMappings(mappings)
+	require.Len(t, result, 1)
+	assert.Equal(t, `(.+)_corp`, result[0].Src)
+	assert.Equal(t, `$1_new`, result[0].Dst)
+}
+
+func TestCompactEMUMappings_MultipleSuffixPairs(t *testing.T) {
+	// Two distinct suffix pairs produce two regex entries.
+	mappings := []settings.UserMapping{
+		{Src: "alice_corp", Dst: "alice_new"},
+		{Src: "bob_old", Dst: "bob_prod"},
+	}
+	result := settings.CompactEMUMappings(mappings)
+	require.Len(t, result, 2)
+	// Regex entries come first; order matches insertion order.
+	srcs := []string{result[0].Src, result[1].Src}
+	assert.Contains(t, srcs, `(.+)_corp`)
+	assert.Contains(t, srcs, `(.+)_old`)
+}
+
+func TestCompactEMUMappings_RegexEntriesBeforeExact(t *testing.T) {
+	// Regex entries must precede exact entries in the result slice.
+	mappings := []settings.UserMapping{
+		{Src: "alice", Dst: "carol"},      // base mismatch → exact
+		{Src: "bob_corp", Dst: "bob_new"}, // regex
+	}
+	result := settings.CompactEMUMappings(mappings)
+	require.Len(t, result, 2)
+	assert.Equal(t, `(.+)_corp`, result[0].Src, "regex entry must come first")
+	assert.Equal(t, "alice", result[1].Src, "exact entry must come second")
+}
+
+func TestCompactEMUMappings_Empty(t *testing.T) {
+	result := settings.CompactEMUMappings(nil)
+	assert.Empty(t, result)
+}

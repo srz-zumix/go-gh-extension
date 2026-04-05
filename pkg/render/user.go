@@ -6,6 +6,9 @@ import (
 	"github.com/google/go-github/v84/github"
 )
 
+// UserFieldList is the list of valid field names for user display.
+var UserFieldList = []string{"USERNAME", "LOGIN", "ROLE", "EMAIL", "SUSPENDED", "URL", "NAME", "TEAM"}
+
 type userFiledGetter func(user *github.User) string
 type userFiledGetters struct {
 	Func map[string]userFiledGetter
@@ -15,7 +18,10 @@ func NewUserFieldGetters() *userFiledGetters {
 	return &userFiledGetters{
 		Func: map[string]userFiledGetter{
 			"USERNAME": func(user *github.User) string {
-				return *user.Login
+				return ToString(user.Login)
+			},
+			"LOGIN": func(user *github.User) string {
+				return ToString(user.Login)
 			},
 			"EMAIL": func(user *github.User) string {
 				return ToString(user.Email)
