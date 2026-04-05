@@ -799,6 +799,9 @@ func GetRulesetActorsTeams(ctx context.Context, g *GitHubClient, repo repository
 // Returns a map from actor_id to GitHubUser.
 func GetRulesetActorsUsers(ctx context.Context, g *GitHubClient, ruleset *github.RepositoryRuleset) map[int64]*GitHubUser {
 	users := make(map[int64]*GitHubUser)
+	if ruleset == nil {
+		return users
+	}
 	for _, actor := range ruleset.BypassActors {
 		if actor.ActorType == nil || actor.ActorID == nil {
 			continue
