@@ -777,8 +777,15 @@ func importRulesetConditions(repo repository.Repository, ruleset *github.Reposit
 func GetRulesetActorsTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleset *github.RepositoryRuleset) map[int64]*github.Team {
 	teams := make(map[int64]*github.Team)
 
+	if ruleset == nil {
+		return teams
+	}
+
 	var allTeams []*github.Team
 	for _, actor := range ruleset.BypassActors {
+		if actor.ActorType == nil || actor.ActorID == nil {
+			continue
+		}
 		if *actor.ActorType == github.BypassActorTypeTeam {
 			if allTeams == nil {
 				teamTree, err := TeamByOwner(ctx, g, repo, true)
