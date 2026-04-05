@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -79,6 +80,9 @@ type CompiledMappings struct {
 // NewCompiledMappings builds a CompiledMappings from a UserMappingFile.
 // Plain src values are stored in an exact-match map for O(1) lookup.
 // src values containing regex metacharacters are compiled and kept for linear regex scanning.
+// Combining a regex src with an email field is an error because a single regex pattern
+// represents multiple users and cannot be associated with a single email address.
+// All entries are validated before returning; all errors are reported together.
 func NewCompiledMappings(file *UserMappingFile) (*CompiledMappings, error) {
 	if file == nil {
 		return nil, fmt.Errorf("usermap: NewCompiledMappings called with nil file")
@@ -88,11 +92,14 @@ func NewCompiledMappings(file *UserMappingFile) (*CompiledMappings, error) {
 		bySrc:   make(map[string]string, len(file.Users)),
 		byEmail: make(map[string]UserMapping, len(file.Users)),
 	}
+	var errs []error
 	for _, m := range file.Users {
 		if m.Dst == "" {
 			slog.Warn("dst value is empty, skipping", "src", m.Src)
 			continue
-		} else if regexp.QuoteMeta(m.Src) == m.Src {
+		}
+		isLiteral := regexp.QuoteMeta(m.Src) == m.Src
+		if isLiteral {
 			// Plain literal: store in the exact-match map.
 			if _, exists := cm.bySrc[m.Src]; exists {
 				slog.Warn("duplicate src value in mapping file, skipping", "src", m.Src)
@@ -103,11 +110,18 @@ func NewCompiledMappings(file *UserMappingFile) (*CompiledMappings, error) {
 			// Contains regex metacharacters: compile and store for regex scanning.
 			re, err := regexp.Compile("^(?:" + m.Src + ")$")
 			if err != nil {
-				return nil, fmt.Errorf("invalid regex in src field %q: %w", m.Src, err)
+				errs = append(errs, fmt.Errorf("invalid regex in src field %q: %w", m.Src, err))
+			} else {
+				if m.Email != "" {
+					// A regex src cannot be combined with an email because one pattern
+					// can match many users and cannot be associated with a single address.
+					errs = append(errs, fmt.Errorf("regex src %q cannot be combined with email %q", m.Src, m.Email))
+				}
+				cm.entries = append(cm.entries, compiledMapping{mapping: m, srcRegex: re})
 			}
-			cm.entries = append(cm.entries, compiledMapping{mapping: m, srcRegex: re})
 		}
-		if m.Email != "" {
+		// Index email only for literal src entries.
+		if isLiteral && m.Email != "" {
 			normalizedEmail := parser.NormalizeEmail(m.Email)
 			if normalizedEmail == "" {
 				slog.Warn("email value is blank after trimming, skipping", "email", m.Email)
@@ -117,6 +131,9 @@ func NewCompiledMappings(file *UserMappingFile) (*CompiledMappings, error) {
 				cm.byEmail[normalizedEmail] = m
 			}
 		}
+	}
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
 	}
 	return cm, nil
 }
@@ -176,6 +193,11 @@ func SplitEMUSuffix(login string) (base, suffix string) {
 //   - src has none, dst has suffix: src=alice       dst=alice_new  → (.+)      → $1_new
 //
 // Pairs with empty dst, or where bases differ, are kept as exact entries.
+//
+// Note: email fields are intentionally omitted from the compacted output.
+// A single regex entry represents many users, so it cannot be associated with a
+// specific email address. Pass the compacted result to NewCompiledMappings only
+// when email-based lookup is not required.
 func CompactEMUMappings(mappings []UserMapping) []UserMapping {
 	type suffixPair struct{ src, dst string }
 

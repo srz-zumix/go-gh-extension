@@ -395,6 +395,27 @@ func TestNewCompiledMappings_BlankEmailSkipped(t *testing.T) {
 	assert.False(t, ok, "blank-after-trim email must not be indexed")
 }
 
+// --- NewCompiledMappings: regex src combined with email is an error ---
+
+func TestNewCompiledMappings_RegexWithEmailError(t *testing.T) {
+	_, err := settings.NewCompiledMappings(newFile(
+		settings.UserMapping{Src: "legacy-(.*)", Dst: "$1", Email: "alice@example.com"},
+	))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "legacy-(.*)")
+}
+
+func TestNewCompiledMappings_MultipleErrorsCollected(t *testing.T) {
+	// All errors across multiple entries must be returned together, not just the first.
+	_, err := settings.NewCompiledMappings(newFile(
+		settings.UserMapping{Src: "[invalid", Dst: "x"},
+		settings.UserMapping{Src: "legacy-(.*)", Dst: "$1", Email: "alice@example.com"},
+	))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "[invalid")
+	assert.Contains(t, err.Error(), "legacy-(.*)")
+}
+
 // --- ResolveEmail: case-insensitive and trims whitespace ---
 
 func TestResolveEmail_CaseInsensitive(t *testing.T) {
