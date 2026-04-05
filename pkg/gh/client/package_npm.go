@@ -68,14 +68,15 @@ func rewritePackageJSON(content []byte, repoURL string) ([]byte, error) {
 // Both github.com (npm.pkg.github.com) and GHES (npm.<host>) npm registries require
 // Bearer format, unlike the GitHub REST API which uses "token X" format.
 type npmBearerAuthTransport struct {
-	token        string
-	registryHost string
-	transport    http.RoundTripper
+	token            string
+	registryHostname string
+	registryPort     string
+	transport        http.RoundTripper
 }
 
 func (t *npmBearerAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	r2 := r.Clone(r.Context())
-	if t.token != "" && r2.URL.Host == t.registryHost {
+	if t.token != "" && r2.URL.Hostname() == t.registryHostname && r2.URL.Port() == t.registryPort {
 		r2.Header.Set("Authorization", "Bearer "+t.token)
 	}
 	tr := t.transport
@@ -85,38 +86,23 @@ func (t *npmBearerAuthTransport) RoundTrip(r *http.Request) (*http.Response, err
 	return tr.RoundTrip(r2)
 }
 
-// npmToken extracts the bearer token from the client's transport chain.
-// Falls back to GitHub App installation token for App-based auth environments
-// (e.g., ghinstallation.Transport which implements Token(context.Context) (string, error)).
-func (g *GitHubClient) npmToken(ctx context.Context) string {
-	if token := g.bearerToken(); token != "" {
-		return token
-	}
-	type contextTokenGetter interface {
-		Token(context.Context) (string, error)
-	}
-	if tg, ok := unwrapTransport(g.client.Client().Transport).(contextTokenGetter); ok {
-		if token, err := tg.Token(ctx); err == nil {
-			return token
-		}
-	}
-	return ""
-}
-
 // npmHTTPClient returns an http.Client configured for the GitHub npm registry.
 // Bearer auth is only added for requests to the registry host; other hosts
 // (e.g., pre-signed S3/CDN tarball URLs) receive no Authorization header.
-func (g *GitHubClient) npmHTTPClient(ctx context.Context) *http.Client {
+func (g *GitHubClient) npmHTTPClient() *http.Client {
 	registryBase := NPMRegistryBase(g.Host())
-	registryHost := strings.TrimRight(registryBase, "/")
-	if u, err := url.Parse(registryHost); err == nil {
-		registryHost = u.Host
+	registryBase = strings.TrimRight(registryBase, "/")
+	var registryHostname, registryPort string
+	if u, err := url.Parse(registryBase); err == nil {
+		registryHostname = u.Hostname()
+		registryPort = u.Port()
 	}
 	return &http.Client{
 		Transport: &npmBearerAuthTransport{
-			token:        g.npmToken(ctx),
-			registryHost: registryHost,
-			transport:    g.rawHTTPTransport(),
+			token:            g.bearerToken(),
+			registryHostname: registryHostname,
+			registryPort:     registryPort,
+			transport:        g.rawHTTPTransport(),
 		},
 	}
 }
@@ -124,8 +110,8 @@ func (g *GitHubClient) npmHTTPClient(ctx context.Context) *http.Client {
 // npmMetadataHTTPClient returns an http.Client for metadata requests only.
 // Redirects are disabled so authentication failures surface as clear 3xx errors
 // rather than silently following through to a login page.
-func (g *GitHubClient) npmMetadataHTTPClient(ctx context.Context) *http.Client {
-	c := g.npmHTTPClient(ctx)
+func (g *GitHubClient) npmMetadataHTTPClient() *http.Client {
+	c := g.npmHTTPClient()
 	c.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
@@ -155,7 +141,7 @@ type npmMetadata struct {
 func (g *GitHubClient) DownloadNPMPackage(ctx context.Context, owner, packageName, version string) ([]byte, error) {
 	// Step 1: Fetch package metadata to get the tarball URL.
 	// Use a no-redirect client so auth failures (3xx→login page) are caught immediately.
-	metaClient := g.npmMetadataHTTPClient(ctx)
+	metaClient := g.npmMetadataHTTPClient()
 	metaURL := NPMPackageURL(g.Host(), owner, packageName)
 	metaReq, err := http.NewRequestWithContext(ctx, http.MethodGet, metaURL, nil)
 	if err != nil {
@@ -188,8 +174,10 @@ func (g *GitHubClient) DownloadNPMPackage(ctx context.Context, owner, packageNam
 	}
 
 	// Detect non-JSON responses as a fallback (e.g., HTML from intermediate proxies).
+	// Accept any media type containing "json" to cover standard application/json,
+	// vendor types such as application/vnd.npm.install-v1+json, and +json suffixed types.
 	contentType := metaResp.Header.Get("Content-Type")
-	if !strings.Contains(contentType, "application/json") {
+	if !strings.Contains(contentType, "json") {
 		return nil, fmt.Errorf("failed to get npm package metadata: unexpected content type '%s' - check that the token has read:packages scope and the package '%s' exists under owner '%s'", contentType, packageName, owner)
 	}
 
@@ -214,7 +202,7 @@ func (g *GitHubClient) DownloadNPMPackage(ctx context.Context, owner, packageNam
 		return nil, fmt.Errorf("failed to create tarball request: %w", err)
 	}
 
-	tarResp, err := g.npmHTTPClient(ctx).Do(tarReq)
+	tarResp, err := g.npmHTTPClient().Do(tarReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download npm tarball: %w", err)
 	}
@@ -239,7 +227,7 @@ func (g *GitHubClient) PushNPMPackage(ctx context.Context, owner, packageName st
 
 	req.Header.Set("Content-Type", "application/octet-stream")
 
-	resp, err := g.npmHTTPClient(ctx).Do(req)
+	resp, err := g.npmHTTPClient().Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to push npm package: %w", err)
 	}
