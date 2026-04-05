@@ -258,6 +258,31 @@ func TestResolveSrc_EmptySrc(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// When a regex matches but ExpandString produces an empty dst (e.g. pattern "(x*)" matching
+// the empty capture in "" with dst="$1"), the entry must be skipped (ok=false) and later
+// rules must still be evaluated.
+func TestResolveSrc_RegexEmptyExpandedDstSkipsEntry(t *testing.T) {
+	// "(x*)" anchored to "^(?:(x*))$" matches "" because x* can be empty.
+	// ExpandString with dst="$1" substitutes the empty capture → dst="".
+	// The second rule uses a literal empty src and dst="fallback".
+	// ResolveSrc("") must skip the first rule and return "fallback" from the second.
+	cm, err := settings.NewCompiledMappings(newFile(
+		settings.UserMapping{Src: "(x*)", Dst: "$1"},
+		settings.UserMapping{Src: "", Dst: "fallback"},
+	))
+	require.NoError(t, err)
+
+	// Input "" matches "(x*)" but expands to "" → skip; exact "" → "fallback".
+	dst, ok := cm.ResolveSrc("")
+	assert.True(t, ok)
+	assert.Equal(t, "fallback", dst)
+
+	// Input "xxx" matches "(x*)" and expands to non-empty "xxx" → ok.
+	dst, ok = cm.ResolveSrc("xxx")
+	assert.True(t, ok)
+	assert.Equal(t, "xxx", dst)
+}
+
 // --- ResolveEmail ---
 
 func TestResolveEmail_Found(t *testing.T) {

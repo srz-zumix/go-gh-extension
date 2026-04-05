@@ -150,7 +150,9 @@ func NewCompiledMappingsFromFile(filePath string) (*CompiledMappings, error) {
 // ResolveSrc resolves a login against src patterns, returning the dst login.
 // Plain src entries are looked up in O(1) via an exact-match map.
 // If no exact match is found, regex entries are scanned linearly with $N group substitution.
-// Returns ("", false) if no matching entry is found.
+// Returns ("", false) if no matching entry is found, if the matched entry has an empty dst,
+// or if a regex match expands to an empty string.
+// ("", true) is never returned: an empty dst is always treated as no match.
 func (c *CompiledMappings) ResolveSrc(login string) (string, bool) {
 	if dst, ok := c.bySrc[login]; ok && dst != "" {
 		return dst, true
