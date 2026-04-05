@@ -205,12 +205,12 @@ func CompactEMUMappings(mappings []UserMapping) []UserMapping {
 			if srcSuffix == "" {
 				srcPattern = `(.+)`
 			} else {
-				srcPattern = `(.+)_` + pair.src
+				srcPattern = `(.+)_` + regexp.QuoteMeta(pair.src)
 			}
 			if dstSuffix == "" {
 				dstPattern = `$1`
 			} else {
-				dstPattern = `$1_` + pair.dst
+				dstPattern = `$1_` + strings.ReplaceAll(pair.dst, "$", "$$")
 			}
 			regexEntries = append(regexEntries, UserMapping{
 				Src: srcPattern,
