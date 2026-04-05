@@ -152,14 +152,16 @@ func NewCompiledMappingsFromFile(filePath string) (*CompiledMappings, error) {
 // If no exact match is found, regex entries are scanned linearly with $N group substitution.
 // Returns ("", false) if no matching entry is found.
 func (c *CompiledMappings) ResolveSrc(login string) (string, bool) {
-	if dst, ok := c.bySrc[login]; ok {
+	if dst, ok := c.bySrc[login]; ok && dst != "" {
 		return dst, true
 	}
 	for _, e := range c.entries {
 		match := e.srcRegex.FindStringSubmatchIndex(login)
 		if match != nil {
 			dst := string(e.srcRegex.ExpandString(nil, e.mapping.Dst, login, match))
-			return dst, true
+			if dst != "" {
+				return dst, true
+			}
 		}
 	}
 	return "", false
