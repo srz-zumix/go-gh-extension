@@ -18,7 +18,7 @@ import (
 type UserMapping struct {
 	Src   string `json:"src" yaml:"src"`
 	Dst   string `json:"dst" yaml:"dst"`
-	Email string `json:"email" yaml:"email"`
+	Email string `json:"email,omitempty" yaml:"email,omitempty"`
 }
 
 // UserMappingFile represents the YAML structure for user mappings.
