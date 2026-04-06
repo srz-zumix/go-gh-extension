@@ -26,9 +26,9 @@ func RepositoryFromTeamSlugs(owner string, teamSlug string) (repository.Reposito
 	return RepositoryWithTeamSlugs(teamSlug, RepositoryOwner(owner))
 }
 
-// RepositoryWithTeamSlugs resolves a team slug against RepositoryOptions instead of a plain
-// owner string. The owner (and host) are taken from the resolved repository when the team slug
-// does not already carry host/owner information.
+// RepositoryWithTeamSlugs resolves a team slug against RepositoryOption values instead of a plain
+// owner string. When the team slug does not include an owner, the owner and host are taken from
+// the resolved repository.
 func RepositoryWithTeamSlugs(teamSlug string, opts ...RepositoryOption) (repository.Repository, string, error) {
 	repo, team := TeamSlugWithHostOwner(teamSlug)
 
