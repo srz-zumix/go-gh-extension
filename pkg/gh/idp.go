@@ -77,13 +77,13 @@ func SearchExternalGroups(ctx context.Context, g *GitHubClient, repo repository.
 	return g.ListExternalGroupsInOrganization(ctx, repo.Owner, displayName)
 }
 
-
 // FindExternalGroupByTeamSlug returns the external group connected to a team, or nil if none is connected (EMU).
-// Returns nil, nil on 404 or when no external group is connected.
+// Returns nil, nil on 404 or 400 (e.g. team has explicit members and cannot be externally managed),
+// or when no external group is connected.
 func FindExternalGroupByTeamSlug(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string) (*github.ExternalGroup, error) {
 	groups, err := g.ListExternalGroupsForTeamBySlug(ctx, repo.Owner, teamSlug)
 	if err != nil {
-		if IsHTTPNotFound(err) {
+		if IsHTTPNotFound(err) || IsHTTPBadRequest(err) {
 			return nil, nil
 		}
 		return nil, err
