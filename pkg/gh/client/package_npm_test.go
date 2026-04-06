@@ -530,11 +530,15 @@ func TestPushNPMPackage_SendsPackumentJSON(t *testing.T) {
 	require.True(t, ok)
 	sum := sha1.Sum(tarballData) // nolint:gosec
 	assert.Equal(t, fmt.Sprintf("%x", sum), dist["shasum"])
+	// tarball filename must use only the unscoped name component (no '/') so the URL
+	// does not introduce extra path segments after "/-/".
+	assert.Equal(t, "https://npm.pkg.github.com/@owner/mypkg/-/mypkg-1.0.0.tgz", dist["tarball"])
 
-	// Verify _attachments contains base64-encoded tarball
+	// Verify _attachments contains base64-encoded tarball.
+	// Key must be the bare filename (no scope prefix) to avoid '/' in the key.
 	attachments, ok := packument["_attachments"].(map[string]any)
 	require.True(t, ok)
-	attachKey := "@owner/mypkg-1.0.0.tgz"
+	attachKey := "mypkg-1.0.0.tgz"
 	att, ok := attachments[attachKey].(map[string]any)
 	require.True(t, ok, "_attachments must contain key %s", attachKey)
 	assert.Equal(t, "application/octet-stream", att["content_type"])
@@ -579,16 +583,18 @@ func TestPushNPMPackage_RewritesScopeToDestinationOwner(t *testing.T) {
 	assert.Equal(t, "@destorg/mypkg", v["name"])
 	assert.Equal(t, "@destorg/mypkg@2.0.0", v["_id"])
 
-	// _attachments key must use destination scoped name
+	// _attachments key must be the bare filename (scope stripped), e.g. "mypkg-2.0.0.tgz".
+	// Using the full scoped name "@destorg/mypkg-2.0.0.tgz" would embed a '/' in the key
+	// and cause incorrect path segments in dist.tarball.
 	attachments, ok := packument["_attachments"].(map[string]any)
 	require.True(t, ok)
-	_, hasDestKey := attachments["@destorg/mypkg-2.0.0.tgz"]
+	_, hasDestKey := attachments["mypkg-2.0.0.tgz"]
 	_, hasSrcKey := attachments["@srcorg/mypkg-2.0.0.tgz"]
-	assert.True(t, hasDestKey, "_attachments must use destination scoped name as key")
-	assert.False(t, hasSrcKey, "_attachments must not use source scoped name as key")
+	assert.True(t, hasDestKey, "_attachments must use bare (unscoped) filename as key")
+	assert.False(t, hasSrcKey, "_attachments must not use old scoped name with slash as key")
 
 	// The tarball in _attachments must have the destination name in package.json
-	att, ok := attachments["@destorg/mypkg-2.0.0.tgz"].(map[string]any)
+	att, ok := attachments["mypkg-2.0.0.tgz"].(map[string]any)
 	require.True(t, ok)
 	tarballB64, _ := att["data"].(string)
 	capturedTarball, err = base64.StdEncoding.DecodeString(tarballB64)
