@@ -27,6 +27,21 @@ const nugetDefaultHost = DefaultHost
 // (?is) enables case-insensitive matching and makes '.' match newlines for multi-line elements.
 var repositoryElemRe = regexp.MustCompile(`(?is)<repository\b[^>]*(?:/>|>[\s\S]*?</repository\s*>)`)
 
+// NuGetPushError is returned when a NuGet package push fails with an HTTP error status.
+type NuGetPushError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *NuGetPushError) Error() string {
+	return fmt.Sprintf("push failed with status %d: %s", e.StatusCode, e.Message)
+}
+
+// IsConflict returns true if the push failed because the version already exists (HTTP 409 Conflict).
+func (e *NuGetPushError) IsConflict() bool {
+	return e.StatusCode == http.StatusConflict
+}
+
 // NuGetRegistryBase returns the NuGet registry base URL for the given GitHub host and owner.
 // For github.com, it returns "https://nuget.pkg.github.com/<owner>".
 // For GitHub Enterprise Server, it returns "https://nuget.<host>/<owner>".
@@ -433,7 +448,7 @@ func (g *GitHubClient) PushNuGetPackage(ctx context.Context, owner string, r io.
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("push failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return &NuGetPushError{StatusCode: resp.StatusCode, Message: strings.TrimSpace(string(body))}
 	}
 	return nil
 }
