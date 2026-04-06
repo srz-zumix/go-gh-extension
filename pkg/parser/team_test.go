@@ -177,7 +177,7 @@ func TestTeamSlugWithHostOwner(t *testing.T) {
 func TestRepositoryWithTeamSlugs(t *testing.T) {
 	tests := []struct {
 		name         string
-		owner        string
+		opts         []RepositoryOption
 		teamSlug     string
 		wantRepo     repository.Repository
 		wantTeamSlug string
@@ -185,7 +185,7 @@ func TestRepositoryWithTeamSlugs(t *testing.T) {
 	}{
 		{
 			name:     "team slug with owner",
-			owner:    "",
+			opts:     nil,
 			teamSlug: "my-org/team-name",
 			wantRepo: repository.Repository{
 				Owner: "my-org",
@@ -194,7 +194,7 @@ func TestRepositoryWithTeamSlugs(t *testing.T) {
 		},
 		{
 			name:     "team slug with host/owner",
-			owner:    "",
+			opts:     nil,
 			teamSlug: "github.com/my-org/team-name",
 			wantRepo: repository.Repository{
 				Host:  "github.com",
@@ -203,8 +203,8 @@ func TestRepositoryWithTeamSlugs(t *testing.T) {
 			wantTeamSlug: "team-name",
 		},
 		{
-			name:     "team slug only with owner parameter",
-			owner:    "my-org",
+			name:     "team slug only with owner option",
+			opts:     []RepositoryOption{RepositoryOwner("my-org")},
 			teamSlug: "team-name",
 			wantRepo: repository.Repository{
 				Host:  "github.com",
@@ -213,14 +213,14 @@ func TestRepositoryWithTeamSlugs(t *testing.T) {
 			wantTeamSlug: "team-name",
 		},
 		{
-			name:     "team slug with owner/repo format in owner parameter",
-			owner:    "my-org/my-repo",
+			name:     "team slug with owner/repo format in owner option",
+			opts:     []RepositoryOption{RepositoryOwner("my-org/my-repo")},
 			teamSlug: "team-name",
 			wantErr:  true,
 		},
 		{
-			name:     "team slug overrides owner parameter",
-			owner:    "other-org",
+			name:     "team slug overrides owner option",
+			opts:     []RepositoryOption{RepositoryOwner("other-org")},
 			teamSlug: "my-org/team-name",
 			wantRepo: repository.Repository{
 				Owner: "my-org",
@@ -228,8 +228,8 @@ func TestRepositoryWithTeamSlugs(t *testing.T) {
 			wantTeamSlug: "team-name",
 		},
 		{
-			name:     "empty team slug with owner parameter",
-			owner:    "my-org",
+			name:     "empty team slug with owner option",
+			opts:     []RepositoryOption{RepositoryOwner("my-org")},
 			teamSlug: "",
 			wantRepo: repository.Repository{
 				Host:  "github.com",
@@ -237,11 +237,32 @@ func TestRepositoryWithTeamSlugs(t *testing.T) {
 			},
 			wantTeamSlug: "",
 		},
+		{
+			name:     "host-qualified owner option resolves host and owner from option",
+			opts:     []RepositoryOption{RepositoryOwnerWithHost("github.example.com/my-org")},
+			teamSlug: "team-name",
+			wantRepo: repository.Repository{
+				Host:  "github.example.com",
+				Owner: "my-org",
+			},
+			wantTeamSlug: "team-name",
+		},
+		{
+			name: "team slug overrides host-qualified owner option",
+			opts: []RepositoryOption{RepositoryOwnerWithHost("github.example.com/other-org")},
+			// team slug carries its own host/owner; option must be ignored
+			teamSlug: "github.com/my-org/team-name",
+			wantRepo: repository.Repository{
+				Host:  "github.com",
+				Owner: "my-org",
+			},
+			wantTeamSlug: "team-name",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotRepo, gotTeamSlug, err := RepositoryWithTeamSlugs(tt.teamSlug, RepositoryOwner(tt.owner))
+			gotRepo, gotTeamSlug, err := RepositoryWithTeamSlugs(tt.teamSlug, tt.opts...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("RepositoryWithTeamSlugs() error = %v, wantErr %v", err, tt.wantErr)
 				return
