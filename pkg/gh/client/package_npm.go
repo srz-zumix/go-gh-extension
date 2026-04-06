@@ -7,13 +7,19 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha1" // nolint:gosec // SHA1 is used for npm packument shasum, not for security
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 )
+
+// ErrPackageVersionExists is returned when pushing a package version that already exists (HTTP 409).
+var ErrPackageVersionExists = errors.New("package version already exists")
 
 const npmDefaultHost = DefaultHost
 
@@ -38,19 +44,23 @@ func NPMPackageURL(host, owner, packageName string) string {
 	return base + "/" + packageName
 }
 
-// rewritePackageJSON updates the "repository" field in package.json to point to the new repo URL.
-func rewritePackageJSON(content []byte, repoURL string) ([]byte, error) {
+// rewritePackageJSON updates fields in package.json content.
+// If repoURL is non-empty, the "repository" field is updated.
+// If nameOverride is non-empty, the "name" field is updated.
+func rewritePackageJSON(content []byte, repoURL, nameOverride string) ([]byte, error) {
 	var pkg map[string]any
 	if err := json.Unmarshal(content, &pkg); err != nil {
 		return nil, fmt.Errorf("failed to parse package.json: %w", err)
 	}
 
-	// Update repository field
 	if repoURL != "" {
 		pkg["repository"] = map[string]any{
 			"type": "git",
 			"url":  repoURL,
 		}
+	}
+	if nameOverride != "" {
+		pkg["name"] = nameOverride
 	}
 
 	// Marshal back to JSON with proper indentation
@@ -59,6 +69,79 @@ func rewritePackageJSON(content []byte, repoURL string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to marshal package.json: %w", err)
 	}
 	return rewritten, nil
+}
+
+// rewriteNPMTarball is the internal implementation for rewriting an npm tarball.
+// It rewrites package.json entries, optionally updating the repository URL and/or package name.
+func rewriteNPMTarball(src io.Reader, repoURL, nameOverride string) ([]byte, error) {
+	// Decompress gzip
+	gzr, err := gzip.NewReader(src)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decompress tarball: %w", err)
+	}
+	defer func() {
+		if err := gzr.Close(); err != nil {
+			_ = err // gzip reader close error after full read is not critical
+		}
+	}()
+
+	tr := tar.NewReader(gzr)
+
+	var outBuf bytes.Buffer
+	gzw := gzip.NewWriter(&outBuf)
+	tw := tar.NewWriter(gzw)
+	// NOTE: tw and gzw must NOT be deferred.
+	// Both Close() calls flush trailing bytes (tar end-of-archive blocks and gzip trailer/checksum)
+	// into outBuf. If deferred, they would run after "return outBuf.Bytes()", so the returned
+	// slice would be missing those bytes and the archive would be corrupt.
+	// On early-error returns the writers are abandoned, but since outBuf is in-memory there
+	// is no OS resource leak; the GC will reclaim them.
+
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read tar entry: %w", err)
+		}
+
+		if strings.HasSuffix(hdr.Name, "package.json") {
+			body, err := io.ReadAll(tr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read package.json: %w", err)
+			}
+
+			rewritten, err := rewritePackageJSON(body, repoURL, nameOverride)
+			if err != nil {
+				return nil, err
+			}
+
+			hdr.Size = int64(len(rewritten))
+			if err := tw.WriteHeader(hdr); err != nil {
+				return nil, fmt.Errorf("failed to write tar header: %w", err)
+			}
+			if _, err := tw.Write(rewritten); err != nil {
+				return nil, fmt.Errorf("failed to write package.json to tar: %w", err)
+			}
+		} else {
+			if err := tw.WriteHeader(hdr); err != nil {
+				return nil, fmt.Errorf("failed to write tar header: %w", err)
+			}
+			if _, err := io.Copy(tw, tr); err != nil {
+				return nil, fmt.Errorf("failed to copy tar entry: %w", err)
+			}
+		}
+	}
+
+	if err := tw.Close(); err != nil {
+		return nil, fmt.Errorf("failed to finalize tar: %w", err)
+	}
+	if err := gzw.Close(); err != nil {
+		return nil, fmt.Errorf("failed to finalize gzip: %w", err)
+	}
+
+	return outBuf.Bytes(), nil
 }
 
 // npmBearerAuthTransport adds an Authorization: Bearer <token> header to requests
@@ -212,16 +295,125 @@ func (g *GitHubClient) DownloadNPMPackage(ctx context.Context, owner, packageNam
 	return io.ReadAll(tarResp.Body)
 }
 
+// extractPackageJSONFromTarball extracts and parses package.json from an npm tarball (.tgz).
+func extractPackageJSONFromTarball(tarballData []byte) (map[string]any, error) {
+	gzr, err := gzip.NewReader(bytes.NewReader(tarballData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decompress tarball: %w", err)
+	}
+	defer gzr.Close() // nolint
+
+	tr := tar.NewReader(gzr)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read tar entry: %w", err)
+		}
+		if strings.HasSuffix(hdr.Name, "package.json") {
+			data, err := io.ReadAll(tr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read package.json: %w", err)
+			}
+			var pkg map[string]any
+			if err := json.Unmarshal(data, &pkg); err != nil {
+				return nil, fmt.Errorf("failed to parse package.json: %w", err)
+			}
+			return pkg, nil
+		}
+	}
+	return nil, fmt.Errorf("package.json not found in tarball")
+}
+
 // PushNPMPackage publishes an npm package tarball to the registry.
+// The npm registry expects a packument (JSON document) with the tarball embedded
+// as base64 in the _attachments field, not a raw tarball upload.
 func (g *GitHubClient) PushNPMPackage(ctx context.Context, owner, packageName string, tarballData []byte) (retErr error) {
+	// Compute the scoped destination name: @owner/unscoped-name.
+	// The npm registry requires that the name in the packument matches the publish URL.
+	// If packageName is already scoped (e.g. @org/pkg), use it as-is;
+	// otherwise scope it with the destination owner.
+	destName := packageName
+	if owner != "" && !strings.HasPrefix(packageName, "@") {
+		destName = "@" + owner + "/" + packageName
+	}
+
 	pkgURL := NPMPackageURL(g.Host(), owner, packageName)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, pkgURL, bytes.NewReader(tarballData))
+	// Extract package.json to get the version and original name.
+	pkgMeta, err := extractPackageJSONFromTarball(tarballData)
+	if err != nil {
+		return fmt.Errorf("failed to extract package metadata: %w", err)
+	}
+
+	version, _ := pkgMeta["version"].(string)
+	if version == "" {
+		return fmt.Errorf("package version is missing from package.json")
+	}
+
+	// If the tarball's package name differs from the destination name, rewrite it.
+	// GitHub Packages validates that the name in the tarball's package.json matches
+	// the packument name; a mismatch causes the package to not be indexed or displayed.
+	originalName, _ := pkgMeta["name"].(string)
+	if originalName != destName {
+		updated, rewriteErr := rewriteNPMTarball(bytes.NewReader(tarballData), "", destName)
+		if rewriteErr != nil {
+			return fmt.Errorf("failed to rewrite package name in tarball: %w", rewriteErr)
+		}
+		tarballData = updated
+	}
+
+	// Compute SHA1 checksum on the (possibly rewritten) tarball.
+	sum := sha1.Sum(tarballData) // nolint:gosec
+	shasum := fmt.Sprintf("%x", sum)
+
+	// Build the tarball filename used as the _attachments key.
+	// For scoped packages (@owner/name), the key is @owner/name-version.tgz.
+	tarballFilename := fmt.Sprintf("%s-%s.tgz", destName, version)
+
+	// Populate version entry with all package.json fields plus required dist metadata.
+	// Override the name field to use the destination-scoped name so it matches the publish URL.
+	versionEntry := make(map[string]any, len(pkgMeta)+2)
+	for k, v := range pkgMeta {
+		versionEntry[k] = v
+	}
+	versionEntry["name"] = destName
+	versionEntry["_id"] = fmt.Sprintf("%s@%s", destName, version)
+	versionEntry["dist"] = map[string]any{
+		"shasum":  shasum,
+		"tarball": pkgURL + "/-/" + tarballFilename,
+	}
+
+	packument := map[string]any{
+		"_id":  destName,
+		"name": destName,
+		"dist-tags": map[string]any{
+			"latest": version,
+		},
+		"versions": map[string]any{
+			version: versionEntry,
+		},
+		"_attachments": map[string]any{
+			tarballFilename: map[string]any{
+				"content_type": "application/octet-stream",
+				"data":         base64.StdEncoding.EncodeToString(tarballData),
+				"length":       len(tarballData),
+			},
+		},
+	}
+
+	bodyBytes, err := json.Marshal(packument)
+	if err != nil {
+		return fmt.Errorf("failed to marshal packument: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, pkgURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-
-	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := g.npmHTTPClient().Do(req)
 	if err != nil {
@@ -235,6 +427,9 @@ func (g *GitHubClient) PushNPMPackage(ctx context.Context, owner, packageName st
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusConflict {
+			return fmt.Errorf("failed to push npm package: %w: %s", ErrPackageVersionExists, strings.TrimSpace(string(body)))
+		}
 		return fmt.Errorf("failed to push npm package: %d - %s", resp.StatusCode, string(body))
 	}
 
@@ -245,78 +440,5 @@ func (g *GitHubClient) PushNPMPackage(ctx context.Context, owner, packageName st
 // It reads the tarball from src, rewrites package.json to update the repository URL,
 // and returns the modified tarball data.
 func RewriteNPMPackageJSON(src io.Reader, repoURL string) ([]byte, error) {
-	// Decompress gzip
-	gzr, err := gzip.NewReader(src)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decompress tarball: %w", err)
-	}
-	defer func() {
-		if err := gzr.Close(); err != nil {
-			_ = err // gzip reader close error after full read is not critical
-		}
-	}()
-
-	// Read tar archive
-	tr := tar.NewReader(gzr)
-
-	var outBuf bytes.Buffer
-	gzw := gzip.NewWriter(&outBuf)
-	tw := tar.NewWriter(gzw)
-	// NOTE: tw and gzw must NOT be deferred.
-	// Both Close() calls flush trailing bytes (tar end-of-archive blocks and gzip trailer/checksum)
-	// into outBuf. If deferred, they would run after "return outBuf.Bytes()", so the returned
-	// slice would be missing those bytes and the archive would be corrupt.
-	// On early-error returns the writers are abandoned, but since outBuf is in-memory there
-	// is no OS resource leak; the GC will reclaim them.
-
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to read tar entry: %w", err)
-		}
-
-		// Check if this is package.json
-		if strings.HasSuffix(hdr.Name, "package.json") {
-			body, err := io.ReadAll(tr)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read package.json: %w", err)
-			}
-
-			// Rewrite package.json
-			rewritten, err := rewritePackageJSON(body, repoURL)
-			if err != nil {
-				return nil, err
-			}
-
-			// Update header with new size
-			hdr.Size = int64(len(rewritten))
-			if err := tw.WriteHeader(hdr); err != nil {
-				return nil, fmt.Errorf("failed to write tar header: %w", err)
-			}
-			if _, err := tw.Write(rewritten); err != nil {
-				return nil, fmt.Errorf("failed to write package.json to tar: %w", err)
-			}
-		} else {
-			// Copy entry as-is
-			if err := tw.WriteHeader(hdr); err != nil {
-				return nil, fmt.Errorf("failed to write tar header: %w", err)
-			}
-			if _, err := io.Copy(tw, tr); err != nil {
-				return nil, fmt.Errorf("failed to copy tar entry: %w", err)
-			}
-		}
-	}
-
-	if err := tw.Close(); err != nil {
-		return nil, fmt.Errorf("failed to finalize tar: %w", err)
-	}
-
-	if err := gzw.Close(); err != nil {
-		return nil, fmt.Errorf("failed to finalize gzip: %w", err)
-	}
-
-	return outBuf.Bytes(), nil
+	return rewriteNPMTarball(src, repoURL, "")
 }

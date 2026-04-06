@@ -9,6 +9,9 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
+// ErrPackageVersionExists is returned when pushing a package version that already exists (HTTP 409).
+var ErrPackageVersionExists = client.ErrPackageVersionExists
+
 // NPMRegistryBase returns the npm registry base URL for the given GitHub host.
 func NPMRegistryBase(host string) string {
 	return client.NPMRegistryBase(host)

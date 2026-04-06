@@ -5,7 +5,10 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha1" // nolint:gosec
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -239,7 +242,7 @@ func TestNPMBearerAuthTransport_ExplicitPortMatch(t *testing.T) {
 
 func TestRewritePackageJSON_UpdatesRepository(t *testing.T) {
 	input := []byte(`{"name":"mypkg","version":"1.0.0","description":"A package"}`)
-	result, err := rewritePackageJSON(input, "https://github.com/myorg/myrepo")
+	result, err := rewritePackageJSON(input, "https://github.com/myorg/myrepo", "")
 	require.NoError(t, err)
 
 	var got map[string]any
@@ -259,7 +262,7 @@ func TestRewritePackageJSON_UpdatesRepository(t *testing.T) {
 
 func TestRewritePackageJSON_EmptyRepoURLSkipsUpdate(t *testing.T) {
 	input := []byte(`{"name":"mypkg","version":"1.0.0","repository":{"type":"git","url":"https://github.com/old/repo"}}`)
-	result, err := rewritePackageJSON(input, "")
+	result, err := rewritePackageJSON(input, "", "")
 	require.NoError(t, err)
 
 	var got map[string]any
@@ -272,9 +275,33 @@ func TestRewritePackageJSON_EmptyRepoURLSkipsUpdate(t *testing.T) {
 }
 
 func TestRewritePackageJSON_InvalidJSONReturnsError(t *testing.T) {
-	_, err := rewritePackageJSON([]byte(`{invalid json`), "https://github.com/myorg/myrepo")
+	_, err := rewritePackageJSON([]byte(`{invalid json`), "https://github.com/myorg/myrepo", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse package.json")
+}
+
+func TestRewritePackageJSON_UpdatesName(t *testing.T) {
+	input := []byte(`{"name":"@srcorg/mypkg","version":"1.0.0"}`)
+	result, err := rewritePackageJSON(input, "", "@destorg/mypkg")
+	require.NoError(t, err)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(result, &got))
+	assert.Equal(t, "@destorg/mypkg", got["name"])
+	assert.Equal(t, "1.0.0", got["version"])
+}
+
+func TestRewritePackageJSON_UpdatesBothNameAndRepository(t *testing.T) {
+	input := []byte(`{"name":"@srcorg/mypkg","version":"2.0.0"}`)
+	result, err := rewritePackageJSON(input, "https://github.com/destorg/destrepo", "@destorg/mypkg")
+	require.NoError(t, err)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(result, &got))
+	assert.Equal(t, "@destorg/mypkg", got["name"])
+	repo, ok := got["repository"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "https://github.com/destorg/destrepo", repo["url"])
 }
 
 // --- RewriteNPMPackageJSON ---
@@ -419,4 +446,191 @@ func TestDownloadNPMPackage_RejectsHTMLContentType(t *testing.T) {
 	_, err := g.DownloadNPMPackage(context.Background(), "owner", "mypkg", "1.0.0")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected content type")
+}
+
+// --- extractPackageJSONFromTarball ---
+
+func TestExtractPackageJSONFromTarball_ReturnsPackageJSON(t *testing.T) {
+	pkgJSON := []byte(`{"name":"@owner/mypkg","version":"1.2.3","description":"test"}`)
+	tgz := buildSampleTgz(t, []tgzEntry{
+		{name: "package/README.md", content: []byte("readme")},
+		{name: "package/package.json", content: pkgJSON},
+	})
+
+	got, err := extractPackageJSONFromTarball(tgz)
+	require.NoError(t, err)
+	assert.Equal(t, "@owner/mypkg", got["name"])
+	assert.Equal(t, "1.2.3", got["version"])
+	assert.Equal(t, "test", got["description"])
+}
+
+func TestExtractPackageJSONFromTarball_MissingPackageJSON(t *testing.T) {
+	tgz := buildSampleTgz(t, []tgzEntry{
+		{name: "package/index.js", content: []byte("module.exports = {}")},
+	})
+
+	_, err := extractPackageJSONFromTarball(tgz)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "package.json not found")
+}
+
+func TestExtractPackageJSONFromTarball_InvalidGzip(t *testing.T) {
+	_, err := extractPackageJSONFromTarball([]byte("not gzip data"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decompress tarball")
+}
+
+// --- PushNPMPackage ---
+
+func TestPushNPMPackage_SendsPackumentJSON(t *testing.T) {
+	pkgJSON := []byte(`{"name":"@owner/mypkg","version":"1.0.0","description":"A package"}`)
+	tarballData := buildSampleTgz(t, []tgzEntry{
+		{name: "package/package.json", content: pkgJSON},
+	})
+
+	var capturedReq *http.Request
+	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		capturedReq = r
+		return &http.Response{
+			StatusCode: 201,
+			Body:       io.NopCloser(strings.NewReader(`{}`)),
+		}, nil
+	})
+	g := newTestClient(t, "https://api.github.com/", transport)
+
+	err := g.PushNPMPackage(context.Background(), "owner", "@owner/mypkg", tarballData)
+	require.NoError(t, err)
+
+	// Must use application/json content type (not octet-stream)
+	assert.Equal(t, "application/json", capturedReq.Header.Get("Content-Type"))
+
+	// Parse the sent body as a packument
+	body, err := io.ReadAll(capturedReq.Body)
+	require.NoError(t, err)
+	var packument map[string]any
+	require.NoError(t, json.Unmarshal(body, &packument), "body must be valid JSON packument")
+
+	// Verify top-level packument fields
+	assert.Equal(t, "@owner/mypkg", packument["name"])
+	assert.Equal(t, "@owner/mypkg", packument["_id"])
+
+	// Verify dist-tags
+	distTags, ok := packument["dist-tags"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "1.0.0", distTags["latest"])
+
+	// Verify versions entry
+	versions, ok := packument["versions"].(map[string]any)
+	require.True(t, ok)
+	v, ok := versions["1.0.0"].(map[string]any)
+	require.True(t, ok, "versions must contain 1.0.0 entry")
+	assert.Equal(t, "@owner/mypkg@1.0.0", v["_id"])
+
+	dist, ok := v["dist"].(map[string]any)
+	require.True(t, ok)
+	sum := sha1.Sum(tarballData) // nolint:gosec
+	assert.Equal(t, fmt.Sprintf("%x", sum), dist["shasum"])
+
+	// Verify _attachments contains base64-encoded tarball
+	attachments, ok := packument["_attachments"].(map[string]any)
+	require.True(t, ok)
+	attachKey := "@owner/mypkg-1.0.0.tgz"
+	att, ok := attachments[attachKey].(map[string]any)
+	require.True(t, ok, "_attachments must contain key %s", attachKey)
+	assert.Equal(t, "application/octet-stream", att["content_type"])
+	assert.Equal(t, base64.StdEncoding.EncodeToString(tarballData), att["data"])
+}
+
+func TestPushNPMPackage_RewritesScopeToDestinationOwner(t *testing.T) {
+	// Source package is scoped to @srcorg, but we push to destorg.
+	// The packument name and version entry name must use the destination scope.
+	pkgJSON := []byte(`{"name":"@srcorg/mypkg","version":"2.0.0"}`)
+	tarballData := buildSampleTgz(t, []tgzEntry{
+		{name: "package/package.json", content: pkgJSON},
+	})
+
+	var capturedBody []byte
+	var capturedTarball []byte
+	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		capturedBody, _ = io.ReadAll(r.Body)
+		return &http.Response{
+			StatusCode: 201,
+			Body:       io.NopCloser(strings.NewReader(`{}`)),
+		}, nil
+	})
+	g := newTestClient(t, "https://api.github.com/", transport)
+
+	// packageName is unscoped; owner "destorg" will produce @destorg/mypkg
+	err := g.PushNPMPackage(context.Background(), "destorg", "mypkg", tarballData)
+	require.NoError(t, err)
+
+	var packument map[string]any
+	require.NoError(t, json.Unmarshal(capturedBody, &packument))
+
+	// Top-level name must use destination scope, not source scope
+	assert.Equal(t, "@destorg/mypkg", packument["name"])
+	assert.Equal(t, "@destorg/mypkg", packument["_id"])
+
+	// Version entry name must also use destination scope
+	versions, ok := packument["versions"].(map[string]any)
+	require.True(t, ok)
+	v, ok := versions["2.0.0"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "@destorg/mypkg", v["name"])
+	assert.Equal(t, "@destorg/mypkg@2.0.0", v["_id"])
+
+	// _attachments key must use destination scoped name
+	attachments, ok := packument["_attachments"].(map[string]any)
+	require.True(t, ok)
+	_, hasDestKey := attachments["@destorg/mypkg-2.0.0.tgz"]
+	_, hasSrcKey := attachments["@srcorg/mypkg-2.0.0.tgz"]
+	assert.True(t, hasDestKey, "_attachments must use destination scoped name as key")
+	assert.False(t, hasSrcKey, "_attachments must not use source scoped name as key")
+
+	// The tarball in _attachments must have the destination name in package.json
+	att, ok := attachments["@destorg/mypkg-2.0.0.tgz"].(map[string]any)
+	require.True(t, ok)
+	tarballB64, _ := att["data"].(string)
+	capturedTarball, err = base64.StdEncoding.DecodeString(tarballB64)
+	require.NoError(t, err)
+
+	// Verify the name inside the tarball was rewritten
+	innerPkg, err := extractPackageJSONFromTarball(capturedTarball)
+	require.NoError(t, err)
+	assert.Equal(t, "@destorg/mypkg", innerPkg["name"], "tarball's package.json name must match destination scope")
+}
+
+func TestPushNPMPackage_MissingPackageJSONReturnsError(t *testing.T) {
+	// Tarball without package.json
+	tgz := buildSampleTgz(t, []tgzEntry{
+		{name: "package/index.js", content: []byte("module.exports = {}")},
+	})
+
+	g := newTestClient(t, "https://api.github.com/", roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 201, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+	}))
+
+	err := g.PushNPMPackage(context.Background(), "owner", "mypkg", tgz)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to extract package metadata")
+}
+
+func TestPushNPMPackage_ServerErrorReturnsError(t *testing.T) {
+	pkgJSON := []byte(`{"name":"@owner/mypkg","version":"1.0.0"}`)
+	tgz := buildSampleTgz(t, []tgzEntry{
+		{name: "package/package.json", content: pkgJSON},
+	})
+
+	transport := roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 400,
+			Body:       io.NopCloser(strings.NewReader(`{"error":"unmarshalling packument failed"}`)),
+		}, nil
+	})
+	g := newTestClient(t, "https://api.github.com/", transport)
+
+	err := g.PushNPMPackage(context.Background(), "owner", "@owner/mypkg", tgz)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to push npm package")
+	assert.Contains(t, err.Error(), "400")
 }
