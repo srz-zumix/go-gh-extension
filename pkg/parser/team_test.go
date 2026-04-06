@@ -216,7 +216,12 @@ func TestRepositoryFromTeamSlugs(t *testing.T) {
 			name:     "team slug with owner/repo format in owner parameter",
 			owner:    "my-org/my-repo",
 			teamSlug: "team-name",
-			wantErr:  true,
+			// RepositoryOwnerWithHost accepts HOST/OWNER format, so "my-org/my-repo" is parsed as HOST=my-org, OWNER=my-repo
+			wantRepo: repository.Repository{
+				Host:  "my-org",
+				Owner: "my-repo",
+			},
+			wantTeamSlug: "team-name",
 		},
 		{
 			name:     "team slug overrides owner parameter",

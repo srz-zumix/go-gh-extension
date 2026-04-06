@@ -25,7 +25,7 @@ func RepositoryFromTeamSlugs(owner string, teamSlug string) (repository.Reposito
 	repo, team := TeamSlugWithHostOwner(teamSlug)
 
 	if repo.Owner == "" {
-		repository, err := Repository(RepositoryOwner(owner))
+		repository, err := Repository(RepositoryOwnerWithHost(owner))
 		if err != nil {
 			return repository, team, err
 		}
