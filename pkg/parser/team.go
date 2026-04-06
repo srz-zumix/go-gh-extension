@@ -21,16 +21,24 @@ func TeamSlugWithHostOwner(teamSlug string) (repository.Repository, string) {
 	return repository.Repository{}, teamSlug
 }
 
+// Deprecated: Use RepositoryWithTeamSlugs with RepositoryOwner(owner) instead.
 func RepositoryFromTeamSlugs(owner string, teamSlug string) (repository.Repository, string, error) {
+	return RepositoryWithTeamSlugs(teamSlug, RepositoryOwner(owner))
+}
+
+// RepositoryWithTeamSlugs resolves a team slug against RepositoryOptions instead of a plain
+// owner string. The owner (and host) are taken from the resolved repository when the team slug
+// does not already carry host/owner information.
+func RepositoryWithTeamSlugs(teamSlug string, opts ...RepositoryOption) (repository.Repository, string, error) {
 	repo, team := TeamSlugWithHostOwner(teamSlug)
 
 	if repo.Owner == "" {
-		repository, err := Repository(RepositoryOwnerWithHost(owner))
+		r, err := Repository(opts...)
 		if err != nil {
-			return repository, team, err
+			return repo, team, err
 		}
-		repo.Host = repository.Host
-		repo.Owner = repository.Owner
+		repo.Host = r.Host
+		repo.Owner = r.Owner
 	}
 	return repo, team, nil
 }

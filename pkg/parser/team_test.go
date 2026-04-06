@@ -174,7 +174,7 @@ func TestTeamSlugWithHostOwner(t *testing.T) {
 	}
 }
 
-func TestRepositoryFromTeamSlugs(t *testing.T) {
+func TestRepositoryWithTeamSlugs(t *testing.T) {
 	tests := []struct {
 		name         string
 		owner        string
@@ -216,12 +216,7 @@ func TestRepositoryFromTeamSlugs(t *testing.T) {
 			name:     "team slug with owner/repo format in owner parameter",
 			owner:    "my-org/my-repo",
 			teamSlug: "team-name",
-			// RepositoryOwnerWithHost accepts HOST/OWNER format, so "my-org/my-repo" is parsed as HOST=my-org, OWNER=my-repo
-			wantRepo: repository.Repository{
-				Host:  "my-org",
-				Owner: "my-repo",
-			},
-			wantTeamSlug: "team-name",
+			wantErr:  true,
 		},
 		{
 			name:     "team slug overrides owner parameter",
@@ -246,9 +241,9 @@ func TestRepositoryFromTeamSlugs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotRepo, gotTeamSlug, err := RepositoryFromTeamSlugs(tt.owner, tt.teamSlug)
+			gotRepo, gotTeamSlug, err := RepositoryWithTeamSlugs(tt.teamSlug, RepositoryOwner(tt.owner))
 			if (err != nil) != tt.wantErr {
-				t.Errorf("RepositoryFromTeamSlugs() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("RepositoryWithTeamSlugs() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if err != nil {
@@ -257,13 +252,13 @@ func TestRepositoryFromTeamSlugs(t *testing.T) {
 
 			// Only compare Host and Owner as Name is not set in team context
 			if gotRepo.Host != tt.wantRepo.Host {
-				t.Errorf("RepositoryFromTeamSlugs() Host = %v, want %v", gotRepo.Host, tt.wantRepo.Host)
+				t.Errorf("RepositoryWithTeamSlugs() Host = %v, want %v", gotRepo.Host, tt.wantRepo.Host)
 			}
 			if gotRepo.Owner != tt.wantRepo.Owner {
-				t.Errorf("RepositoryFromTeamSlugs() Owner = %v, want %v", gotRepo.Owner, tt.wantRepo.Owner)
+				t.Errorf("RepositoryWithTeamSlugs() Owner = %v, want %v", gotRepo.Owner, tt.wantRepo.Owner)
 			}
 			if gotTeamSlug != tt.wantTeamSlug {
-				t.Errorf("RepositoryFromTeamSlugs() teamSlug = %v, want %v", gotTeamSlug, tt.wantTeamSlug)
+				t.Errorf("RepositoryWithTeamSlugs() teamSlug = %v, want %v", gotTeamSlug, tt.wantTeamSlug)
 			}
 		})
 	}
