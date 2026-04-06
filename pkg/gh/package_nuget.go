@@ -2,6 +2,7 @@ package gh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -146,4 +147,10 @@ func PushNuGetPackage(ctx context.Context, g *GitHubClient, repo repository.Repo
 		return fmt.Errorf("failed to push NuGet package: %w", err)
 	}
 	return nil
+}
+
+// IsNuGetConflictError returns true if err indicates that the NuGet package version already exists (HTTP 409 Conflict).
+func IsNuGetConflictError(err error) bool {
+	var pushErr *client.NuGetPushError
+	return errors.As(err, &pushErr) && pushErr.IsConflict()
 }

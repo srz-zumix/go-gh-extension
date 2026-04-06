@@ -8,6 +8,12 @@ import (
 	"github.com/google/go-github/v84/github"
 )
 
+// PackageFields is the list of available field names for package rendering.
+var PackageFields = []string{"CREATED_AT", "ID", "NAME", "OWNER", "REPOSITORY", "TYPE", "UPDATED_AT", "URL", "VERSIONS", "VISIBILITY"}
+
+// PackageVersionFields is the list of available field names for package version rendering.
+var PackageVersionFields = []string{"CREATED_AT", "DESCRIPTION", "ID", "LICENSE", "NAME", "UPDATED_AT", "URL"}
+
 // PackageFieldGetter defines a function to get a field value from a github.Package
 type PackageFieldGetter func(pkg *github.Package) string
 
