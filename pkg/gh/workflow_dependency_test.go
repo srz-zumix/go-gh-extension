@@ -487,6 +487,236 @@ func TestFilterWorkflowDependenciesByNodeVersion_OldActionNotInDeps(t *testing.T
 	}
 }
 
+// TestExpandFilteredDependencies_DiamondDependency verifies that a shared dep reachable
+// via two distinct paths (diamond shape: W→A→C and W→B→C) is included exactly once
+// and its own children are still expanded.
+func TestExpandFilteredDependencies_DiamondDependency(t *testing.T) {
+	// W -> A -> C and W -> B -> C  (C reachable via two paths)
+	// C -> D (D must also be included despite C being "already visited" when reached from B)
+	allDeps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/w.yml",
+			Name:   "W",
+			Actions: []parser.ActionReference{
+				{Raw: "org/action-a@v1", Owner: "org", Repo: "action-a", Ref: "v1"},
+				{Raw: "org/action-b@v1", Owner: "org", Repo: "action-b", Ref: "v1"},
+			},
+		},
+		{
+			Source: "org/action-a:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/shared@v1", Owner: "org", Repo: "shared", Ref: "v1"},
+			},
+		},
+		{
+			Source: "org/action-b:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/shared@v1", Owner: "org", Repo: "shared", Ref: "v1"},
+			},
+		},
+		{
+			Source: "org/shared:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/leaf@v1", Owner: "org", Repo: "leaf", Ref: "v1"},
+			},
+		},
+		{
+			Source:  "org/leaf:action.yml",
+			Actions: []parser.ActionReference{},
+		},
+	}
+
+	filtered := []parser.WorkflowDependency{allDeps[0]}
+	expanded := ExpandFilteredDependencies(filtered, allDeps)
+
+	if len(expanded) != 5 {
+		t.Fatalf("expected 5 deps (diamond + leaf), got %d", len(expanded))
+	}
+	sources := make(map[string]bool)
+	for _, d := range expanded {
+		sources[d.Source] = true
+	}
+	for _, want := range []string{
+		".github/workflows/w.yml",
+		"org/action-a:action.yml",
+		"org/action-b:action.yml",
+		"org/shared:action.yml",
+		"org/leaf:action.yml",
+	} {
+		if !sources[want] {
+			t.Errorf("expected %s to be included", want)
+		}
+	}
+}
+
+// TestFilterWorkflowDependenciesByNodeVersion_MultipleUpstreamCallers verifies that when
+// multiple workflows independently reference the same composite action (which itself uses
+// an old Node action), all of them are included via fixpoint expansion.
+func TestFilterWorkflowDependenciesByNodeVersion_MultipleUpstreamCallers(t *testing.T) {
+	// W1 → composite:action.yml → old:action.yml (node16)
+	// W2 → composite:action.yml → old:action.yml (node16)
+	// W3 → unrelated:action.yml (node20) — should NOT be included
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/w1.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/composite@v1", Owner: "org", Repo: "composite", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: ".github/workflows/w2.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/composite@v1", Owner: "org", Repo: "composite", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: ".github/workflows/w3.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/unrelated@v1", Owner: "org", Repo: "unrelated", Ref: "v1", Using: "node20"},
+			},
+		},
+		{
+			Source: "org/composite:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+			},
+		},
+		{
+			Source:  "org/old-action:action.yml",
+			Actions: []parser.ActionReference{},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 20)
+	if len(got) != 4 {
+		t.Fatalf("expected 4 deps (w1, w2, composite, old-action), got %d", len(got))
+	}
+	sources := make(map[string]bool)
+	for _, d := range got {
+		sources[d.Source] = true
+	}
+	for _, want := range []string{
+		".github/workflows/w1.yml",
+		".github/workflows/w2.yml",
+		"org/composite:action.yml",
+		"org/old-action:action.yml",
+	} {
+		if !sources[want] {
+			t.Errorf("expected %s to be included", want)
+		}
+	}
+	if sources[".github/workflows/w3.yml"] {
+		t.Error("w3.yml should not be included (uses node20 only)")
+	}
+}
+
+// TestFilterWorkflowDependenciesByNodeVersion_DeepCompositeChain verifies that fixpoint
+// expansion propagates upstream through an arbitrarily deep chain of composite actions:
+//
+//	W → C1 → C2 → C3 → old (node16)
+//
+// All nodes in the chain should be in the result.
+func TestFilterWorkflowDependenciesByNodeVersion_DeepCompositeChain(t *testing.T) {
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/w.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/c1@v1", Owner: "org", Repo: "c1", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: "org/c1:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/c2@v1", Owner: "org", Repo: "c2", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: "org/c2:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/c3@v1", Owner: "org", Repo: "c3", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: "org/c3:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+			},
+		},
+		{
+			Source:  "org/old-action:action.yml",
+			Actions: []parser.ActionReference{},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 20)
+	if len(got) != 5 {
+		t.Fatalf("expected 5 deps (full chain), got %d", len(got))
+	}
+	sources := make(map[string]bool)
+	for _, d := range got {
+		sources[d.Source] = true
+	}
+	for _, want := range []string{
+		".github/workflows/w.yml",
+		"org/c1:action.yml",
+		"org/c2:action.yml",
+		"org/c3:action.yml",
+		"org/old-action:action.yml",
+	} {
+		if !sources[want] {
+			t.Errorf("expected %s to be included", want)
+		}
+	}
+}
+
+// TestFilterWorkflowDependenciesByNodeVersion_DiamondDependency verifies that when two
+// composites both reference the same old-node action (diamond shape), and a single workflow
+// references both composites, all nodes are included exactly once.
+func TestFilterWorkflowDependenciesByNodeVersion_DiamondDependency(t *testing.T) {
+	// W → C1, W → C2; C1 → old (node16); C2 → old (node16)
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/w.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/c1@v1", Owner: "org", Repo: "c1", Ref: "v1", Using: "composite"},
+				{Raw: "org/c2@v1", Owner: "org", Repo: "c2", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: "org/c1:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+			},
+		},
+		{
+			Source: "org/c2:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+			},
+		},
+		{
+			Source:  "org/old-action:action.yml",
+			Actions: []parser.ActionReference{},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 20)
+	if len(got) != 4 {
+		t.Fatalf("expected 4 deps (w, c1, c2, old-action), got %d", len(got))
+	}
+	sources := make(map[string]bool)
+	for _, d := range got {
+		sources[d.Source] = true
+	}
+	for _, want := range []string{
+		".github/workflows/w.yml",
+		"org/c1:action.yml",
+		"org/c2:action.yml",
+		"org/old-action:action.yml",
+	} {
+		if !sources[want] {
+			t.Errorf("expected %s to be included", want)
+		}
+	}
+}
+
 func TestExpandFilteredDependencies_NoExpansionNeeded(t *testing.T) {
 	allDeps := []parser.WorkflowDependency{
 		{
