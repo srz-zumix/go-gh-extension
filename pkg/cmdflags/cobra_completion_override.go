@@ -24,12 +24,6 @@ var cobraFlagCompletionFunctions map[*pflag.Flag]cobra.CompletionFunc
 //go:linkname cobraFlagCompletionMutex github.com/spf13/cobra.flagCompletionMutex
 var cobraFlagCompletionMutex *sync.RWMutex
 
-// isAlreadyRegisteredError reports whether err is the specific error returned by
-// cobra.RegisterFlagCompletionFunc when a completion for that flag was already set.
-func isAlreadyRegisteredError(err error, flagName string) bool {
-	return err != nil && err.Error() == fmt.Sprintf("RegisterFlagCompletionFunc: flag '%s' already registered", flagName)
-}
-
 // overrideFlagCompletion forcibly sets the completion function for flag, replacing any
 // previously registered function. Use this only when RegisterFlagCompletionFunc cannot
 // be used because the completion was already registered by an imported library.

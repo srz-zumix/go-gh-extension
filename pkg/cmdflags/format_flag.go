@@ -44,17 +44,18 @@ func OverrideFormatFlagOptions(cmd *cobra.Command, defaultValue string, options 
 	flag.Value = &formatEnumValue{value: defaultValue, options: options}
 	flag.DefValue = defaultValue
 	flag.Usage = fmt.Sprintf("Output format: {%s}", strings.Join(options, "|"))
-	// RegisterFlagCompletionFunc returns an error when the flag already has a registered
-	// completion (cmdutil.AddFormatFlags → StringEnumFlag registers ["json"] first).
-	// Only that specific case is handled via go:linkname override; any other error surfaces.
+	// Use GetFlagCompletionFunc (available since cobra v1.6) to detect whether a completion
+	// is already registered, avoiding brittle error-string matching across cobra versions.
+	// cmdutil.AddFormatFlags → StringEnumFlag registers ["json"] first, so we must override.
 	compFunc := func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return options, cobra.ShellCompDirectiveNoFileComp
 	}
-	if err := cmd.RegisterFlagCompletionFunc("format", compFunc); err != nil {
-		if !isAlreadyRegisteredError(err, "format") {
+	if _, alreadySet := cmd.GetFlagCompletionFunc("format"); alreadySet {
+		if err := overrideFlagCompletion(flag, compFunc); err != nil {
 			return err
 		}
-		if err := overrideFlagCompletion(flag, compFunc); err != nil {
+	} else {
+		if err := cmd.RegisterFlagCompletionFunc("format", compFunc); err != nil {
 			return err
 		}
 	}
