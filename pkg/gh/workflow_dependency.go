@@ -609,3 +609,98 @@ func matchesWorkflowSelector(dep parser.WorkflowDependency, selector string) boo
 	}
 	return false
 }
+
+// parseNodeVersion extracts the numeric version from a node runtime identifier.
+// e.g., "node20" -> 20, "node16" -> 16, "composite" -> 0.
+func parseNodeVersion(using string) int {
+	remainder, ok := strings.CutPrefix(using, "node")
+	if !ok || remainder == "" {
+		return 0
+	}
+	v, err := strconv.Atoi(remainder)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// FilterWorkflowDependenciesByNodeVersion filters workflow dependencies to only include
+// deps that reference Node actions with a version older than minNodeVersion,
+// and the old Node action deps themselves.
+// Upstream deps that transitively reference an old Node action (e.g. via a composite
+// action) are also included by iteratively expanding the marked set until fixpoint.
+// The Using field on ActionReferences must be populated (requires recursive traversal).
+func FilterWorkflowDependenciesByNodeVersion(deps []parser.WorkflowDependency, minNodeVersion int) []parser.WorkflowDependency {
+	if minNodeVersion <= 0 {
+		return deps
+	}
+
+	// Build a lookup of source -> dep for resolving action references
+	depBySource := make(map[string]*parser.WorkflowDependency)
+	for i := range deps {
+		depBySource[deps[i].Source] = &deps[i]
+	}
+	hasSource := func(key string) bool {
+		_, ok := depBySource[key]
+		return ok
+	}
+
+	// Find source keys of old Node actions and deps that directly reference them
+	oldNodeSources := make(map[string]bool)
+	depsUsingOldNode := make(map[string]bool)
+	for _, dep := range deps {
+		for _, action := range dep.Actions {
+			v := parseNodeVersion(action.Using)
+			if v == 0 || v >= minNodeVersion {
+				continue
+			}
+			// dep.Source uses an old Node action
+			depsUsingOldNode[dep.Source] = true
+			// Mark the old action's source key (if present in deps)
+			sourceKey := parser.ResolveActionDepSource(action, hasSource)
+			if sourceKey != "" {
+				oldNodeSources[sourceKey] = true
+			}
+		}
+	}
+
+	// markedSources is the union of oldNodeSources and depsUsingOldNode.
+	// Iteratively expand depsUsingOldNode to include any upstream dep that references
+	// a marked source (e.g. a workflow using a composite action that uses an old node
+	// action), until no new entries are added (fixpoint).
+	markedSources := make(map[string]bool)
+	for k := range oldNodeSources {
+		markedSources[k] = true
+	}
+	for k := range depsUsingOldNode {
+		markedSources[k] = true
+	}
+	for {
+		changed := false
+		for _, dep := range deps {
+			if depsUsingOldNode[dep.Source] {
+				continue
+			}
+			for _, action := range dep.Actions {
+				sourceKey := parser.ResolveActionDepSource(action, hasSource)
+				if sourceKey != "" && markedSources[sourceKey] {
+					depsUsingOldNode[dep.Source] = true
+					markedSources[dep.Source] = true
+					changed = true
+					break
+				}
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+
+	var filtered []parser.WorkflowDependency
+	for _, dep := range deps {
+		if oldNodeSources[dep.Source] || depsUsingOldNode[dep.Source] {
+			filtered = append(filtered, dep)
+		}
+	}
+	return filtered
+}

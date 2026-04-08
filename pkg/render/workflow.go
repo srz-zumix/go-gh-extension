@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
+	"github.com/ddddddO/gtree"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
@@ -160,9 +161,93 @@ func (r *Renderer) RenderWorkflowDependenciesWithFormat(format string, deps []pa
 		return r.RenderMarkdownWorkflowDependencies(deps)
 	case "mermaid":
 		return r.RenderMermaidWorkflowDependencies(deps)
+	case "tree":
+		return r.RenderTreeWorkflowDependencies(deps)
 	default:
 		return fmt.Errorf("unsupported format: %s", format)
 	}
+}
+
+// actionTreeLabel returns a human-readable label for an action reference node.
+// If the action has a Using field, it is appended in brackets (e.g. "actions/checkout@v4 [node20]").
+func actionTreeLabel(action parser.ActionReference) string {
+	label := action.VersionedName()
+	if action.Using != "" {
+		label += " [" + action.Using + "]"
+	}
+	return label
+}
+
+// buildWorkflowDepGtreeNode recursively adds action reference children to a gtree node.
+// visited prevents infinite recursion in cyclic dependency graphs.
+func buildWorkflowDepGtreeNode(node *gtree.Node, dep parser.WorkflowDependency, depBySource map[string]*parser.WorkflowDependency, hasSource func(string) bool, visited map[string]bool) {
+	seen := make(map[string]bool)
+	for _, action := range dep.Actions {
+		label := actionTreeLabel(action)
+		if seen[label] {
+			continue
+		}
+		seen[label] = true
+
+		child := node.Add(label)
+		sourceKey := parser.ResolveActionDepSource(action, hasSource)
+		if sourceKey != "" && !visited[sourceKey] {
+			if childDep, ok := depBySource[sourceKey]; ok {
+				visited[sourceKey] = true
+				buildWorkflowDepGtreeNode(child, *childDep, depBySource, hasSource, visited)
+			}
+		}
+	}
+}
+
+// RenderTreeWorkflowDependencies renders workflow dependencies as a text dependency tree
+// using box-drawing characters (├──, └──, │). Root nodes are dependency sources that are
+// not referenced by any other dependency. Recursive action deps are shown as subtrees.
+func (r *Renderer) RenderTreeWorkflowDependencies(deps []parser.WorkflowDependency) error {
+	if r.exporter != nil {
+		return r.RenderExportedData(deps)
+	}
+	if len(deps) == 0 {
+		r.writeLine("No workflow dependencies.")
+		return nil
+	}
+
+	depBySource := make(map[string]*parser.WorkflowDependency)
+	for i := range deps {
+		depBySource[deps[i].Source] = &deps[i]
+	}
+	hasSource := func(key string) bool {
+		_, ok := depBySource[key]
+		return ok
+	}
+
+	// Identify sources referenced by other deps (non-root nodes)
+	referenced := make(map[string]bool)
+	for _, dep := range deps {
+		for _, action := range dep.Actions {
+			if key := parser.ResolveActionDepSource(action, hasSource); key != "" {
+				referenced[key] = true
+			}
+		}
+	}
+
+	var firstErr error
+	for _, dep := range deps {
+		if referenced[dep.Source] {
+			continue // non-root: will appear as a subtree under its parent
+		}
+		root := gtree.NewRoot(dep.Source)
+		visited := make(map[string]bool)
+		visited[dep.Source] = true
+		buildWorkflowDepGtreeNode(root, dep, depBySource, hasSource, visited)
+		if err := gtree.OutputFromRoot(r.IO.Out, root); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			r.WriteError(err)
+		}
+	}
+	return firstErr
 }
 
 // RenderDotWorkflowDependencies renders workflow dependencies as a Graphviz DOT digraph

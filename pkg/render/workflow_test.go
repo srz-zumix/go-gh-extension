@@ -287,3 +287,142 @@ func TestActionNodeColor(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderTreeWorkflowDependencies_Empty(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	err := sr.Renderer.RenderTreeWorkflowDependencies(nil)
+	assert.NoError(t, err)
+	got := sr.Stdout.String()
+	assert.Contains(t, got, "No workflow dependencies.")
+}
+
+func TestRenderTreeWorkflowDependencies_Basic(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Name:   "CI",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+				{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5"},
+			},
+		},
+	}
+	err := sr.Renderer.RenderTreeWorkflowDependencies(deps)
+	assert.NoError(t, err)
+	got := sr.Stdout.String()
+	// Root node label
+	assert.Contains(t, got, ".github/workflows/ci.yml")
+	// Children with Using appended in brackets
+	assert.Contains(t, got, "actions/checkout@v4 [node20]")
+	assert.Contains(t, got, "actions/setup-go@v5")
+}
+
+func TestRenderTreeWorkflowDependencies_RootDetection(t *testing.T) {
+	// release.yml is referenced by ci.yml, so it should not appear as a root.
+	sr := NewStringRenderer(nil)
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Name:   "CI",
+			Actions: []parser.ActionReference{
+				{Raw: "./.github/workflows/release.yml", IsLocal: true},
+			},
+		},
+		{
+			Source: ".github/workflows/release.yml",
+			Name:   "Release",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"},
+			},
+		},
+	}
+	err := sr.Renderer.RenderTreeWorkflowDependencies(deps)
+	assert.NoError(t, err)
+	got := sr.Stdout.String()
+	// ci.yml is a root — its Source must appear as the top-level tree node.
+	assert.Contains(t, got, ".github/workflows/ci.yml")
+	// release.yml appears as a child label (local reusable workflow).
+	assert.Contains(t, got, ".github/workflows/release.yml")
+	// actions/checkout must appear somewhere (grandchild).
+	assert.Contains(t, got, "actions/checkout@v4")
+}
+
+func TestRenderTreeWorkflowDependencies_SharedDepAppearsUnderEachParent(t *testing.T) {
+	// W → A → C  and  W → B → C.
+	// C should appear as a child of both A and B.  However, because visited is
+	// shared across the whole root subtree, only the first occurrence (under A)
+	// will have C's children expanded; the second (under B) will be a leaf.
+	sr := NewStringRenderer(nil)
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/w.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/action-a@v1", Owner: "org", Repo: "action-a", Ref: "v1", Using: "composite"},
+				{Raw: "org/action-b@v1", Owner: "org", Repo: "action-b", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: "org/action-a:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/shared@v1", Owner: "org", Repo: "shared", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: "org/action-b:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/shared@v1", Owner: "org", Repo: "shared", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: "org/shared:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4"},
+			},
+		},
+	}
+	err := sr.Renderer.RenderTreeWorkflowDependencies(deps)
+	assert.NoError(t, err)
+	got := sr.Stdout.String()
+	// Root and direct children must be present.
+	assert.Contains(t, got, ".github/workflows/w.yml")
+	assert.Contains(t, got, "org/action-a@v1")
+	assert.Contains(t, got, "org/action-b@v1")
+	// The shared dep appears under action-a (and is labelled under action-b as leaf).
+	assert.Contains(t, got, "org/shared@v1")
+}
+
+func TestRenderTreeWorkflowDependencies_CyclePrevention(t *testing.T) {
+	// W → A → B → A  (cycle back to A)
+	// The tree should terminate without infinite recursion; A must appear as a
+	// leaf within B's subtree instead of being expanded again.
+	sr := NewStringRenderer(nil)
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/w.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/a@v1", Owner: "org", Repo: "a", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: "org/a:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/b@v1", Owner: "org", Repo: "b", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: "org/b:action.yml",
+			Actions: []parser.ActionReference{
+				// Back-edge: references A again
+				{Raw: "org/a@v1", Owner: "org", Repo: "a", Ref: "v1", Using: "composite"},
+			},
+		},
+	}
+	err := sr.Renderer.RenderTreeWorkflowDependencies(deps)
+	assert.NoError(t, err)
+	got := sr.Stdout.String()
+	// All three nodes should appear somewhere in the output.
+	assert.Contains(t, got, ".github/workflows/w.yml")
+	assert.Contains(t, got, "org/a@v1")
+	assert.Contains(t, got, "org/b@v1")
+}
