@@ -291,6 +291,202 @@ func TestExpandFilteredDependencies_LocalActionTransitiveChain(t *testing.T) {
 	}
 }
 
+func TestParseNodeVersion(t *testing.T) {
+	tests := []struct {
+		input string
+		want  int
+	}{
+		{"node16", 16},
+		{"node20", 20},
+		{"node12", 12},
+		{"composite", 0},
+		{"", 0},
+		{"node", 0},
+		{"nodeabc", 0},
+		{"node0", 0},
+		{"docker", 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			got := parseNodeVersion(tc.input)
+			if got != tc.want {
+				t.Errorf("parseNodeVersion(%q) = %d, want %d", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFilterWorkflowDependenciesByNodeVersion_MinVersionZero(t *testing.T) {
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+			},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 0)
+	if len(got) != len(deps) {
+		t.Fatalf("expected all deps returned when minNodeVersion=0, got %d", len(got))
+	}
+}
+
+func TestFilterWorkflowDependenciesByNodeVersion_NoOldNodeActions(t *testing.T) {
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+			},
+		},
+		{
+			Source:  "actions/checkout:action.yml",
+			Actions: []parser.ActionReference{},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 20)
+	if len(got) != 0 {
+		t.Fatalf("expected no deps when all actions meet minNodeVersion, got %d", len(got))
+	}
+}
+
+func TestFilterWorkflowDependenciesByNodeVersion_OldNodeDirectReference(t *testing.T) {
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+			},
+		},
+		{
+			Source:  "org/old-action:action.yml",
+			Actions: []parser.ActionReference{},
+		},
+		{
+			Source: ".github/workflows/other.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+			},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 20)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 deps (workflow + old action), got %d", len(got))
+	}
+	sources := make(map[string]bool)
+	for _, d := range got {
+		sources[d.Source] = true
+	}
+	if !sources[".github/workflows/ci.yml"] {
+		t.Error("expected ci.yml to be included")
+	}
+	if !sources["org/old-action:action.yml"] {
+		t.Error("expected org/old-action:action.yml to be included")
+	}
+}
+
+func TestFilterWorkflowDependenciesByNodeVersion_CompositeActionWithOldNodeDep(t *testing.T) {
+	// ci.yml -> composite:action.yml (composite) -> old-action:action.yml (node16)
+	// ci.yml references composite action which itself uses an old node action.
+	// Although ci.yml uses composite (not old node directly), fixpoint expansion
+	// should walk reverse edges and include ci.yml as an upstream dependent.
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/composite@v1", Owner: "org", Repo: "composite", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: "org/composite:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+			},
+		},
+		{
+			Source:  "org/old-action:action.yml",
+			Actions: []parser.ActionReference{},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 20)
+	if len(got) != 3 {
+		t.Fatalf("expected 3 deps (ci.yml + composite + old action), got %d", len(got))
+	}
+	sources := make(map[string]bool)
+	for _, d := range got {
+		sources[d.Source] = true
+	}
+	if !sources[".github/workflows/ci.yml"] {
+		t.Error("expected ci.yml to be included (transitively references old node action)")
+	}
+	if !sources["org/composite:action.yml"] {
+		t.Error("expected org/composite:action.yml to be included")
+	}
+	if !sources["org/old-action:action.yml"] {
+		t.Error("expected org/old-action:action.yml to be included")
+	}
+}
+
+func TestFilterWorkflowDependenciesByNodeVersion_TransitiveChain(t *testing.T) {
+	// ci.yml -> old-action:action.yml (node16) -> checkout:action.yml (node20)
+	// Only ci.yml and old-action:action.yml should be included.
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+			},
+		},
+		{
+			Source: "org/old-action:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+			},
+		},
+		{
+			Source:  "actions/checkout:action.yml",
+			Actions: []parser.ActionReference{},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 20)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 deps (ci.yml + old-action), got %d", len(got))
+	}
+	sources := make(map[string]bool)
+	for _, d := range got {
+		sources[d.Source] = true
+	}
+	if !sources[".github/workflows/ci.yml"] {
+		t.Error("expected ci.yml to be included")
+	}
+	if !sources["org/old-action:action.yml"] {
+		t.Error("expected org/old-action:action.yml to be included")
+	}
+	if sources["actions/checkout:action.yml"] {
+		t.Error("checkout:action.yml should not be included (uses node20)")
+	}
+}
+
+func TestFilterWorkflowDependenciesByNodeVersion_OldActionNotInDeps(t *testing.T) {
+	// ci.yml uses an old node action that has no entry in deps (no source resolved)
+	// Only ci.yml should be included; no old source to add.
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+			},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 20)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 dep (ci.yml), got %d", len(got))
+	}
+	if got[0].Source != ".github/workflows/ci.yml" {
+		t.Errorf("expected ci.yml, got %s", got[0].Source)
+	}
+}
+
 func TestExpandFilteredDependencies_NoExpansionNeeded(t *testing.T) {
 	allDeps := []parser.WorkflowDependency{
 		{
