@@ -39,7 +39,7 @@ func (e *formatEnumValue) Type() string {
 func OverrideFormatFlagOptions(cmd *cobra.Command, defaultValue string, options []string) error {
 	flag := cmd.Flags().Lookup("format")
 	if flag == nil {
-		return nil
+		return fmt.Errorf("OverrideFormatFlagOptions: \"format\" flag not found; call cmdutil.AddFormatFlags before this function")
 	}
 	flag.Value = &formatEnumValue{value: defaultValue, options: options}
 	flag.DefValue = defaultValue
@@ -108,4 +108,10 @@ func SetupFormatFlagWithNonJSONFormats(cmd *cobra.Command, exportTarget *cmdutil
 		return nil
 	}
 	return nil
+}
+
+// AddFormatFlags is a helper that combines cmdutil.AddFormatFlags with SetupFormatFlagWithNonJSONFormats for convenience. See those functions for details.
+func AddFormatFlags(cmd *cobra.Command, exporter *cmdutil.Exporter, exportFormat *string, defaultValue string, additionalFormats []string) error {
+	cmdutil.AddFormatFlags(cmd, exporter)
+	return SetupFormatFlagWithNonJSONFormats(cmd, exporter, exportFormat, defaultValue, additionalFormats)
 }
