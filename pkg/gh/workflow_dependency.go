@@ -609,3 +609,64 @@ func matchesWorkflowSelector(dep parser.WorkflowDependency, selector string) boo
 	}
 	return false
 }
+
+// parseNodeVersion extracts the numeric version from a node runtime identifier.
+// e.g., "node20" -> 20, "node16" -> 16, "composite" -> 0.
+func parseNodeVersion(using string) int {
+	remainder, ok := strings.CutPrefix(using, "node")
+	if !ok || remainder == "" {
+		return 0
+	}
+	v, err := strconv.Atoi(remainder)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// FilterWorkflowDependenciesByNodeVersion filters workflow dependencies to only include
+// deps that reference Node actions with a version older than minNodeVersion,
+// and the old Node action deps themselves.
+// The Using field on ActionReferences must be populated (requires recursive traversal).
+func FilterWorkflowDependenciesByNodeVersion(deps []parser.WorkflowDependency, minNodeVersion int) []parser.WorkflowDependency {
+	if minNodeVersion <= 0 {
+		return deps
+	}
+
+	// Build a lookup of source -> dep for resolving action references
+	depBySource := make(map[string]*parser.WorkflowDependency)
+	for i := range deps {
+		depBySource[deps[i].Source] = &deps[i]
+	}
+	hasSource := func(key string) bool {
+		_, ok := depBySource[key]
+		return ok
+	}
+
+	// Find source keys of old Node actions and deps that reference them
+	oldNodeSources := make(map[string]bool)
+	depsUsingOldNode := make(map[string]bool)
+	for _, dep := range deps {
+		for _, action := range dep.Actions {
+			v := parseNodeVersion(action.Using)
+			if v == 0 || v >= minNodeVersion {
+				continue
+			}
+			// dep.Source uses an old Node action
+			depsUsingOldNode[dep.Source] = true
+			// Mark the old action's source key (if present in deps)
+			sourceKey := parser.ResolveActionDepSource(action, hasSource)
+			if sourceKey != "" {
+				oldNodeSources[sourceKey] = true
+			}
+		}
+	}
+
+	var filtered []parser.WorkflowDependency
+	for _, dep := range deps {
+		if oldNodeSources[dep.Source] || depsUsingOldNode[dep.Source] {
+			filtered = append(filtered, dep)
+		}
+	}
+	return filtered
+}
