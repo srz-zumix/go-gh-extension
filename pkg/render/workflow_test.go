@@ -290,7 +290,8 @@ func TestActionNodeColor(t *testing.T) {
 
 func TestRenderTreeWorkflowDependencies_Empty(t *testing.T) {
 	sr := NewStringRenderer(nil)
-	sr.Renderer.RenderTreeWorkflowDependencies(nil)
+	err := sr.Renderer.RenderTreeWorkflowDependencies(nil)
+	assert.NoError(t, err)
 	got := sr.Stdout.String()
 	assert.Contains(t, got, "No workflow dependencies.")
 }
