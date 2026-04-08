@@ -13,6 +13,7 @@ import (
 
 // PackageTypes is a list of valid package types.
 var PackageTypes = []string{"npm", "maven", "rubygems", "docker", "nuget", "container"}
+
 // If packageType is empty, lists packages for all package types.
 func ListOrgPackages(ctx context.Context, g *GitHubClient, repo repository.Repository, packageType, visibility string) ([]*github.Package, error) {
 	if packageType == "" {
@@ -270,6 +271,26 @@ func DeletePackageVersionByOwnerType(ctx context.Context, g *GitHubClient, owner
 		err := g.DeleteUserPackageVersion(ctx, owner, packageType, packageName, versionID)
 		if err != nil {
 			return fmt.Errorf("failed to delete version %d for package '%s' for user '%s': %w", versionID, packageName, owner, err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown owner type: %s", ownerType)
+	}
+}
+
+// DeletePackageByOwnerType deletes an entire package using the appropriate API based on owner type.
+func DeletePackageByOwnerType(ctx context.Context, g *GitHubClient, ownerType OwnerType, owner, packageType, packageName string) error {
+	switch ownerType {
+	case OwnerTypeOrg:
+		err := g.DeleteOrgPackage(ctx, owner, packageType, packageName)
+		if err != nil {
+			return fmt.Errorf("failed to delete package '%s' in organization '%s': %w", packageName, owner, err)
+		}
+		return nil
+	case OwnerTypeUser:
+		err := g.DeleteUserPackage(ctx, owner, packageType, packageName)
+		if err != nil {
+			return fmt.Errorf("failed to delete package '%s' for user '%s': %w", packageName, owner, err)
 		}
 		return nil
 	default:
