@@ -18,7 +18,9 @@ func TestOverrideFormatFlagOptions(t *testing.T) {
 		cmdutil.AddFormatFlags(cmd, &exporter)
 
 		// Override to support both json and mermaid
-		OverrideFormatFlagOptions(cmd, "mermaid", []string{"json", "mermaid"})
+		if err := OverrideFormatFlagOptions(cmd, "mermaid", []string{"json", "mermaid"}); err != nil {
+			t.Fatalf("OverrideFormatFlagOptions failed: %v", err)
+		}
 
 		flag := cmd.Flags().Lookup("format")
 		if flag == nil {
@@ -40,6 +42,18 @@ func TestOverrideFormatFlagOptions(t *testing.T) {
 		if flag.Value.String() != "mermaid" {
 			t.Errorf("Value.String() = %v, want %v", flag.Value.String(), "mermaid")
 		}
+
+		// Verify completion returns the overridden options, not just ["json"].
+		// GetFlagCompletionFunc reads from cobra's internal flagCompletionFunctions map,
+		// confirming the override via go:linkname took effect.
+		compFunc, ok := cmd.GetFlagCompletionFunc("format")
+		if !ok {
+			t.Fatal("completion function not registered for format flag")
+		}
+		comps, _ := compFunc(cmd, nil, "")
+		if len(comps) != 2 || comps[0] != "json" || comps[1] != "mermaid" {
+			t.Errorf("completion returned %v, want [json mermaid]", comps)
+		}
 	})
 
 	t.Run("format flag not exists", func(t *testing.T) {
@@ -47,12 +61,10 @@ func TestOverrideFormatFlagOptions(t *testing.T) {
 			Use: "test",
 		}
 
-		// Should not panic when format flag doesn't exist
-		OverrideFormatFlagOptions(cmd, "mermaid", []string{"json", "mermaid"})
-
-		flag := cmd.Flags().Lookup("format")
-		if flag != nil {
-			t.Errorf("format flag should not exist, got %v", flag)
+		// Should return an error when the format flag doesn't exist (i.e., AddFormatFlags was not called).
+		err := OverrideFormatFlagOptions(cmd, "mermaid", []string{"json", "mermaid"})
+		if err == nil {
+			t.Error("expected error when format flag is not registered, got nil")
 		}
 	})
 }
@@ -174,7 +186,9 @@ func TestSetupFormatFlagWithNonJSONFormats(t *testing.T) {
 		// AddFormatFlags first
 		cmdutil.AddFormatFlags(cmd, &exporter)
 		// Then setup with non-JSON formats
-		SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"})
+		if err := SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"}); err != nil {
+			t.Fatalf("SetupFormatFlagWithNonJSONFormats failed: %v", err)
+		}
 
 		flag := cmd.Flags().Lookup("format")
 		if flag == nil {
@@ -204,7 +218,9 @@ func TestSetupFormatFlagWithNonJSONFormats(t *testing.T) {
 		var format string
 
 		cmdutil.AddFormatFlags(cmd, &exporter)
-		SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"})
+		if err := SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"}); err != nil {
+			t.Fatalf("SetupFormatFlagWithNonJSONFormats failed: %v", err)
+		}
 
 		// Execute PreRunE with format=mermaid (default)
 		if err := cmd.PreRunE(cmd, []string{}); err != nil {
@@ -228,7 +244,9 @@ func TestSetupFormatFlagWithNonJSONFormats(t *testing.T) {
 		var format string
 
 		cmdutil.AddFormatFlags(cmd, &exporter)
-		SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"})
+		if err := SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"}); err != nil {
+			t.Fatalf("SetupFormatFlagWithNonJSONFormats failed: %v", err)
+		}
 
 		// Set --jq flag
 		if err := cmd.Flags().Set("jq", ".test"); err != nil {
@@ -257,7 +275,9 @@ func TestSetupFormatFlagWithNonJSONFormats(t *testing.T) {
 		var format string
 
 		cmdutil.AddFormatFlags(cmd, &exporter)
-		SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"})
+		if err := SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"}); err != nil {
+			t.Fatalf("SetupFormatFlagWithNonJSONFormats failed: %v", err)
+		}
 
 		// Set --template flag
 		if err := cmd.Flags().Set("template", "{{.}}"); err != nil {
@@ -286,7 +306,9 @@ func TestSetupFormatFlagWithNonJSONFormats(t *testing.T) {
 		var format string
 
 		cmdutil.AddFormatFlags(cmd, &exporter)
-		SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"})
+		if err := SetupFormatFlagWithNonJSONFormats(cmd, &exporter, &format, "mermaid", []string{"mermaid"}); err != nil {
+			t.Fatalf("SetupFormatFlagWithNonJSONFormats failed: %v", err)
+		}
 
 		// Set format to json and jq
 		if err := cmd.Flags().Set("format", "json"); err != nil {
