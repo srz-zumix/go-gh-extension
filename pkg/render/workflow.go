@@ -201,8 +201,8 @@ func buildWorkflowDepGtreeNode(node *gtree.Node, dep parser.WorkflowDependency, 
 }
 
 // RenderTreeWorkflowDependencies renders workflow dependencies as a text dependency tree
-// using box-drawing characters (├──, └──, │). Root nodes are workflow files that are
-// not referenced by any other workflow. Recursive action deps are shown as subtrees.
+// using box-drawing characters (├──, └──, │). Root nodes are dependency sources that are
+// not referenced by any other dependency. Recursive action deps are shown as subtrees.
 func (r *Renderer) RenderTreeWorkflowDependencies(deps []parser.WorkflowDependency) error {
 	if r.exporter != nil {
 		return r.RenderExportedData(deps)
