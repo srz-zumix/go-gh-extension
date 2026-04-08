@@ -32,32 +32,48 @@ func (e *formatEnumValue) Type() string {
 	return "string"
 }
 
-// OverrideFormatFlagOptions replaces the Value of the "format" flag (created by cmdutil.AddFormatFlags)
-// with a new enumValue that accepts additional options beyond "json".
+// OverrideFormatFlagOptions replaces the allowed values, default, and usage of the
+// "format" flag that was previously registered by cmdutil.AddFormatFlags.
+// Returns an error only when shell-completion registration fails for an unexpected reason.
 // This must be called AFTER cmdutil.AddFormatFlags.
-func OverrideFormatFlagOptions(cmd *cobra.Command, defaultValue string, options []string) {
+func OverrideFormatFlagOptions(cmd *cobra.Command, defaultValue string, options []string) error {
 	flag := cmd.Flags().Lookup("format")
 	if flag == nil {
-		return
+		return fmt.Errorf("OverrideFormatFlagOptions: \"format\" flag not found; call cmdutil.AddFormatFlags before this function")
 	}
 	flag.Value = &formatEnumValue{value: defaultValue, options: options}
 	flag.DefValue = defaultValue
 	flag.Usage = fmt.Sprintf("Output format: {%s}", strings.Join(options, "|"))
-	_ = cmd.RegisterFlagCompletionFunc("format", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	// Use GetFlagCompletionFunc (available since cobra v1.6) to detect whether a completion
+	// is already registered, avoiding brittle error-string matching across cobra versions.
+	// cmdutil.AddFormatFlags → StringEnumFlag registers ["json"] first, so we must override.
+	compFunc := func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return options, cobra.ShellCompDirectiveNoFileComp
-	})
+	}
+	if _, alreadySet := cmd.GetFlagCompletionFunc("format"); alreadySet {
+		if err := overrideFlagCompletion(flag, compFunc); err != nil {
+			return err
+		}
+	} else {
+		if err := cmd.RegisterFlagCompletionFunc("format", compFunc); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // SetupFormatFlagWithNonJSONFormats configures the format flag to accept additional non-JSON formats
 // and sets up PreRunE to validate --jq and --template flags are only used with JSON format.
 // The "json" format is automatically added to the options list.
 // This must be called AFTER cmdutil.AddFormatFlags.
-func SetupFormatFlagWithNonJSONFormats(cmd *cobra.Command, exportTarget *cmdutil.Exporter, exportFormat *string, defaultValue string, options []string) {
+func SetupFormatFlagWithNonJSONFormats(cmd *cobra.Command, exportTarget *cmdutil.Exporter, exportFormat *string, defaultValue string, options []string) error {
 	// Always include "json" in the options
 	allOptions := append([]string{"json"}, options...)
 
 	// Override the format flag options
-	OverrideFormatFlagOptions(cmd, defaultValue, allOptions)
+	if err := OverrideFormatFlagOptions(cmd, defaultValue, allOptions); err != nil {
+		return err
+	}
 
 	// Wrap the existing PreRunE (set by AddFormatFlags)
 	oldPreRun := cmd.PreRunE
@@ -92,4 +108,11 @@ func SetupFormatFlagWithNonJSONFormats(cmd *cobra.Command, exportTarget *cmdutil
 
 		return nil
 	}
+	return nil
+}
+
+// AddFormatFlags is a helper that combines cmdutil.AddFormatFlags with SetupFormatFlagWithNonJSONFormats for convenience. See those functions for details.
+func AddFormatFlags(cmd *cobra.Command, exporter *cmdutil.Exporter, exportFormat *string, defaultValue string, additionalFormats []string) error {
+	cmdutil.AddFormatFlags(cmd, exporter)
+	return SetupFormatFlagWithNonJSONFormats(cmd, exporter, exportFormat, defaultValue, additionalFormats)
 }
