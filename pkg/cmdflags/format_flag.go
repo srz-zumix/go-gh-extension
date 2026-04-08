@@ -43,9 +43,15 @@ func OverrideFormatFlagOptions(cmd *cobra.Command, defaultValue string, options 
 	flag.Value = &formatEnumValue{value: defaultValue, options: options}
 	flag.DefValue = defaultValue
 	flag.Usage = fmt.Sprintf("Output format: {%s}", strings.Join(options, "|"))
-	_ = cmd.RegisterFlagCompletionFunc("format", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	// RegisterFlagCompletionFunc fails if the flag already has a registered completion
+	// (e.g., cmdutil.AddFormatFlags → StringEnumFlag registers ["json"] before this call).
+	// Fall back to direct map update via go:linkname so the new options are used.
+	compFunc := func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return options, cobra.ShellCompDirectiveNoFileComp
-	})
+	}
+	if err := cmd.RegisterFlagCompletionFunc("format", compFunc); err != nil {
+		overrideFlagCompletion(flag, compFunc)
+	}
 }
 
 // SetupFormatFlagWithNonJSONFormats configures the format flag to accept additional non-JSON formats
