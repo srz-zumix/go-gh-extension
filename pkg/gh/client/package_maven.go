@@ -62,6 +62,21 @@ func MavenArtifactURL(host, owner, repo, groupID, artifactID, version, classifie
 	return fmt.Sprintf("%s/%s/%s/%s/%s", base, groupPath, artifactID, version, filename)
 }
 
+// MavenDownloadError is returned when a Maven artifact download fails with an HTTP error status.
+type MavenDownloadError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *MavenDownloadError) Error() string {
+	return fmt.Sprintf("download failed with status %d: %s", e.StatusCode, e.Message)
+}
+
+// IsNotFound returns true if the download failed because the artifact does not exist (HTTP 404).
+func (e *MavenDownloadError) IsNotFound() bool {
+	return e.StatusCode == http.StatusNotFound
+}
+
 // fetchMavenArtifactBody fetches an artifact file body, handling redirects without
 // forwarding auth headers to third-party storage (e.g. Azure Blob Storage).
 func (g *GitHubClient) fetchMavenArtifactBody(ctx context.Context, url string) (io.ReadCloser, error) {
@@ -104,13 +119,13 @@ func (g *GitHubClient) fetchMavenArtifactBody(ctx context.Context, url string) (
 		}
 		if plainResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(io.LimitReader(plainResp.Body, 512))
-			statusErr := fmt.Errorf("download failed with status %d: %s", plainResp.StatusCode, strings.TrimSpace(string(body)))
+			statusErr := &MavenDownloadError{StatusCode: plainResp.StatusCode, Message: strings.TrimSpace(string(body))}
 			return nil, errors.Join(statusErr, plainResp.Body.Close())
 		}
 		return plainResp.Body, nil
 	default:
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		statusErr := fmt.Errorf("download failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		statusErr := &MavenDownloadError{StatusCode: resp.StatusCode, Message: strings.TrimSpace(string(body))}
 		return nil, errors.Join(statusErr, resp.Body.Close())
 	}
 }
@@ -140,9 +155,13 @@ func (g *GitHubClient) DownloadMavenArtifacts(ctx context.Context, owner, repo, 
 		url := MavenArtifactURL(g.Host(), owner, repo, groupID, artifactID, version, item.classifier, item.ext)
 		body, err := g.fetchMavenArtifactBody(ctx, url)
 		if err != nil {
-			// .jar is optional — some Maven packages are POM-only
+			// .jar is optional — some Maven packages are POM-only.
+			// Only silently skip on 404; surface all other errors (network, auth, etc.).
 			if item.ext == "jar" {
-				continue
+				var dlErr *MavenDownloadError
+				if errors.As(err, &dlErr) && dlErr.IsNotFound() {
+					continue
+				}
 			}
 			return nil, fmt.Errorf("failed to download %s %s: %w", packageName, item.ext, err)
 		}
