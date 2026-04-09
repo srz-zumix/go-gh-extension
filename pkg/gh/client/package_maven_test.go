@@ -118,16 +118,15 @@ func TestMavenDownloadError(t *testing.T) {
 
 // --- basicAuthTransport ---
 
-func TestBasicAuthTransport_ConvertsBearerToBasic(t *testing.T) {
+func TestBasicAuthTransport_InjectsBasicAuth(t *testing.T) {
 	var capturedAuth string
 	inner := roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		capturedAuth = r.Header.Get("Authorization")
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
 	})
-	tr := &basicAuthTransport{base: inner}
+	tr := &basicAuthTransport{base: inner, token: "fake-token"}
 	req, err := http.NewRequest(http.MethodGet, "https://maven.pkg.github.com/owner/repo/pom.xml", nil)
 	require.NoError(t, err)
-	req.Header.Set("Authorization", "Bearer fake-token")
 	_, err = tr.RoundTrip(req)
 	require.NoError(t, err)
 
@@ -137,32 +136,13 @@ func TestBasicAuthTransport_ConvertsBearerToBasic(t *testing.T) {
 	assert.Equal(t, "x-token:fake-token", string(decoded))
 }
 
-func TestBasicAuthTransport_ConvertsTokenToBasic(t *testing.T) {
+func TestBasicAuthTransport_NoTokenNoAuthHeader(t *testing.T) {
 	var capturedAuth string
 	inner := roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		capturedAuth = r.Header.Get("Authorization")
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
 	})
-	tr := &basicAuthTransport{base: inner}
-	req, err := http.NewRequest(http.MethodGet, "https://maven.pkg.github.com/owner/repo/pom.xml", nil)
-	require.NoError(t, err)
-	req.Header.Set("Authorization", "token fake-token")
-	_, err = tr.RoundTrip(req)
-	require.NoError(t, err)
-
-	require.True(t, strings.HasPrefix(capturedAuth, "Basic "))
-	decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(capturedAuth, "Basic "))
-	require.NoError(t, err)
-	assert.Equal(t, "x-token:fake-token", string(decoded))
-}
-
-func TestBasicAuthTransport_NoAuthHeaderPassedThrough(t *testing.T) {
-	var capturedAuth string
-	inner := roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		capturedAuth = r.Header.Get("Authorization")
-		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
-	})
-	tr := &basicAuthTransport{base: inner}
+	tr := &basicAuthTransport{base: inner, token: ""}
 	req, err := http.NewRequest(http.MethodGet, "https://maven.pkg.github.com/owner/repo/pom.xml", nil)
 	require.NoError(t, err)
 	_, err = tr.RoundTrip(req)

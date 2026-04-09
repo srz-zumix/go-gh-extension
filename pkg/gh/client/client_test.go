@@ -188,8 +188,10 @@ func TestBasicAuthHTTPClient_PreservesClientSettings(t *testing.T) {
 
 	// Timeout must be carried over from the base client.
 	assert.Equal(t, wantTimeout, got.Timeout)
-	// Transport must be replaced with basicAuthTransport wrapping the original.
+	// Transport must be basicAuthTransport using the raw transport as base.
 	bat, ok := got.Transport.(*basicAuthTransport)
 	require.True(t, ok, "expected Transport to be *basicAuthTransport")
 	assert.Equal(t, http.DefaultTransport, bat.base)
+	// No token configured on the underlying transport, so token must be empty.
+	assert.Empty(t, bat.token)
 }

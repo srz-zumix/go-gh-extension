@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"os"
 	"reflect"
-	"strings"
 
 	"github.com/google/go-github/v84/github"
 	"github.com/google/go-querystring/query"
@@ -80,27 +79,21 @@ func (g *GitHubClient) GetClient() *github.Client {
 	return g.client
 }
 
-// basicAuthTransport wraps an existing RoundTripper and converts
-// "Authorization: token X" or "Authorization: Bearer X" headers to
-// Basic auth as required by several GitHub Package registries (Maven, NuGet, RubyGems).
+// basicAuthTransport injects Basic auth credentials directly into every request.
+// It uses a pre-configured token rather than converting an existing Authorization
+// header, because in this codebase the token header is injected by the inner
+// transport during its own RoundTrip — after this wrapper has already run.
+// base must be a raw network transport (no auth injection, e.g. rawHTTPTransport()).
 type basicAuthTransport struct {
-	base http.RoundTripper
+	base  http.RoundTripper
+	token string
 }
 
 func (t *basicAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	r2 := r.Clone(r.Context())
-	if auth := r2.Header.Get("Authorization"); auth != "" {
-		var token string
-		switch {
-		case strings.HasPrefix(auth, "token "):
-			token = strings.TrimPrefix(auth, "token ")
-		case strings.HasPrefix(auth, "Bearer "):
-			token = strings.TrimPrefix(auth, "Bearer ")
-		}
-		if token != "" {
-			creds := base64.StdEncoding.EncodeToString([]byte("x-token:" + token))
-			r2.Header.Set("Authorization", "Basic "+creds)
-		}
+	if t.token != "" {
+		creds := base64.StdEncoding.EncodeToString([]byte("x-token:" + t.token))
+		r2.Header.Set("Authorization", "Basic "+creds)
 	}
 	if t.base == nil {
 		return http.DefaultTransport.RoundTrip(r2)
@@ -108,13 +101,17 @@ func (t *basicAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) 
 	return t.base.RoundTrip(r2)
 }
 
-// basicAuthHTTPClient returns an http.Client that converts bearer/token auth to Basic auth.
-// It shallow-clones the underlying client so settings such as Timeout and CheckRedirect
-// are preserved, only replacing the Transport.
+// basicAuthHTTPClient returns an http.Client that injects Basic auth credentials.
+// It shallow-clones the underlying client so settings such as Timeout are preserved,
+// uses rawHTTPTransport() as the base to bypass token injection, and sets the
+// Basic auth header directly from the bearer token.
 func (g *GitHubClient) basicAuthHTTPClient() *http.Client {
 	base := g.client.Client()
 	clone := *base
-	clone.Transport = &basicAuthTransport{base: base.Transport}
+	clone.Transport = &basicAuthTransport{
+		base:  g.rawHTTPTransport(),
+		token: g.bearerToken(),
+	}
 	return &clone
 }
 
