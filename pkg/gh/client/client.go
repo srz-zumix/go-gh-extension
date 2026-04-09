@@ -109,10 +109,13 @@ func (t *basicAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) 
 }
 
 // basicAuthHTTPClient returns an http.Client that converts bearer/token auth to Basic auth.
+// It shallow-clones the underlying client so settings such as Timeout and CheckRedirect
+// are preserved, only replacing the Transport.
 func (g *GitHubClient) basicAuthHTTPClient() *http.Client {
-	return &http.Client{
-		Transport: &basicAuthTransport{base: g.client.Client().Transport},
-	}
+	base := g.client.Client()
+	clone := *base
+	clone.Transport = &basicAuthTransport{base: base.Transport}
+	return &clone
 }
 
 // GitAuthEnvs returns GIT_CONFIG_* environment variables that inject an HTTP

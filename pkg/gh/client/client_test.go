@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/google/go-github/v84/github"
 	"github.com/stretchr/testify/assert"
@@ -167,4 +168,28 @@ func TestHost(t *testing.T) {
 			assert.Equal(t, tt.expected, g.Host())
 		})
 	}
+}
+
+func TestBasicAuthHTTPClient_PreservesClientSettings(t *testing.T) {
+	const wantTimeout = 42 * time.Second
+
+	// Build a GitHubClient whose underlying http.Client has a custom Timeout.
+	gc := github.NewClient(&http.Client{
+		Transport: http.DefaultTransport,
+		Timeout:   wantTimeout,
+	})
+	parsed, err := url.Parse("https://api.github.com/")
+	require.NoError(t, err)
+	gc.BaseURL = parsed
+	g, err := NewClient(gc)
+	require.NoError(t, err)
+
+	got := g.basicAuthHTTPClient()
+
+	// Timeout must be carried over from the base client.
+	assert.Equal(t, wantTimeout, got.Timeout)
+	// Transport must be replaced with basicAuthTransport wrapping the original.
+	bat, ok := got.Transport.(*basicAuthTransport)
+	require.True(t, ok, "expected Transport to be *basicAuthTransport")
+	assert.Equal(t, http.DefaultTransport, bat.base)
 }
