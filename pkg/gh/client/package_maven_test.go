@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -190,23 +189,24 @@ func TestFetchMavenArtifactBody_DirectOK(t *testing.T) {
 }
 
 func TestFetchMavenArtifactBody_RedirectDropsAuthHeader(t *testing.T) {
-	// The CDN server (redirect target) must NOT receive the Authorization header.
-	// Use a local httptest.Server so the redirected http.DefaultClient request stays
-	// in-process and we can assert the header without making real external network calls.
+	// Use URL-based routing in the transport so both the registry (302) and CDN (200)
+	// requests go through the same mock — no real network or httptest.Server needed.
+	const cdnURL = "http://cdn.example.internal/artifact.jar"
 	var cdnAuthHeader string
-	cdnSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cdnAuthHeader = r.Header.Get("Authorization")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, "cdn-artifact-data")
-	}))
-	defer cdnSrv.Close()
-
-	// Registry transport: returns 302 pointing at the local CDN server.
 	tr := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Host == "maven.pkg.github.com" {
+			// Registry: return 302 redirect to a fake CDN URL.
+			return &http.Response{
+				StatusCode: http.StatusFound,
+				Header:     http.Header{"Location": []string{cdnURL}},
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil
+		}
+		// CDN: record the Authorization header and return the artifact.
+		cdnAuthHeader = r.Header.Get("Authorization")
 		return &http.Response{
-			StatusCode: http.StatusFound,
-			Header:     http.Header{"Location": []string{cdnSrv.URL + "/artifact.jar"}},
-			Body:       io.NopCloser(strings.NewReader("")),
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("cdn-artifact-data")),
 		}, nil
 	})
 	g := newTestClient(t, "https://api.github.com/", tr)

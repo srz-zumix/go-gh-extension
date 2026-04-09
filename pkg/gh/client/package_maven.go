@@ -115,12 +115,15 @@ func (g *GitHubClient) fetchMavenArtifactBody(ctx context.Context, url string) (
 		if err != nil {
 			return nil, err
 		}
-
-		// Reuse the configured client settings for the follow-up request instead of
-		// falling back to http.DefaultClient, which would drop timeout and transport
-		// configuration such as proxy and TLS settings.
-		redirectClient := *noRedirect
-		plainResp, err := redirectClient.Do(plainReq)
+		// For the CDN follow-up request, use a plain client (no auth transport so
+		// credentials are not forwarded to third-party storage) that follows redirects
+		// normally (CheckRedirect not overridden). Inherit settings such as Timeout
+		// from the base client.
+		cdnBase := g.client.Client()
+		cdnClone := *cdnBase
+		cdnClone.Transport = g.rawHTTPTransport()
+		cdnClone.CheckRedirect = nil
+		plainResp, err := cdnClone.Do(plainReq)
 		if err != nil {
 			return nil, err
 		}
