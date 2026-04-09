@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"strings"
 
 	"github.com/google/go-github/v84/github"
 	"github.com/google/go-querystring/query"
@@ -77,6 +78,41 @@ func (g *GitHubClient) rawHTTPTransport() http.RoundTripper {
 // GetClient returns the underlying GitHub client
 func (g *GitHubClient) GetClient() *github.Client {
 	return g.client
+}
+
+// basicAuthTransport wraps an existing RoundTripper and converts
+// "Authorization: token X" or "Authorization: Bearer X" headers to
+// Basic auth as required by several GitHub Package registries (Maven, NuGet, RubyGems).
+type basicAuthTransport struct {
+	base http.RoundTripper
+}
+
+func (t *basicAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r2 := r.Clone(r.Context())
+	if auth := r2.Header.Get("Authorization"); auth != "" {
+		var token string
+		switch {
+		case strings.HasPrefix(auth, "token "):
+			token = strings.TrimPrefix(auth, "token ")
+		case strings.HasPrefix(auth, "Bearer "):
+			token = strings.TrimPrefix(auth, "Bearer ")
+		}
+		if token != "" {
+			creds := base64.StdEncoding.EncodeToString([]byte("x-token:" + token))
+			r2.Header.Set("Authorization", "Basic "+creds)
+		}
+	}
+	if t.base == nil {
+		return http.DefaultTransport.RoundTrip(r2)
+	}
+	return t.base.RoundTrip(r2)
+}
+
+// basicAuthHTTPClient returns an http.Client that converts bearer/token auth to Basic auth.
+func (g *GitHubClient) basicAuthHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &basicAuthTransport{base: g.client.Client().Transport},
+	}
 }
 
 // GitAuthEnvs returns GIT_CONFIG_* environment variables that inject an HTTP

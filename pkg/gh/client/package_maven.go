@@ -6,7 +6,6 @@ package client
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -63,30 +62,6 @@ func MavenArtifactURL(host, owner, repo, groupID, artifactID, version, classifie
 	return fmt.Sprintf("%s/%s/%s/%s/%s", base, groupPath, artifactID, version, filename)
 }
 
-// mavenBasicAuthTransport converts "Authorization: token X" or "Authorization: Bearer X"
-// to Basic auth as required by the GitHub Maven registry.
-type mavenBasicAuthTransport struct {
-	base http.RoundTripper
-}
-
-func (t *mavenBasicAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	r2 := r.Clone(r.Context())
-	if auth := r2.Header.Get("Authorization"); auth != "" {
-		var token string
-		switch {
-		case strings.HasPrefix(auth, "token "):
-			token = strings.TrimPrefix(auth, "token ")
-		case strings.HasPrefix(auth, "Bearer "):
-			token = strings.TrimPrefix(auth, "Bearer ")
-		}
-		if token != "" {
-			creds := base64.StdEncoding.EncodeToString([]byte("x-token:" + token))
-			r2.Header.Set("Authorization", "Basic "+creds)
-		}
-	}
-	return t.base.RoundTrip(r2)
-}
-
 // fetchMavenArtifactBody fetches an artifact file body, handling redirects without
 // forwarding auth headers to third-party storage (e.g. Azure Blob Storage).
 func (g *GitHubClient) fetchMavenArtifactBody(ctx context.Context, url string) (io.ReadCloser, error) {
@@ -96,7 +71,7 @@ func (g *GitHubClient) fetchMavenArtifactBody(ctx context.Context, url string) (
 	}
 
 	noRedirect := &http.Client{
-		Transport: &mavenBasicAuthTransport{base: g.client.Client().Transport},
+		Transport: &basicAuthTransport{base: g.client.Client().Transport},
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -216,9 +191,7 @@ func (g *GitHubClient) PushMavenArtifact(ctx context.Context, owner, repo, packa
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
 
-	httpClient := &http.Client{
-		Transport: &mavenBasicAuthTransport{base: g.client.Client().Transport},
-	}
+	httpClient := g.basicAuthHTTPClient()
 
 	resp, err := httpClient.Do(req)
 	if err != nil {

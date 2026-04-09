@@ -7,7 +7,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -365,36 +364,11 @@ func nugetIsLoginRedirect(rawURL string) bool {
 	return strings.HasPrefix(u.Path, "/login")
 }
 
-// nugetBasicAuthTransport wraps an existing RoundTripper and converts
-// "Authorization: token X" or "Authorization: Bearer X" headers to
-// Basic auth as required by the GitHub NuGet registry.
-type nugetBasicAuthTransport struct {
-	base http.RoundTripper
-}
-
-func (t *nugetBasicAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	r2 := r.Clone(r.Context())
-	if auth := r2.Header.Get("Authorization"); auth != "" {
-		var token string
-		switch {
-		case strings.HasPrefix(auth, "token "):
-			token = strings.TrimPrefix(auth, "token ")
-		case strings.HasPrefix(auth, "Bearer "):
-			token = strings.TrimPrefix(auth, "Bearer ")
-		}
-		if token != "" {
-			creds := base64.StdEncoding.EncodeToString([]byte("x-token:" + token))
-			r2.Header.Set("Authorization", "Basic "+creds)
-		}
-	}
-	return t.base.RoundTrip(r2)
-}
-
 // PushNuGetPackage pushes a .nupkg file to the GitHub NuGet registry, streaming
 // the contents of r via a multipart request without buffering the full payload in memory.
 // GitHub NuGet registry requires Basic auth (username + PAT); the go-github OAuth
 // transport sends "Authorization: token <TOKEN>" which is rejected by nuget.pkg.github.com.
-// nugetBasicAuthTransport converts the token auth to Basic auth transparently.
+// basicAuthTransport converts the token auth to Basic auth transparently.
 func (g *GitHubClient) PushNuGetPackage(ctx context.Context, owner string, r io.Reader) (retErr error) {
 	url := NuGetPushURL(g.Host(), owner)
 
@@ -430,9 +404,7 @@ func (g *GitHubClient) PushNuGetPackage(ctx context.Context, owner string, r io.
 
 	// Wrap the existing transport to convert bearer/token auth to Basic auth
 	// as required by the GitHub NuGet registry.
-	httpClient := &http.Client{
-		Transport: &nugetBasicAuthTransport{base: g.client.Client().Transport},
-	}
+	httpClient := g.basicAuthHTTPClient()
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
