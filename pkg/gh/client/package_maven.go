@@ -107,7 +107,7 @@ func (g *GitHubClient) fetchMavenArtifactBody(ctx context.Context, url string) (
 		if loc == "" {
 			return nil, fmt.Errorf("redirect response missing Location header")
 		}
-		redirectURL, err := resp.Request.URL.Parse(loc)
+		redirectURL, err := req.URL.Parse(loc)
 		if err != nil {
 			return nil, err
 		}
