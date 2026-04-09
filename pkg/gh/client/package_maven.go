@@ -85,11 +85,9 @@ func (g *GitHubClient) fetchMavenArtifactBody(ctx context.Context, url string) (
 		return nil, err
 	}
 
-	noRedirect := &http.Client{
-		Transport: &basicAuthTransport{base: g.client.Client().Transport},
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+	noRedirect := g.basicAuthHTTPClient()
+	noRedirect.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 
 	resp, err := noRedirect.Do(req)

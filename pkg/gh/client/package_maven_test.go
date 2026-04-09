@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -182,47 +183,42 @@ func TestFetchMavenArtifactBody_DirectOK(t *testing.T) {
 	g := newTestClient(t, "https://api.github.com/", tr)
 	body, err := g.fetchMavenArtifactBody(t.Context(), "https://maven.pkg.github.com/owner/repo/artifact.jar")
 	require.NoError(t, err)
-	defer body.Close()
+	defer func() { require.NoError(t, body.Close()) }()
 	data, err := io.ReadAll(body)
 	require.NoError(t, err)
 	assert.Equal(t, "artifact-data", string(data))
 }
 
 func TestFetchMavenArtifactBody_RedirectDropsAuthHeader(t *testing.T) {
-	// The first response is a 302 with a Location pointing to a CDN URL.
-	// The follow-up request to the CDN must NOT carry the Authorization header.
-	var cdnRequestAuth string
-	reqCount := 0
+	// The CDN server (redirect target) must NOT receive the Authorization header.
+	// Use a local httptest.Server so the redirected http.DefaultClient request stays
+	// in-process and we can assert the header without making real external network calls.
+	var cdnAuthHeader string
+	cdnSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cdnAuthHeader = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "cdn-artifact-data")
+	}))
+	defer cdnSrv.Close()
+
+	// Registry transport: returns 302 pointing at the local CDN server.
 	tr := roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		reqCount++
-		if reqCount == 1 {
-			// Registry response: redirect to CDN
-			return &http.Response{
-				StatusCode: http.StatusFound,
-				Header:     http.Header{"Location": []string{"https://cdn.example.com/artifact.jar"}},
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil
-		}
-		// CDN response (plain http.DefaultClient is used, but our transport still intercepts here
-		// because fetchMavenArtifactBody uses http.DefaultClient for the redirect — we can't
-		// intercept that in a unit test, so we verify via the noRedirect client instead).
-		cdnRequestAuth = r.Header.Get("Authorization")
 		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader("cdn-data")),
+			StatusCode: http.StatusFound,
+			Header:     http.Header{"Location": []string{cdnSrv.URL + "/artifact.jar"}},
+			Body:       io.NopCloser(strings.NewReader("")),
 		}, nil
 	})
 	g := newTestClient(t, "https://api.github.com/", tr)
-	// The first request goes through our transport (noRedirect client wraps g.client.Client().Transport).
-	// After the 302, fetchMavenArtifactBody uses http.DefaultClient (no auth header) for the CDN.
-	// We can verify the first leg does NOT follow the redirect automatically by checking that
-	// the function returns an error (CDN URL is not reachable in a unit test environment) rather
-	// than hanging indefinitely or panicking.
-	_, err := g.fetchMavenArtifactBody(t.Context(), "https://maven.pkg.github.com/owner/repo/artifact.jar")
-	// The CDN request will fail (not a real server), but that confirms redirect was attempted.
-	// The key invariant is that the first request did NOT forward auth.
-	_ = err // may be a network error or nil depending on test environment
-	_ = cdnRequestAuth
+
+	body, err := g.fetchMavenArtifactBody(t.Context(), "https://maven.pkg.github.com/owner/repo/artifact.jar")
+	require.NoError(t, err)
+	defer func() { require.NoError(t, body.Close()) }()
+	data, err := io.ReadAll(body)
+	require.NoError(t, err)
+	assert.Equal(t, "cdn-artifact-data", string(data))
+	// Authorization header must NOT be forwarded to the CDN (third-party storage).
+	assert.Empty(t, cdnAuthHeader, "Authorization header must not be forwarded to CDN after redirect")
 }
 
 func TestFetchMavenArtifactBody_Non200ReturnsDownloadError(t *testing.T) {
