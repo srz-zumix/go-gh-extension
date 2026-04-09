@@ -698,9 +698,27 @@ func FilterWorkflowDependenciesByNodeVersion(deps []parser.WorkflowDependency, m
 
 	var filtered []parser.WorkflowDependency
 	for _, dep := range deps {
-		if oldNodeSources[dep.Source] || depsUsingOldNode[dep.Source] {
-			filtered = append(filtered, dep)
+		if !oldNodeSources[dep.Source] && !depsUsingOldNode[dep.Source] {
+			continue
 		}
+		// Within each included dep, keep only actions that are either:
+		// - a direct old Node action, or
+		// - a reference to a marked dep source (composite/reusable workflow that transitively uses an old Node action).
+		filteredDep := dep
+		var filteredActions []parser.ActionReference
+		for _, action := range dep.Actions {
+			v := parseNodeVersion(action.Using)
+			if v > 0 && v < minNodeVersion {
+				filteredActions = append(filteredActions, action)
+				continue
+			}
+			sourceKey := parser.ResolveActionDepSource(action, hasSource)
+			if sourceKey != "" && markedSources[sourceKey] {
+				filteredActions = append(filteredActions, action)
+			}
+		}
+		filteredDep.Actions = filteredActions
+		filtered = append(filtered, filteredDep)
 	}
 	return filtered
 }

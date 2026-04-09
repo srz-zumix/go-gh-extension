@@ -735,3 +735,144 @@ func TestExpandFilteredDependencies_NoExpansionNeeded(t *testing.T) {
 		t.Fatalf("expected 1 dep (no expansion needed), got %d", len(expanded))
 	}
 }
+
+// TestFilterWorkflowDependenciesByNodeVersion_MixedActionsInWorkflow verifies that
+// when a workflow uses both an old Node action and a new Node action, only the old
+// Node action is kept in its Actions list.
+func TestFilterWorkflowDependenciesByNodeVersion_MixedActionsInWorkflow(t *testing.T) {
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+				{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5", Using: "node20"},
+			},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 20)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 dep, got %d", len(got))
+	}
+	if len(got[0].Actions) != 1 {
+		t.Fatalf("expected 1 action in ci.yml (old-action only), got %d", len(got[0].Actions))
+	}
+	if got[0].Actions[0].Repo != "old-action" {
+		t.Errorf("expected old-action to remain, got %s", got[0].Actions[0].Repo)
+	}
+}
+
+// TestFilterWorkflowDependenciesByNodeVersion_TransitivelyIncludedActionsFiltered verifies
+// that a workflow included only because it references a composite action (which uses an old
+// Node action) has its unrelated actions pruned from its Actions list.
+func TestFilterWorkflowDependenciesByNodeVersion_TransitivelyIncludedActionsFiltered(t *testing.T) {
+	// w.yml uses checkout (node20) + composite (which uses node16). Only composite should remain.
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/w.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+				{Raw: "org/composite@v1", Owner: "org", Repo: "composite", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: "org/composite:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+			},
+		},
+		{
+			Source:  "org/old-action:action.yml",
+			Actions: []parser.ActionReference{},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 20)
+	if len(got) != 3 {
+		t.Fatalf("expected 3 deps, got %d", len(got))
+	}
+	for _, dep := range got {
+		switch dep.Source {
+		case ".github/workflows/w.yml":
+			if len(dep.Actions) != 1 {
+				t.Errorf("w.yml: expected 1 action (composite only), got %d: %v", len(dep.Actions), dep.Actions)
+			} else if dep.Actions[0].Repo != "composite" {
+				t.Errorf("w.yml: expected composite action to remain, got %s", dep.Actions[0].Repo)
+			}
+		case "org/composite:action.yml":
+			if len(dep.Actions) != 1 {
+				t.Errorf("composite:action.yml: expected 1 action (old-action), got %d", len(dep.Actions))
+			}
+		}
+	}
+}
+
+// TestFilterWorkflowDependenciesByNodeVersion_CompositeWithMixedDepsFiltered verifies
+// that a composite action that references both an old Node action and a new Node action
+// retains only the old Node action in its Actions list.
+func TestFilterWorkflowDependenciesByNodeVersion_CompositeWithMixedDepsFiltered(t *testing.T) {
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/w.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/composite@v1", Owner: "org", Repo: "composite", Ref: "v1", Using: "composite"},
+			},
+		},
+		{
+			Source: "org/composite:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+			},
+		},
+		{
+			Source:  "org/old-action:action.yml",
+			Actions: []parser.ActionReference{},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 20)
+	if len(got) != 3 {
+		t.Fatalf("expected 3 deps, got %d", len(got))
+	}
+	for _, dep := range got {
+		if dep.Source == "org/composite:action.yml" {
+			if len(dep.Actions) != 1 {
+				t.Errorf("composite:action.yml: expected 1 action (old-action only), got %d: %v", len(dep.Actions), dep.Actions)
+			} else if dep.Actions[0].Repo != "old-action" {
+				t.Errorf("composite:action.yml: expected old-action to remain, got %s", dep.Actions[0].Repo)
+			}
+		}
+	}
+}
+
+// TestFilterWorkflowDependenciesByNodeVersion_OldActionActionsFiltered verifies that an
+// old Node action dep's own Actions (e.g. actions it calls internally) are filtered to
+// exclude refs that are not themselves old or transitively marked.
+func TestFilterWorkflowDependenciesByNodeVersion_OldActionActionsFiltered(t *testing.T) {
+	// ci.yml → old-action (node16) → checkout (node20)
+	// old-action's checkout reference should be pruned from its Actions.
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "org/old-action@v1", Owner: "org", Repo: "old-action", Ref: "v1", Using: "node16"},
+			},
+		},
+		{
+			Source: "org/old-action:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+			},
+		},
+	}
+	got := FilterWorkflowDependenciesByNodeVersion(deps, 20)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 deps, got %d", len(got))
+	}
+	for _, dep := range got {
+		if dep.Source == "org/old-action:action.yml" {
+			if len(dep.Actions) != 0 {
+				t.Errorf("old-action:action.yml: expected 0 actions after filtering checkout (node20), got %d: %v", len(dep.Actions), dep.Actions)
+			}
+		}
+	}
+}
