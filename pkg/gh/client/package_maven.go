@@ -41,7 +41,7 @@ func ParseMavenPackageName(packageName string) (groupID, artifactID string, err 
 		groupID = packageName[:idx]
 		artifactID = packageName[idx+1:]
 	} else {
-		return "", "", fmt.Errorf("invalid Maven package name %q: expected format <groupId>:<artifactId>", packageName)
+		return "", "", fmt.Errorf("invalid Maven package name %q: expected format <groupId>:<artifactId> or <groupId>.<artifactId>", packageName)
 	}
 	if groupID == "" || artifactID == "" {
 		return "", "", fmt.Errorf("invalid Maven package name %q: groupId and artifactId must not be empty", packageName)
