@@ -115,7 +115,12 @@ func (g *GitHubClient) fetchMavenArtifactBody(ctx context.Context, url string) (
 		if err != nil {
 			return nil, err
 		}
-		plainResp, err := http.DefaultClient.Do(plainReq)
+
+		// Reuse the configured client settings for the follow-up request instead of
+		// falling back to http.DefaultClient, which would drop timeout and transport
+		// configuration such as proxy and TLS settings.
+		redirectClient := *noRedirect
+		plainResp, err := redirectClient.Do(plainReq)
 		if err != nil {
 			return nil, err
 		}
