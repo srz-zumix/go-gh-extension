@@ -430,7 +430,9 @@ func (g *GitHubClient) SetTeamCodeReviewSettings(ctx context.Context, teamID any
 
 	input.Enabled = githubv4.Boolean(settings.Enabled)
 	input.Algorithm = github.Ptr(githubv4.String(settings.Algorithm))
-	input.TeamMemberCount = github.Ptr(githubv4.Int(settings.TeamMemberCount))
+	if settings.TeamMemberCount > 0 {
+		input.TeamMemberCount = github.Ptr(githubv4.Int(settings.TeamMemberCount))
+	}
 	input.NotifyTeam = github.Ptr(githubv4.Boolean(settings.NotifyTeam))
 	if settings.ExcludedTeamMemberIDs != nil {
 		input.ExcludedTeamMemberIDs = make([]githubv4.ID, len(settings.ExcludedTeamMemberIDs))

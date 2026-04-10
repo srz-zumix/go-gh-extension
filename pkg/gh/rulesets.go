@@ -591,6 +591,14 @@ func importRulesetRequiredStatusChecks(ctx context.Context, g *GitHubClient, rep
 		return nil
 	}
 
+	// GitHub API rejects required_status_checks with an empty checks list.
+	// Remove the rule and warn when no checks are configured.
+	if len(ruleset.Rules.RequiredStatusChecks.RequiredStatusChecks) == 0 {
+		logger.Warn("required_status_checks rule has no checks configured; removing rule to avoid API error", "ruleset", ruleset.Name)
+		ruleset.Rules.RequiredStatusChecks = nil
+		return nil
+	}
+
 	foundIntegrations := make(map[int64]*int64)
 
 	// Get the target repository for resolving check runs in the destination.
