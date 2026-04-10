@@ -369,14 +369,10 @@ func (g *GitHubClient) PushNPMPackage(ctx context.Context, owner, packageName st
 	sum := sha1.Sum(tarballData) // nolint:gosec
 	shasum := fmt.Sprintf("%x", sum)
 
-	// Build the tarball filename used as the _attachments key.
-	// For scoped packages (@owner/name), npm tarballs use only the package name
-	// component as the filename, e.g. name-version.tgz.
-	tarballBaseName := destName
-	if slash := strings.LastIndex(destName, "/"); slash >= 0 {
-		tarballBaseName = destName[slash+1:]
-	}
-	tarballFilename := fmt.Sprintf("%s-%s.tgz", tarballBaseName, version)
+	// Build the tarball filename used as the _attachments key and dist.tarball URL.
+	// The GitHub npm registry requires the full scoped name in the tarball filename,
+	// e.g. @scope/name-version.tgz (matching npm CLI's libnpmpublish behavior).
+	tarballFilename := fmt.Sprintf("%s-%s.tgz", destName, version)
 
 	// Populate version entry with all package.json fields plus required dist metadata.
 	// Override the name field to use the destination-scoped name so it matches the publish URL.
