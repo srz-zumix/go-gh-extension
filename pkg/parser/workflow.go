@@ -18,6 +18,7 @@ type ActionReference struct {
 	IsLocal bool   `json:"isLocal" yaml:"isLocal"`                 // true for "./local-action" references
 	Using   string `json:"using,omitempty" yaml:"using,omitempty"` // runs.using value of the referenced action, e.g. "node20", "composite"
 	Host    string `json:"host,omitempty" yaml:"host,omitempty"`   // GitHub host, e.g. "github.com" or GHES hostname
+	JobID   string `json:"jobId,omitempty" yaml:"jobId,omitempty"` // Job ID in the workflow file, e.g. "build", "test"
 }
 
 // Name returns a human-readable name for the action reference
@@ -338,6 +339,7 @@ func ParseWorkflowYAML(content []byte) (string, []ActionReference, error) {
 	var refs []ActionReference
 	// Iterate jobs in document order (mapping key/value pairs)
 	for i := 0; i+1 < len(jobsNode.Content); i += 2 {
+		jobID := jobsNode.Content[i].Value
 		jobNode := jobsNode.Content[i+1]
 		if jobNode.Kind != yaml.MappingNode {
 			continue
@@ -353,6 +355,7 @@ func ParseWorkflowYAML(content []byte) (string, []ActionReference, error) {
 		if job.Uses != "" {
 			ref := ParseActionReference(job.Uses)
 			if ref.Raw != "" {
+				ref.JobID = jobID
 				refs = append(refs, ref)
 			}
 		}
@@ -382,6 +385,7 @@ func ParseWorkflowYAML(content []byte) (string, []ActionReference, error) {
 				if ref.IsLocal && !ref.IsReusableWorkflow() {
 					resolveLocalActionByCheckout(&ref, checkouts)
 				}
+				ref.JobID = jobID
 				refs = append(refs, ref)
 			}
 		}

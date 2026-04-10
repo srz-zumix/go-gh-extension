@@ -18,7 +18,7 @@ const (
 )
 
 // WorkflowDependencyFields lists all available field names for ActionReference table rendering.
-var WorkflowDependencyFields = []string{"Name", "Version", "Owner", "Repo", "Path", "Raw", "Using", "Node_Version"}
+var WorkflowDependencyFields = []string{"Name", "Version", "Owner", "Repo", "Path", "Raw", "Using", "Node_Version", "Job"}
 
 // WorkflowDependencyFieldGetter defines a function to get a field value from parser.ActionReference
 type WorkflowDependencyFieldGetter func(ref *parser.ActionReference) string
@@ -55,6 +55,9 @@ func NewWorkflowDependencyFieldGetters() *WorkflowDependencyFieldGetters {
 			},
 			"NODE_VERSION": func(ref *parser.ActionReference) string {
 				return extractNodeVersion(ref.Using)
+			},
+			"JOB": func(ref *parser.ActionReference) string {
+				return ref.JobID
 			},
 		},
 	}
@@ -178,11 +181,10 @@ func actionTreeLabel(action parser.ActionReference) string {
 	return label
 }
 
-// buildWorkflowDepGtreeNode recursively adds action reference children to a gtree node.
-// visited prevents infinite recursion in cyclic dependency graphs.
-func buildWorkflowDepGtreeNode(node *gtree.Node, dep parser.WorkflowDependency, depBySource map[string]*parser.WorkflowDependency, hasSource func(string) bool, visited map[string]bool) {
+// addActionsToGtreeNode adds action references as children of node, recursing into known dep sources.
+func addActionsToGtreeNode(node *gtree.Node, actions []parser.ActionReference, depBySource map[string]*parser.WorkflowDependency, hasSource func(string) bool, visited map[string]bool) {
 	seen := make(map[string]bool)
-	for _, action := range dep.Actions {
+	for _, action := range actions {
 		label := actionTreeLabel(action)
 		if seen[label] {
 			continue
@@ -197,6 +199,40 @@ func buildWorkflowDepGtreeNode(node *gtree.Node, dep parser.WorkflowDependency, 
 				buildWorkflowDepGtreeNode(child, *childDep, depBySource, hasSource, visited)
 			}
 		}
+	}
+}
+
+// buildWorkflowDepGtreeNode recursively adds action reference children to a gtree node.
+// If the dep's actions have JobID set, actions are grouped under job sub-nodes.
+// visited prevents infinite recursion in cyclic dependency graphs.
+func buildWorkflowDepGtreeNode(node *gtree.Node, dep parser.WorkflowDependency, depBySource map[string]*parser.WorkflowDependency, hasSource func(string) bool, visited map[string]bool) {
+	// Check if any action has a JobID to determine grouping mode
+	hasJobIDs := false
+	for _, action := range dep.Actions {
+		if action.JobID != "" {
+			hasJobIDs = true
+			break
+		}
+	}
+
+	if !hasJobIDs {
+		addActionsToGtreeNode(node, dep.Actions, depBySource, hasSource, visited)
+		return
+	}
+
+	// Group actions by JobID preserving document order
+	var jobOrder []string
+	jobActions := make(map[string][]parser.ActionReference)
+	for _, action := range dep.Actions {
+		jid := action.JobID
+		if _, exists := jobActions[jid]; !exists {
+			jobOrder = append(jobOrder, jid)
+		}
+		jobActions[jid] = append(jobActions[jid], action)
+	}
+	for _, jid := range jobOrder {
+		jobNode := node.Add(jid)
+		addActionsToGtreeNode(jobNode, jobActions[jid], depBySource, hasSource, visited)
 	}
 }
 
@@ -250,7 +286,8 @@ func (r *Renderer) RenderTreeWorkflowDependencies(deps []parser.WorkflowDependen
 	return firstErr
 }
 
-// RenderDotWorkflowDependencies renders workflow dependencies as a Graphviz DOT digraph
+// RenderDotWorkflowDependencies renders workflow dependencies as a Graphviz DOT digraph.
+// Node attributes include a tooltip with the runs.using value when available.
 func (r *Renderer) RenderDotWorkflowDependencies(deps []parser.WorkflowDependency) error {
 	if r.exporter != nil {
 		return r.RenderExportedData(deps)
@@ -267,6 +304,9 @@ func (r *Renderer) RenderDotWorkflowDependencies(deps []parser.WorkflowDependenc
 		return depSources[key]
 	}
 
+	// Collect using values per node label to emit node attribute declarations
+	nodeUsing := make(map[string]string)
+	var edgeLines []string
 	seen := make(map[string]bool)
 	for _, dep := range deps {
 		for _, action := range dep.Actions {
@@ -276,16 +316,32 @@ func (r *Renderer) RenderDotWorkflowDependencies(deps []parser.WorkflowDependenc
 			} else {
 				targetLabel = action.Name()
 			}
+			if action.Using != "" {
+				if _, exists := nodeUsing[targetLabel]; !exists {
+					nodeUsing[targetLabel] = action.Using
+				}
+			}
 			edgeKey := dep.Source + "->" + targetLabel
 			if seen[edgeKey] {
 				continue
 			}
 			seen[edgeKey] = true
-			r.writeLine(fmt.Sprintf("    %s -> %s",
+			edgeLines = append(edgeLines, fmt.Sprintf("    %s -> %s",
 				dotQuote(dep.Source),
 				dotQuote(targetLabel),
 			))
 		}
+	}
+
+	// Emit node attribute declarations before edges
+	for label, using := range nodeUsing {
+		r.writeLine(fmt.Sprintf("    %s [tooltip=%s]",
+			dotQuote(label),
+			dotQuote(using),
+		))
+	}
+	for _, line := range edgeLines {
+		r.writeLine(line)
 	}
 	r.writeLine("}")
 	return nil
@@ -327,6 +383,7 @@ func (r *Renderer) RenderDrawioWorkflowDependencies(deps []parser.WorkflowDepend
 
 	nodeURLs := make(map[string]string)
 	nodeColors := make(map[string]string)
+	nodeTooltips := make(map[string]string)
 	var edges [][2]string
 	seen := make(map[string]bool)
 	for _, dep := range deps {
@@ -356,6 +413,13 @@ func (r *Renderer) RenderDrawioWorkflowDependencies(deps []parser.WorkflowDepend
 				}
 			}
 
+			// Assign tooltip from using value
+			if action.Using != "" {
+				if _, ok := nodeTooltips[targetLabel]; !ok {
+					nodeTooltips[targetLabel] = action.Using
+				}
+			}
+
 			// Build URL for the target node
 			if _, ok := nodeURLs[targetLabel]; !ok {
 				// If the target is a known dep source, use its repository; otherwise use the action's host
@@ -373,7 +437,7 @@ func (r *Renderer) RenderDrawioWorkflowDependencies(deps []parser.WorkflowDepend
 			}
 		}
 	}
-	return r.writeDrawioGraph(edges, nodeURLs, nodeColors)
+	return r.writeDrawioGraph(edges, nodeURLs, nodeColors, nodeTooltips)
 }
 
 // actionNodeColor returns a draw.io border color hex string based on the action reference type.
@@ -462,7 +526,8 @@ func (r *Renderer) RenderMarkdownWorkflowDependencies(deps []parser.WorkflowDepe
 	return err
 }
 
-// RenderMermaidWorkflowDependencies renders workflow dependencies as a Mermaid flowchart
+// RenderMermaidWorkflowDependencies renders workflow dependencies as a Mermaid flowchart.
+// When a node has a runs.using value, it is shown as a second line in the node label.
 func (r *Renderer) RenderMermaidWorkflowDependencies(deps []parser.WorkflowDependency) error {
 	if r.exporter != nil {
 		return r.RenderExportedData(deps)
@@ -480,32 +545,62 @@ func (r *Renderer) RenderMermaidWorkflowDependencies(deps []parser.WorkflowDepen
 		return depSources[key]
 	}
 
+	// Collect node labels and using values to emit node definitions before edges
+	nodeLabel := make(map[string]string) // id -> display label
+	nodeUsing := make(map[string]string) // id -> using value
+	type edge struct{ src, dst string }
+	var edges []edge
 	seen := make(map[string]bool)
+
 	for _, dep := range deps {
 		sourceID := mermaidNodeID(dep.Source)
+		if _, exists := nodeLabel[sourceID]; !exists {
+			nodeLabel[sourceID] = dep.Source
+		}
 		for _, action := range dep.Actions {
-			// Resolve action reference to its dep Source for proper graph connectivity.
-			// For example, "./my-action" resolves to "my-action/action.yml", and
-			// "owner/repo@v1" resolves to "owner/repo:action.yml".
-			var targetID, targetLabel string
+			var targetID, targetName string
 			if resolved := parser.ResolveActionDepSource(action, hasSource); resolved != "" {
 				targetID = mermaidNodeID(resolved)
-				targetLabel = resolved
+				targetName = resolved
 			} else {
-				targetName := action.Name()
+				targetName = action.Name()
 				targetID = mermaidNodeID(targetName)
-				targetLabel = targetName
+			}
+			if _, exists := nodeLabel[targetID]; !exists {
+				nodeLabel[targetID] = targetName
+			}
+			if action.Using != "" {
+				if _, exists := nodeUsing[targetID]; !exists {
+					nodeUsing[targetID] = action.Using
+				}
 			}
 			edgeKey := sourceID + "-->" + targetID
 			if seen[edgeKey] {
 				continue
 			}
 			seen[edgeKey] = true
-			r.writeLine(fmt.Sprintf("    %s[\"%s\"] --> %s[\"%s\"]",
-				sourceID, dep.Source,
-				targetID, targetLabel,
-			))
+			edges = append(edges, edge{sourceID, targetID})
 		}
+	}
+
+	// Emit node definitions with using as a second label line when available
+	emittedNodes := make(map[string]bool)
+	emitNode := func(id string) {
+		if emittedNodes[id] {
+			return
+		}
+		emittedNodes[id] = true
+		label := nodeLabel[id]
+		if u := nodeUsing[id]; u != "" {
+			label += "<br/>" + u
+		}
+		r.writeLine(fmt.Sprintf("    %s[\"%s\"]", id, label))
+	}
+
+	for _, e := range edges {
+		emitNode(e.src)
+		emitNode(e.dst)
+		r.writeLine(fmt.Sprintf("    %s --> %s", e.src, e.dst))
 	}
 	return nil
 }

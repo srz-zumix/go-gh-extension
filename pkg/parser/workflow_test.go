@@ -115,18 +115,23 @@ jobs:
 	assert.Equal(t, "actions", refs[0].Owner)
 	assert.Equal(t, "checkout", refs[0].Repo)
 	assert.Equal(t, "v4", refs[0].Ref)
+	assert.Equal(t, "build", refs[0].JobID)
 
 	assert.Equal(t, "actions/setup-go@v5", refs[1].Raw)
+	assert.Equal(t, "build", refs[1].JobID)
 
 	assert.Equal(t, "actions/checkout@v4", refs[2].Raw)
+	assert.Equal(t, "lint", refs[2].JobID)
 
 	assert.Equal(t, "golangci/golangci-lint-action@v6", refs[3].Raw)
+	assert.Equal(t, "lint", refs[3].JobID)
 
 	assert.Equal(t, "octo-org/this-repo/.github/workflows/workflow-1.yml@main", refs[4].Raw)
 	assert.Equal(t, "octo-org", refs[4].Owner)
 	assert.Equal(t, "this-repo", refs[4].Repo)
 	assert.Equal(t, ".github/workflows/workflow-1.yml", refs[4].Path)
 	assert.Equal(t, "main", refs[4].Ref)
+	assert.Equal(t, "reusable", refs[4].JobID)
 }
 
 func TestParseActionYAML(t *testing.T) {
