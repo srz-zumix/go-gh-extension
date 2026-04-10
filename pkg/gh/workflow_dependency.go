@@ -733,10 +733,14 @@ func FilterWorkflowDependenciesByNodeVersion(deps []parser.WorkflowDependency, m
 // matchesUsingFilter returns true if the using value matches any of the filter strings.
 // Matching is case-insensitive and supports prefix matching so that e.g. "node" matches
 // "node16", "node20" etc.
+// Empty or whitespace-only filters are ignored to avoid matching every using value.
 func matchesUsingFilter(using string, filters []string) bool {
-	lower := strings.ToLower(using)
+	lower := strings.ToLower(strings.TrimSpace(using))
 	for _, f := range filters {
-		fl := strings.ToLower(f)
+		fl := strings.ToLower(strings.TrimSpace(f))
+		if fl == "" {
+			continue
+		}
 		if lower == fl || strings.HasPrefix(lower, fl) {
 			return true
 		}
