@@ -262,7 +262,7 @@ func GetCommentNodeID(comment any) (string, error) {
 func HideComment(ctx context.Context, g *GitHubClient, comment any, classifier string) error {
 	nodeID, err := GetCommentNodeID(comment)
 	if err != nil {
-		return fmt.Errorf("failed to get comment node ID from '%s': %w", comment, err)
+		return fmt.Errorf("failed to get comment node ID from '%v': %w", comment, err)
 	}
 	return g.MinimizeComment(ctx, nodeID, classifier)
 }
