@@ -79,6 +79,42 @@ func (g *GitHubClient) GetClient() *github.Client {
 	return g.client
 }
 
+// basicAuthTransport injects Basic auth credentials directly into every request.
+// It uses a pre-configured token rather than converting an existing Authorization
+// header, because in this codebase the token header is injected by the inner
+// transport during its own RoundTrip — after this wrapper has already run.
+// base must be a raw network transport (no auth injection, e.g. rawHTTPTransport()).
+type basicAuthTransport struct {
+	base  http.RoundTripper
+	token string
+}
+
+func (t *basicAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r2 := r.Clone(r.Context())
+	if t.token != "" {
+		creds := base64.StdEncoding.EncodeToString([]byte("x-token:" + t.token))
+		r2.Header.Set("Authorization", "Basic "+creds)
+	}
+	if t.base == nil {
+		return http.DefaultTransport.RoundTrip(r2)
+	}
+	return t.base.RoundTrip(r2)
+}
+
+// basicAuthHTTPClient returns an http.Client that injects Basic auth credentials.
+// It shallow-clones the underlying client so settings such as Timeout are preserved,
+// uses rawHTTPTransport() as the base to bypass token injection, and sets the
+// Basic auth header directly from the bearer token.
+func (g *GitHubClient) basicAuthHTTPClient() *http.Client {
+	base := g.client.Client()
+	clone := *base
+	clone.Transport = &basicAuthTransport{
+		base:  g.rawHTTPTransport(),
+		token: g.bearerToken(),
+	}
+	return &clone
+}
+
 // GitAuthEnvs returns GIT_CONFIG_* environment variables that inject an HTTP
 // Authorization header scoped to the host of rawURL. Passing these to a git
 // command's Env avoids embedding the token in the URL and prevents it from
