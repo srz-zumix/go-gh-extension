@@ -244,6 +244,26 @@ func GetCommentID(comment any) (int64, error) {
 	return 0, fmt.Errorf("failed to get comment ID from '%v'", comment)
 }
 
+// HideClassifier values correspond to GitHub's MinimizeComment classifier enum.
+const (
+	HideClassifierAbuse     = "ABUSE"
+	HideClassifierDuplicate = "DUPLICATE"
+	HideClassifierOffTopic  = "OFF_TOPIC"
+	HideClassifierOutdated  = "OUTDATED"
+	HideClassifierResolved  = "RESOLVED"
+	HideClassifierSpam      = "SPAM"
+)
+
+// HideClassifiers is the list of all valid hide classifier values.
+var HideClassifiers = []string{
+	HideClassifierAbuse,
+	HideClassifierDuplicate,
+	HideClassifierOffTopic,
+	HideClassifierOutdated,
+	HideClassifierResolved,
+	HideClassifierSpam,
+}
+
 // GetCommentNodeID returns the GraphQL node ID of a comment.
 func GetCommentNodeID(comment any) (string, error) {
 	switch c := comment.(type) {
