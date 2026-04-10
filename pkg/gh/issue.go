@@ -244,6 +244,29 @@ func GetCommentID(comment any) (int64, error) {
 	return 0, fmt.Errorf("failed to get comment ID from '%v'", comment)
 }
 
+// GetCommentNodeID returns the GraphQL node ID of a comment.
+func GetCommentNodeID(comment any) (string, error) {
+	switch c := comment.(type) {
+	case *github.IssueComment:
+		return c.GetNodeID(), nil
+	case *github.PullRequestComment:
+		return c.GetNodeID(), nil
+	case string:
+		return c, nil
+	}
+	return "", fmt.Errorf("failed to get comment node ID from '%v'", comment)
+}
+
+// HideComment minimizes (hides) a comment using the GraphQL minimizeComment mutation.
+// classifier must be one of: ABUSE, DUPLICATE, OFF_TOPIC, OUTDATED, RESOLVED, SPAM.
+func HideComment(ctx context.Context, g *GitHubClient, comment any, classifier string) error {
+	nodeID, err := GetCommentNodeID(comment)
+	if err != nil {
+		return fmt.Errorf("failed to get comment node ID from '%s': %w", comment, err)
+	}
+	return g.MinimizeComment(ctx, nodeID, classifier)
+}
+
 // SearchIssues searches issues in a repository
 func SearchIssues(ctx context.Context, g *GitHubClient, repo repository.Repository, query string) ([]*github.Issue, error) {
 	searchQuery := fmt.Sprintf("repo:%s/%s %s", repo.Owner, repo.Name, query)
