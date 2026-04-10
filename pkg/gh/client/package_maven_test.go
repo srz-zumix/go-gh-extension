@@ -84,6 +84,16 @@ func TestParseMavenPackageName(t *testing.T) {
 			input:   "com.example:",
 			wantErr: true,
 		},
+		{
+			name:    "multiple colons (GAV coordinate rejected)",
+			input:   "com.example:my-artifact:1.0",
+			wantErr: true,
+		},
+		{
+			name:    "multiple colons (two separators)",
+			input:   "a:b:c",
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -29,11 +29,17 @@ func MavenRegistryBase(host, owner, repo string) string {
 // Accepts colon-separated format ("com.example:my-artifact") as well as the
 // GitHub Packages dot-separated format ("com.example.my-artifact"), where the
 // last dot-delimited segment is treated as the artifactId.
-// Returns an error if the package name is not in a recognized format.
+// Returns an error if the package name is not in a recognized format, including
+// inputs containing more than one ':' (e.g. GAV coordinates "g:a:v" are not accepted).
 func ParseMavenPackageName(packageName string) (groupID, artifactID string, err error) {
-	if idx := strings.LastIndex(packageName, ":"); idx >= 0 {
-		groupID = packageName[:idx]
-		artifactID = packageName[idx+1:]
+	colonCount := strings.Count(packageName, ":")
+	if colonCount > 1 {
+		return "", "", fmt.Errorf("invalid Maven package name %q: too many ':' separators, expected format <groupId>:<artifactId> or <groupId>.<artifactId>", packageName)
+	}
+	if colonCount == 1 {
+		before, after, _ := strings.Cut(packageName, ":")
+		groupID = before
+		artifactID = after
 	} else if idx := strings.LastIndex(packageName, "."); idx >= 0 {
 		// GitHub Packages stores Maven package names as groupId.artifactId (dots throughout).
 		// Split at the last dot: everything before is groupId, last segment is artifactId.

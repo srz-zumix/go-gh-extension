@@ -10,13 +10,13 @@ import (
 )
 
 // MavenRegistryBase returns the Maven registry base URL for the given GitHub host, owner, and repository.
-func MavenRegistryBase(host, owner, repo string) string {
-	return client.MavenRegistryBase(host, owner, repo)
+func MavenRegistryBase(host string, repo repository.Repository) string {
+	return client.MavenRegistryBase(host, repo.Owner, repo.Name)
 }
 
 // MavenArtifactURL returns the URL for a Maven artifact file.
-func MavenArtifactURL(host, owner, repo, groupID, artifactID, version, classifier, ext string) string {
-	return client.MavenArtifactURL(host, owner, repo, groupID, artifactID, version, classifier, ext)
+func MavenArtifactURL(host string, repo repository.Repository, groupID, artifactID, version, classifier, ext string) string {
+	return client.MavenArtifactURL(host, repo.Owner, repo.Name, groupID, artifactID, version, classifier, ext)
 }
 
 // ParseMavenPackageName splits a Maven package name into groupID and artifactID.
