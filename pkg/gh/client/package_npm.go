@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -370,16 +371,14 @@ func (g *GitHubClient) PushNPMPackage(ctx context.Context, owner, packageName st
 	shasum := fmt.Sprintf("%x", sum)
 
 	// Build the tarball filename used as the _attachments key and dist.tarball URL.
-	// The GitHub npm registry requires the full scoped name in the tarball filename,
-	// e.g. @scope/name-version.tgz (matching npm CLI's libnpmpublish behavior).
+	// GitHub Packages npm registry expects the full scoped name as the _attachments key,
+	// e.g. "@scope/name-version.tgz". The dist.tarball URL uses this filename after "/-/".
 	tarballFilename := fmt.Sprintf("%s-%s.tgz", destName, version)
 
 	// Populate version entry with all package.json fields plus required dist metadata.
 	// Override the name field to use the destination-scoped name so it matches the publish URL.
 	versionEntry := make(map[string]any, len(pkgMeta)+2)
-	for k, v := range pkgMeta {
-		versionEntry[k] = v
-	}
+	maps.Copy(versionEntry, pkgMeta)
 	versionEntry["name"] = destName
 	versionEntry["_id"] = fmt.Sprintf("%s@%s", destName, version)
 	versionEntry["dist"] = map[string]any{
