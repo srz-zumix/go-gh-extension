@@ -43,8 +43,8 @@ func PushRubyGemsPackage(ctx context.Context, g *GitHubClient, repo repository.R
 }
 
 // RewriteRubyGemsGitHubRepo rewrites the github_repo metadata field in a .gem file
-// to reference the destination repository. This is needed when migrating gems between
-// GitHub instances to avoid 404 errors caused by the source github_repo URL.
+// when the existing value uses an ssh:// URL, updating it to reference the destination
+// repository. During migrations, other github_repo formats may remain unchanged.
 func RewriteRubyGemsGitHubRepo(gemData []byte, repo repository.Repository) ([]byte, error) {
 	return client.RewriteGemGitHubRepo(gemData, repo.Host, repo.Owner, repo.Name)
 }
