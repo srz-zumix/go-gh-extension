@@ -298,6 +298,26 @@ func DeletePackageByOwnerType(ctx context.Context, g *GitHubClient, ownerType Ow
 	}
 }
 
+// GetPackageByOwnerType gets a package using the appropriate API based on owner type.
+func GetPackageByOwnerType(ctx context.Context, g *GitHubClient, ownerType OwnerType, owner, packageType, packageName string) (*github.Package, error) {
+	switch ownerType {
+	case OwnerTypeOrg:
+		pkg, err := g.GetOrgPackage(ctx, owner, packageType, packageName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get package '%s' in organization '%s': %w", packageName, owner, err)
+		}
+		return pkg, nil
+	case OwnerTypeUser:
+		pkg, err := g.GetUserPackage(ctx, owner, packageType, packageName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get package '%s' for user '%s': %w", packageName, owner, err)
+		}
+		return pkg, nil
+	default:
+		return nil, fmt.Errorf("unknown owner type: %s", ownerType)
+	}
+}
+
 // VersionFilter defines criteria for filtering package versions.
 type VersionFilter struct {
 	VersionIDs []int64
