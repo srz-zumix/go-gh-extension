@@ -80,12 +80,23 @@ func (g *GitHubClient) DownloadRubyGemsPackage(ctx context.Context, owner, packa
 		if loc == "" {
 			return nil, fmt.Errorf("redirect response missing Location header")
 		}
-		// Follow the redirect without auth headers.
-		plainReq, err := http.NewRequestWithContext(ctx, http.MethodGet, loc, nil)
+		// Resolve Location relative to the original request URL to handle relative redirects.
+		redirectURL, err := req.URL.Parse(loc)
 		if err != nil {
 			return nil, err
 		}
-		plainResp, err := http.DefaultClient.Do(plainReq)
+		// Follow the redirect without auth headers, using a clone of the base client
+		// (inherits Timeout, proxy settings, etc.) with the raw transport so credentials
+		// are not forwarded to third-party storage (e.g. Azure Blob Storage).
+		plainReq, err := http.NewRequestWithContext(ctx, http.MethodGet, redirectURL.String(), nil)
+		if err != nil {
+			return nil, err
+		}
+		cdnBase := g.client.Client()
+		cdnClone := *cdnBase
+		cdnClone.Transport = g.rawHTTPTransport()
+		cdnClone.CheckRedirect = nil
+		plainResp, err := cdnClone.Do(plainReq)
 		if err != nil {
 			return nil, err
 		}

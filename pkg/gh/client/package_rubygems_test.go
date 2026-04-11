@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -274,21 +273,25 @@ func TestDownloadRubyGemsPackage_DirectOK(t *testing.T) {
 
 func TestDownloadRubyGemsPackage_RedirectDropsAuthHeader(t *testing.T) {
 	gemData := []byte("gem-binary-data")
+	const cdnHost = "cdn.rubygems.test.internal"
+	const cdnURL = "http://" + cdnHost + "/mygem-1.0.0.gem"
 	var cdnAuthHeader string
 
-	// Use a local test server to act as the CDN (avoids real DNS lookups).
-	cdnServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cdnAuthHeader = r.Header.Get("Authorization")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(gemData)
-	}))
-	defer cdnServer.Close()
-
+	// Route by host: registry host -> 302 to CDN URL, CDN host -> 200 with gem data.
+	// rawHTTPTransport() returns this same transport for the CDN clone, so both legs
+	// of the redirect are handled here without any real network connection.
 	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		// Registry returns redirect to the local test CDN server.
+		if r.URL.Host == cdnHost {
+			cdnAuthHeader = r.Header.Get("Authorization")
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(gemData)),
+			}, nil
+		}
+		// Registry: redirect to CDN.
 		return &http.Response{
 			StatusCode: http.StatusFound,
-			Header:     http.Header{"Location": []string{cdnServer.URL + "/mygem-1.0.0.gem"}},
+			Header:     http.Header{"Location": []string{cdnURL}},
 			Body:       io.NopCloser(strings.NewReader("")),
 		}, nil
 	})
@@ -330,17 +333,20 @@ func TestDownloadRubyGemsPackage_ErrorStatus(t *testing.T) {
 }
 
 func TestDownloadRubyGemsPackage_RedirectCDNErrorStatus(t *testing.T) {
-	// Use a local test server that returns 403 to simulate a CDN error.
-	cdnServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusForbidden)
-		_, _ = io.WriteString(w, "forbidden")
-	}))
-	defer cdnServer.Close()
+	const cdnHost = "cdn.rubygems.test.internal"
+	const cdnURL = "http://" + cdnHost + "/mygem-1.0.0.gem"
 
-	transport := roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+	// Route by host: registry -> 302, CDN -> 403.
+	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Host == cdnHost {
+			return &http.Response{
+				StatusCode: http.StatusForbidden,
+				Body:       io.NopCloser(strings.NewReader("forbidden")),
+			}, nil
+		}
 		return &http.Response{
 			StatusCode: http.StatusFound,
-			Header:     http.Header{"Location": []string{cdnServer.URL + "/mygem-1.0.0.gem"}},
+			Header:     http.Header{"Location": []string{cdnURL}},
 			Body:       io.NopCloser(strings.NewReader("")),
 		}, nil
 	})
