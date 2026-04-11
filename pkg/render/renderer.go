@@ -89,6 +89,11 @@ func (r *Renderer) SetColor(colorFlag string) {
 	}
 }
 
+// HasExporter reports whether an exporter has been configured.
+func (r *Renderer) HasExporter() bool {
+	return r.exporter != nil
+}
+
 // WriteLine writes a line to the output stream, respecting the exporter if set
 func (r *Renderer) WriteLine(line string) {
 	if r.exporter != nil {
