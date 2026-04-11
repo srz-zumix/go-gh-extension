@@ -889,6 +889,20 @@ func TestFilterWorkflowDependenciesByUsing_NoFilters(t *testing.T) {
 	}
 }
 
+func TestFilterWorkflowDependenciesByUsing_AllBlankFilters(t *testing.T) {
+	// All-whitespace or empty filter strings must be ignored; the full deps
+	// slice is returned unchanged (same semantics as nil/empty filters).
+	deps := []parser.WorkflowDependency{
+		{Source: ".github/workflows/ci.yml", Actions: []parser.ActionReference{
+			{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+		}},
+	}
+	got := FilterWorkflowDependenciesByUsing(deps, []string{"", " ", "\t"})
+	if len(got) != len(deps) {
+		t.Fatalf("expected %d deps (all returned), got %d", len(deps), len(got))
+	}
+}
+
 func TestFilterWorkflowDependenciesByUsing_ExactMatch(t *testing.T) {
 	deps := []parser.WorkflowDependency{
 		{Source: ".github/workflows/ci.yml", Actions: []parser.ActionReference{

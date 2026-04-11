@@ -733,14 +733,10 @@ func FilterWorkflowDependenciesByNodeVersion(deps []parser.WorkflowDependency, m
 // matchesUsingFilter returns true if the using value matches any of the filter strings.
 // Matching is case-insensitive and supports prefix matching so that e.g. "node" matches
 // "node16", "node20" etc.
-// Empty or whitespace-only filters are ignored to avoid matching every using value.
+// Filters are expected to be already lowercased and trimmed (callers must normalize them).
 func matchesUsingFilter(using string, filters []string) bool {
 	lower := strings.ToLower(strings.TrimSpace(using))
-	for _, f := range filters {
-		fl := strings.ToLower(strings.TrimSpace(f))
-		if fl == "" {
-			continue
-		}
+	for _, fl := range filters {
 		if lower == fl || strings.HasPrefix(lower, fl) {
 			return true
 		}
@@ -756,9 +752,18 @@ func matchesUsingFilter(using string, filters []string) bool {
 // are retained.
 // The Using field on ActionReferences must be populated (requires recursive traversal).
 func FilterWorkflowDependenciesByUsing(deps []parser.WorkflowDependency, filters []string) []parser.WorkflowDependency {
-	if len(filters) == 0 {
+	// Normalize filters: trim whitespace, lowercase, and drop empty entries.
+	// If no effective filters remain, behave as if no filter was specified.
+	var effective []string
+	for _, f := range filters {
+		if n := strings.ToLower(strings.TrimSpace(f)); n != "" {
+			effective = append(effective, n)
+		}
+	}
+	if len(effective) == 0 {
 		return deps
 	}
+	filters = effective
 
 	// Build a lookup of source -> dep for resolving action references
 	depBySource := make(map[string]*parser.WorkflowDependency)
