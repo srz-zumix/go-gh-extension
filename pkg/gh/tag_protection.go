@@ -48,7 +48,6 @@ func ConvertTagProtectionToRuleset(pattern string) *github.RepositoryRuleset {
 	}
 
 	rules := &github.RepositoryRulesetRules{
-		Creation: &github.EmptyRuleParameters{},
 		Update:   &github.UpdateRuleParameters{},
 		Deletion: &github.EmptyRuleParameters{},
 	}
