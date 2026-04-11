@@ -89,11 +89,7 @@ func (g *GitHubClient) DownloadRubyGemsPackage(ctx context.Context, owner, packa
 		if err != nil {
 			return nil, err
 		}
-		defer func() {
-			if closeErr := plainResp.Body.Close(); closeErr != nil {
-				_ = closeErr
-			}
-		}()
+		defer plainResp.Body.Close() // nolint
 		if plainResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(io.LimitReader(plainResp.Body, 512))
 			return nil, fmt.Errorf("download failed with status %d: %s", plainResp.StatusCode, strings.TrimSpace(string(body)))
