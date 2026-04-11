@@ -25,18 +25,3 @@ func (g *GitHubClient) RemoveBranchProtection(ctx context.Context, owner, repo, 
 func (g *GitHubClient) ListProtectedBranches(ctx context.Context, owner, repo string) ([]*github.Branch, error) {
 	return g.ListBranches(ctx, owner, repo, github.Ptr(true))
 }
-
-// ListTagProtection retrieves all tag protection settings for a repository.
-func (g *GitHubClient) ListTagProtection(ctx context.Context, owner, repo string) ([]*github.TagProtection, error) {
-	tagProtections, _, err := g.client.Repositories.ListTagProtection(ctx, owner, repo)
-	if err != nil {
-		return nil, err
-	}
-	return tagProtections, nil
-}
-
-// DeleteTagProtection removes a tag protection setting by its ID.
-func (g *GitHubClient) DeleteTagProtection(ctx context.Context, owner, repo string, tagProtectionID int64) error {
-	_, err := g.client.Repositories.DeleteTagProtection(ctx, owner, repo, tagProtectionID)
-	return err
-}
