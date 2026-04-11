@@ -14,16 +14,30 @@ type nonEmptyStringArrayValue struct {
 	changed bool
 }
 
+// validateNonEmptyStringArrayValues validates that all entries are non-empty.
+func validateNonEmptyStringArrayValues(val []string) error {
+	for _, v := range val {
+		if v == "" {
+			return fmt.Errorf("empty string is not allowed")
+		}
+	}
+	return nil
+}
+
 func newNonEmptyStringArrayValue(val []string, p *[]string) *nonEmptyStringArrayValue {
+	if err := validateNonEmptyStringArrayValues(val); err != nil {
+		panic(fmt.Sprintf("invalid default value for non-empty string array flag: %v", err))
+	}
+
 	s := new(nonEmptyStringArrayValue)
 	s.value = p
-	*s.value = val
+	*s.value = append([]string(nil), val...)
 	return s
 }
 
 func (s *nonEmptyStringArrayValue) Set(val string) error {
-	if val == "" {
-		return fmt.Errorf("empty string is not allowed")
+	if err := validateNonEmptyStringArrayValues([]string{val}); err != nil {
+		return err
 	}
 	if !s.changed {
 		*s.value = []string{val}
