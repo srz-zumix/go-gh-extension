@@ -65,11 +65,7 @@ func (g *GitHubClient) DownloadRubyGemsPackage(ctx context.Context, owner, packa
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		defer func() {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				_ = closeErr
-			}
-		}()
+		defer resp.Body.Close() // nolint
 		return io.ReadAll(resp.Body)
 	case http.StatusFound, http.StatusMovedPermanently, http.StatusSeeOther,
 		http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
