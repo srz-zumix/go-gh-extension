@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
@@ -333,11 +334,16 @@ func (r *Renderer) RenderDotWorkflowDependencies(deps []parser.WorkflowDependenc
 		}
 	}
 
-	// Emit node attribute declarations before edges
-	for label, using := range nodeUsing {
+	// Emit node attribute declarations before edges, sorted for deterministic output.
+	nodeUsingKeys := make([]string, 0, len(nodeUsing))
+	for label := range nodeUsing {
+		nodeUsingKeys = append(nodeUsingKeys, label)
+	}
+	sort.Strings(nodeUsingKeys)
+	for _, label := range nodeUsingKeys {
 		r.writeLine(fmt.Sprintf("    %s [tooltip=%s]",
 			dotQuote(label),
-			dotQuote(using),
+			dotQuote(nodeUsing[label]),
 		))
 	}
 	for _, line := range edgeLines {
