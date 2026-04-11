@@ -14,9 +14,11 @@ type nonEmptyStringArrayValue struct {
 	changed bool
 }
 
-func newNonEmptyStringArrayValue(p *[]string) *nonEmptyStringArrayValue {
-	*p = nil
-	return &nonEmptyStringArrayValue{value: p}
+func newNonEmptyStringArrayValue(val []string, p *[]string) *nonEmptyStringArrayValue {
+	s := new(nonEmptyStringArrayValue)
+	s.value = p
+	*s.value = val
+	return s
 }
 
 func (s *nonEmptyStringArrayValue) Set(val string) error {
@@ -49,11 +51,11 @@ var _ pflag.Value = (*nonEmptyStringArrayValue)(nil)
 
 // NonEmptyStringArrayVar defines a string array flag that rejects empty string entries.
 // Multiple values can be supplied by repeating the flag (e.g. --flag a --flag b).
-func NonEmptyStringArrayVar(cmd *cobra.Command, p *[]string, name string, usage string) {
-	cmd.Flags().VarP(newNonEmptyStringArrayValue(p), name, "", usage)
+func NonEmptyStringArrayVar(cmd *cobra.Command, p *[]string, name string, value []string, usage string) {
+	cmd.Flags().VarP(newNonEmptyStringArrayValue(value, p), name, "", usage)
 }
 
 // NonEmptyStringArrayVarP is like NonEmptyStringArrayVar but accepts a shorthand letter.
-func NonEmptyStringArrayVarP(cmd *cobra.Command, p *[]string, name, shorthand string, usage string) {
-	cmd.Flags().VarP(newNonEmptyStringArrayValue(p), name, shorthand, usage)
+func NonEmptyStringArrayVarP(cmd *cobra.Command, p *[]string, name, shorthand string, value []string, usage string) {
+	cmd.Flags().VarP(newNonEmptyStringArrayValue(value, p), name, shorthand, usage)
 }
