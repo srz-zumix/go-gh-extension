@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -65,8 +66,8 @@ func (g *GitHubClient) DownloadRubyGemsPackage(ctx context.Context, owner, packa
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		defer resp.Body.Close() // nolint
-		return io.ReadAll(resp.Body)
+		data, err := io.ReadAll(resp.Body)
+		return data, errors.Join(err, resp.Body.Close())
 	case http.StatusFound, http.StatusMovedPermanently, http.StatusSeeOther,
 		http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
 		if err := resp.Body.Close(); err != nil {
@@ -96,16 +97,15 @@ func (g *GitHubClient) DownloadRubyGemsPackage(ctx context.Context, owner, packa
 		if err != nil {
 			return nil, err
 		}
-		defer plainResp.Body.Close() // nolint
 		if plainResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(io.LimitReader(plainResp.Body, 512))
-			return nil, fmt.Errorf("download failed with status %d: %s", plainResp.StatusCode, strings.TrimSpace(string(body)))
+			return nil, errors.Join(fmt.Errorf("download failed with status %d: %s", plainResp.StatusCode, strings.TrimSpace(string(body))), plainResp.Body.Close())
 		}
-		return io.ReadAll(plainResp.Body)
+		data, err := io.ReadAll(plainResp.Body)
+		return data, errors.Join(err, plainResp.Body.Close())
 	default:
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		_ = resp.Body.Close()
-		return nil, fmt.Errorf("download failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, errors.Join(fmt.Errorf("download failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body))), resp.Body.Close())
 	}
 }
 
