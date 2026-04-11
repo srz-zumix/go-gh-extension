@@ -148,6 +148,8 @@ func (r *Renderer) RenderDrawioGraphEdge(edges []gh.GraphEdge) error {
 // the node is rendered without a link.
 // nodeColors maps node labels to border color hex strings (e.g. "#FF9800").
 // If nil or a key is missing, the default border style is used.
+// nodeTooltips maps node labels to tooltip text shown for each node. If nil,
+// empty, or a key is missing, no tooltip is added for that node.
 func (r *Renderer) writeDrawioGraph(edges [][2]string, nodeURLs map[string]string, nodeColors map[string]string, nodeTooltips map[string]string) error {
 	// Collect unique nodes preserving insertion order
 	nodeIndex := make(map[string]int)
