@@ -97,13 +97,6 @@ func GetWorkflowFileDependency(ctx context.Context, g *GitHubClient, repo reposi
 // to extract action/reusable workflow dependencies.
 // If recursive is true, it also traverses referenced action repositories and reusable workflows.
 func GetRepositoryWorkflowDependencies(ctx context.Context, g *GitHubClient, repo repository.Repository, ref *string, recursive bool, fallback *GitHubClient) ([]parser.WorkflowDependency, error) {
-	// Verify repository access upfront. GitHub returns 404 for both non-existent and
-	// inaccessible private repositories, so an explicit check here surfaces the error
-	// before the workflows directory 404 is silently treated as "no workflows".
-	if _, err := GetRepository(ctx, g, repo); err != nil {
-		return nil, fmt.Errorf("failed to access repository %s: %w", parser.GetRepositoryFullName(repo), err)
-	}
-
 	var deps []parser.WorkflowDependency
 
 	// Fetch workflow files from .github/workflows/
@@ -112,6 +105,17 @@ func GetRepositoryWorkflowDependencies(ctx context.Context, g *GitHubClient, rep
 		return nil, fmt.Errorf("failed to get workflow file dependencies for %s: %w", parser.GetRepositoryFullName(repo), err)
 	}
 	deps = append(deps, workflowDeps...)
+
+	// When the workflows directory is absent (or no YAML files were found), verify that the
+	// repository is actually accessible. GitHub returns 404 for both non-existent and
+	// inaccessible private repositories; without this check a missing .github/workflows
+	// directory would be silently treated as "no workflows" even for repos that cannot be
+	// accessed. Repos that do have workflows skip this extra round-trip entirely.
+	if len(workflowDeps) == 0 {
+		if _, repoErr := GetRepository(ctx, g, repo); repoErr != nil {
+			return nil, fmt.Errorf("failed to access repository %s: %w", parser.GetRepositoryFullName(repo), repoErr)
+		}
+	}
 
 	// Fetch action.yml or action.yaml if present
 	actionDep, _, err := getActionFileDependencies(ctx, g, repo, ref)
