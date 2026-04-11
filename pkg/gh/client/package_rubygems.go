@@ -146,10 +146,11 @@ type gemEntry struct {
 }
 
 // RewriteGemGitHubRepo rewrites the github_repo metadata field in a .gem archive
-// to reference the destination host/owner/repo, and updates checksums.yaml.gz accordingly.
+// when the existing value is an ssh:// URL, updating it to reference the destination
+// host/owner/repo and rebuilding checksums.yaml.gz accordingly.
 // This is required when migrating gems between GitHub instances because GitHub validates
 // that the github_repo URL points to a repository on the target instance.
-// If the gem has no github_repo field, it is returned unchanged.
+// If the gem has no github_repo field, or the field is not an ssh:// URL, it is returned unchanged.
 func RewriteGemGitHubRepo(gemData []byte, host, owner, repo string) ([]byte, error) {
 	entries, err := readGemEntries(gemData)
 	if err != nil {
