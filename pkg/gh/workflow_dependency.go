@@ -106,6 +106,17 @@ func GetRepositoryWorkflowDependencies(ctx context.Context, g *GitHubClient, rep
 	}
 	deps = append(deps, workflowDeps...)
 
+	// When the workflows directory is absent (or no YAML files were found), verify that the
+	// repository is actually accessible. GitHub returns 404 for both non-existent and
+	// inaccessible private repositories; without this check a missing .github/workflows
+	// directory would be silently treated as "no workflows" even for repos that cannot be
+	// accessed. Repos that do have workflows skip this extra round-trip entirely.
+	if len(workflowDeps) == 0 {
+		if _, repoErr := GetRepository(ctx, g, repo); repoErr != nil {
+			return nil, fmt.Errorf("failed to access repository %s: %w", parser.GetRepositoryFullName(repo), repoErr)
+		}
+	}
+
 	// Fetch action.yml or action.yaml if present
 	actionDep, _, err := getActionFileDependencies(ctx, g, repo, ref)
 	if err != nil {
@@ -709,6 +720,119 @@ func FilterWorkflowDependenciesByNodeVersion(deps []parser.WorkflowDependency, m
 		for _, action := range dep.Actions {
 			v := parseNodeVersion(action.Using)
 			if v > 0 && v < minNodeVersion {
+				filteredActions = append(filteredActions, action)
+				continue
+			}
+			sourceKey := parser.ResolveActionDepSource(action, hasSource)
+			if sourceKey != "" && markedSources[sourceKey] {
+				filteredActions = append(filteredActions, action)
+			}
+		}
+		filteredDep.Actions = filteredActions
+		filtered = append(filtered, filteredDep)
+	}
+	return filtered
+}
+
+// matchesUsingFilter returns true if the using value matches any of the filter strings.
+// Matching is case-insensitive and supports prefix matching so that e.g. "node" matches
+// "node16", "node20" etc.
+// Filters are expected to be already lowercased and trimmed (callers must normalize them).
+func matchesUsingFilter(using string, filters []string) bool {
+	lower := strings.ToLower(strings.TrimSpace(using))
+	for _, fl := range filters {
+		if lower == fl || strings.HasPrefix(lower, fl) {
+			return true
+		}
+	}
+	return false
+}
+
+// FilterWorkflowDependenciesByUsing filters workflow dependencies to only include deps
+// that reference actions whose runs.using value matches any of the provided filter strings.
+// Matching is case-insensitive and prefix-based (e.g. "node" matches "node16", "node20").
+// Upstream deps that transitively reference a matching action are also included via fixpoint
+// expansion. Within each included dep, only directly matching or transitively marked actions
+// are retained.
+// The Using field on ActionReferences must be populated (requires recursive traversal).
+func FilterWorkflowDependenciesByUsing(deps []parser.WorkflowDependency, filters []string) []parser.WorkflowDependency {
+	// Normalize filters: trim whitespace, lowercase, and drop empty entries.
+	// If no effective filters remain, behave as if no filter was specified.
+	var effective []string
+	for _, f := range filters {
+		if n := strings.ToLower(strings.TrimSpace(f)); n != "" {
+			effective = append(effective, n)
+		}
+	}
+	if len(effective) == 0 {
+		return deps
+	}
+	filters = effective
+
+	// Build a lookup of source -> dep for resolving action references
+	depBySource := make(map[string]*parser.WorkflowDependency)
+	for i := range deps {
+		depBySource[deps[i].Source] = &deps[i]
+	}
+	hasSource := func(key string) bool {
+		_, ok := depBySource[key]
+		return ok
+	}
+
+	// Find sources of matching actions and deps that directly reference them
+	matchedSources := make(map[string]bool)
+	depsUsingMatched := make(map[string]bool)
+	for _, dep := range deps {
+		for _, action := range dep.Actions {
+			if !matchesUsingFilter(action.Using, filters) {
+				continue
+			}
+			depsUsingMatched[dep.Source] = true
+			sourceKey := parser.ResolveActionDepSource(action, hasSource)
+			if sourceKey != "" {
+				matchedSources[sourceKey] = true
+			}
+		}
+	}
+
+	// Fixpoint expansion: include upstream deps that transitively reference a matched source
+	markedSources := make(map[string]bool)
+	for k := range matchedSources {
+		markedSources[k] = true
+	}
+	for k := range depsUsingMatched {
+		markedSources[k] = true
+	}
+	for {
+		changed := false
+		for _, dep := range deps {
+			if depsUsingMatched[dep.Source] {
+				continue
+			}
+			for _, action := range dep.Actions {
+				sourceKey := parser.ResolveActionDepSource(action, hasSource)
+				if sourceKey != "" && markedSources[sourceKey] {
+					depsUsingMatched[dep.Source] = true
+					markedSources[dep.Source] = true
+					changed = true
+					break
+				}
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+
+	var filtered []parser.WorkflowDependency
+	for _, dep := range deps {
+		if !matchedSources[dep.Source] && !depsUsingMatched[dep.Source] {
+			continue
+		}
+		filteredDep := dep
+		var filteredActions []parser.ActionReference
+		for _, action := range dep.Actions {
+			if matchesUsingFilter(action.Using, filters) {
 				filteredActions = append(filteredActions, action)
 				continue
 			}

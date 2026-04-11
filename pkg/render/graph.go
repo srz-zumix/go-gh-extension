@@ -137,7 +137,7 @@ func (r *Renderer) RenderDrawioGraphEdge(edges []gh.GraphEdge) error {
 			}
 		}
 	}
-	return r.writeDrawioGraph(dedupEdges, nodeURLs, nil)
+	return r.writeDrawioGraph(dedupEdges, nodeURLs, nil, nil)
 }
 
 // writeDrawioGraph writes a draw.io (mxGraph) XML document from directed edges.
@@ -148,7 +148,9 @@ func (r *Renderer) RenderDrawioGraphEdge(edges []gh.GraphEdge) error {
 // the node is rendered without a link.
 // nodeColors maps node labels to border color hex strings (e.g. "#FF9800").
 // If nil or a key is missing, the default border style is used.
-func (r *Renderer) writeDrawioGraph(edges [][2]string, nodeURLs map[string]string, nodeColors map[string]string) error {
+// nodeTooltips maps node labels to tooltip text shown for each node. If nil,
+// empty, or a key is missing, no tooltip is added for that node.
+func (r *Renderer) writeDrawioGraph(edges [][2]string, nodeURLs map[string]string, nodeColors map[string]string, nodeTooltips map[string]string) error {
 	// Collect unique nodes preserving insertion order
 	nodeIndex := make(map[string]int)
 	var nodes []string
@@ -337,8 +339,14 @@ func (r *Renderer) writeDrawioGraph(edges [][2]string, nodeURLs map[string]strin
 				style += "strokeColor=" + color + ";strokeWidth=2;"
 			}
 		}
-		r.writeLine(fmt.Sprintf(`        <mxCell id="%d" value="%s" style="%s" vertex="1" parent="1">`,
-			cellID, nodeValue, style))
+		tooltipAttr := ""
+		if nodeTooltips != nil {
+			if tip, ok := nodeTooltips[name]; ok && tip != "" {
+				tooltipAttr = fmt.Sprintf(` tooltip="%s"`, html.EscapeString(tip))
+			}
+		}
+		r.writeLine(fmt.Sprintf(`        <mxCell id="%d" value="%s" style="%s"%s vertex="1" parent="1">`,
+			cellID, nodeValue, style, tooltipAttr))
 		r.writeLine(fmt.Sprintf(`          <mxGeometry x="%d" y="%d" width="%d" height="%d" as="geometry"/>`,
 			posX[name], posY[name], nodeWidth, nodeHeight))
 		r.writeLine(`        </mxCell>`)

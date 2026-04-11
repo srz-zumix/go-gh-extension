@@ -876,3 +876,133 @@ func TestFilterWorkflowDependenciesByNodeVersion_OldActionActionsFiltered(t *tes
 		}
 	}
 }
+
+func TestFilterWorkflowDependenciesByUsing_NoFilters(t *testing.T) {
+	deps := []parser.WorkflowDependency{
+		{Source: ".github/workflows/ci.yml", Actions: []parser.ActionReference{
+			{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+		}},
+	}
+	got := FilterWorkflowDependenciesByUsing(deps, nil)
+	if len(got) != len(deps) {
+		t.Fatalf("expected %d deps, got %d", len(deps), len(got))
+	}
+}
+
+func TestFilterWorkflowDependenciesByUsing_AllBlankFilters(t *testing.T) {
+	// All-whitespace or empty filter strings must be ignored; the full deps
+	// slice is returned unchanged (same semantics as nil/empty filters).
+	deps := []parser.WorkflowDependency{
+		{Source: ".github/workflows/ci.yml", Actions: []parser.ActionReference{
+			{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+		}},
+	}
+	got := FilterWorkflowDependenciesByUsing(deps, []string{"", " ", "\t"})
+	if len(got) != len(deps) {
+		t.Fatalf("expected %d deps (all returned), got %d", len(deps), len(got))
+	}
+}
+
+func TestFilterWorkflowDependenciesByUsing_ExactMatch(t *testing.T) {
+	deps := []parser.WorkflowDependency{
+		{Source: ".github/workflows/ci.yml", Actions: []parser.ActionReference{
+			{Raw: "org/composite@v1", Owner: "org", Repo: "composite", Ref: "v1", Using: "composite"},
+			{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+		}},
+		{Source: "org/composite:action.yml", Actions: []parser.ActionReference{
+			{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5", Using: "node20"},
+		}},
+	}
+	got := FilterWorkflowDependenciesByUsing(deps, []string{"composite"})
+	if len(got) != 2 {
+		t.Fatalf("expected 2 deps, got %d", len(got))
+	}
+	for _, dep := range got {
+		if dep.Source == ".github/workflows/ci.yml" {
+			if len(dep.Actions) != 1 || dep.Actions[0].Using != "composite" {
+				t.Errorf("expected only composite action, got %v", dep.Actions)
+			}
+		}
+	}
+}
+
+func TestFilterWorkflowDependenciesByUsing_PrefixMatch(t *testing.T) {
+	// "node" should match node16 and node20
+	deps := []parser.WorkflowDependency{
+		{Source: ".github/workflows/ci.yml", Actions: []parser.ActionReference{
+			{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+			{Raw: "org/composite@v1", Owner: "org", Repo: "composite", Ref: "v1", Using: "composite"},
+		}},
+	}
+	got := FilterWorkflowDependenciesByUsing(deps, []string{"node"})
+	if len(got) != 1 {
+		t.Fatalf("expected 1 dep, got %d", len(got))
+	}
+	if len(got[0].Actions) != 1 || got[0].Actions[0].Using != "node20" {
+		t.Errorf("expected only node20 action, got %v", got[0].Actions)
+	}
+}
+
+func TestFilterWorkflowDependenciesByUsing_MultipleFilters(t *testing.T) {
+	deps := []parser.WorkflowDependency{
+		{Source: ".github/workflows/ci.yml", Actions: []parser.ActionReference{
+			{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+			{Raw: "org/composite@v1", Owner: "org", Repo: "composite", Ref: "v1", Using: "composite"},
+			{Raw: "org/docker-action@v1", Owner: "org", Repo: "docker-action", Ref: "v1", Using: "docker"},
+		}},
+	}
+	got := FilterWorkflowDependenciesByUsing(deps, []string{"composite", "docker"})
+	if len(got) != 1 {
+		t.Fatalf("expected 1 dep, got %d", len(got))
+	}
+	if len(got[0].Actions) != 2 {
+		t.Errorf("expected 2 actions (composite + docker), got %d: %v", len(got[0].Actions), got[0].Actions)
+	}
+}
+
+func TestFilterWorkflowDependenciesByUsing_TransitiveExpansion(t *testing.T) {
+	// ci.yml → composite-action (composite) → checkout (node20)
+	// ci.yml should be included because it references composite-action
+	deps := []parser.WorkflowDependency{
+		{Source: ".github/workflows/ci.yml", Actions: []parser.ActionReference{
+			{Raw: "org/composite-action@v1", Owner: "org", Repo: "composite-action", Ref: "v1", Using: "composite"},
+		}},
+		{Source: "org/composite-action:action.yml", Actions: []parser.ActionReference{
+			{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+		}},
+	}
+	got := FilterWorkflowDependenciesByUsing(deps, []string{"composite"})
+	if len(got) != 2 {
+		t.Fatalf("expected 2 deps (workflow + composite), got %d", len(got))
+	}
+}
+
+func TestFilterWorkflowDependenciesByUsing_ActionsFiltered(t *testing.T) {
+	// ci.yml → composite-action (composite) + checkout (node20)
+	// After filtering for "composite", checkout should be removed from ci.yml's actions
+	deps := []parser.WorkflowDependency{
+		{Source: ".github/workflows/ci.yml", Actions: []parser.ActionReference{
+			{Raw: "org/composite-action@v1", Owner: "org", Repo: "composite-action", Ref: "v1", Using: "composite"},
+			{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+		}},
+		{Source: "org/composite-action:action.yml", Actions: []parser.ActionReference{
+			{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5", Using: "node20"},
+		}},
+	}
+	got := FilterWorkflowDependenciesByUsing(deps, []string{"composite"})
+	if len(got) != 2 {
+		t.Fatalf("expected 2 deps, got %d", len(got))
+	}
+	for _, dep := range got {
+		if dep.Source == ".github/workflows/ci.yml" {
+			if len(dep.Actions) != 1 || dep.Actions[0].Using != "composite" {
+				t.Errorf("expected only composite action in ci.yml, got %v", dep.Actions)
+			}
+		}
+		if dep.Source == "org/composite-action:action.yml" {
+			if len(dep.Actions) != 0 {
+				t.Errorf("expected no actions in composite-action (node20 should be pruned), got %v", dep.Actions)
+			}
+		}
+	}
+}

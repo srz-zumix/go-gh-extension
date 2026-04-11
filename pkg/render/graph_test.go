@@ -1,6 +1,7 @@
 package render
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/srz-zumix/go-gh-extension/pkg/gh"
@@ -81,6 +82,35 @@ func TestRenderDrawioGraphEdge_Empty(t *testing.T) {
 	got := sr.Stdout.String()
 	assert.Contains(t, got, `<mxfile host="gh-deps-kit">`)
 	assert.Contains(t, got, `</mxfile>`)
+}
+
+func TestWriteDrawioGraph_Tooltip(t *testing.T) {
+	// "node-a" has a tooltip with XML-special characters that must be escaped.
+	// "node-b" has no tooltip; its mxCell must not carry a tooltip attribute.
+	edges := [][2]string{
+		{"node-a", "node-b"},
+	}
+	nodeTooltips := map[string]string{
+		"node-a": `runs: composite <action> with "quotes" & ampersand`,
+	}
+
+	sr := NewStringRenderer(nil)
+	err := sr.Renderer.writeDrawioGraph(edges, nil, nil, nodeTooltips)
+	assert.NoError(t, err)
+	got := sr.Stdout.String()
+
+	// Tooltip value must have XML special characters HTML-escaped.
+	assert.Contains(t, got, `tooltip="runs: composite &lt;action&gt; with &#34;quotes&#34; &amp; ampersand"`,
+		"tooltip attribute must appear with HTML-escaped value for node-a")
+
+	// The tooltip attribute must only be present for the node that has one.
+	// Split output into per-node cell lines and verify node-b has no tooltip attr.
+	for _, line := range splitLines(got) {
+		if strings.Contains(line, "node-b") && strings.Contains(line, `vertex="1"`) {
+			assert.NotContains(t, line, "tooltip=",
+				"node-b has no tooltip so tooltip attribute must be absent")
+		}
+	}
 }
 
 func TestWorkflowDepSourceURL(t *testing.T) {

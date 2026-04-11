@@ -66,6 +66,61 @@ func TestWorkflowDependencyFieldGetters_Using(t *testing.T) {
 	assert.Equal(t, "", getter.GetField(&unknownRef, "NODE_VERSION"))
 }
 
+func TestWorkflowDependencyFieldGetters_Job(t *testing.T) {
+	getter := NewWorkflowDependencyFieldGetters()
+
+	ref := parser.ActionReference{
+		Raw:   "actions/checkout@v4",
+		Owner: "actions",
+		Repo:  "checkout",
+		Ref:   "v4",
+		JobID: "build",
+	}
+	assert.Equal(t, "build", getter.GetField(&ref, "JOB"))
+	// Case-insensitive lookup must also work.
+	assert.Equal(t, "build", getter.GetField(&ref, "job"))
+
+	// ActionReference without a JobID returns an empty string.
+	noJobRef := parser.ActionReference{
+		Raw:   "actions/setup-go@v5",
+		Owner: "actions",
+		Repo:  "setup-go",
+		Ref:   "v5",
+	}
+	assert.Equal(t, "", getter.GetField(&noJobRef, "JOB"))
+
+	// Unknown field name returns empty string (regression guard).
+	assert.Equal(t, "", getter.GetField(&ref, "UNKNOWN"))
+}
+
+func TestRenderActionReferences_JobColumn(t *testing.T) {
+	// Verify that requesting the "JOB" header produces a table that includes
+	// each action's JobID in the correct column.
+	sr := NewStringRenderer(nil)
+	refs := []parser.ActionReference{
+		{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", JobID: "build"},
+		{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5", JobID: "lint"},
+		{Raw: "actions/cache@v3", Owner: "actions", Repo: "cache", Ref: "v3"},
+	}
+	err := sr.Renderer.RenderActionReferences(refs, []string{"Name", "Version", "Job"})
+	assert.NoError(t, err)
+	got := sr.Stdout.String()
+
+	// Header row must be present.
+	assert.Contains(t, got, "NAME")
+	assert.Contains(t, got, "VERSION")
+	assert.Contains(t, got, "JOB")
+
+	// JobID values must appear in the output.
+	assert.Contains(t, got, "build")
+	assert.Contains(t, got, "lint")
+
+	// Action names and versions must still be present.
+	assert.Contains(t, got, "actions/checkout")
+	assert.Contains(t, got, "actions/setup-go")
+	assert.Contains(t, got, "actions/cache")
+}
+
 func TestRenderDotWorkflowDependencies(t *testing.T) {
 	sr := NewStringRenderer(nil)
 	deps := []parser.WorkflowDependency{
@@ -425,4 +480,76 @@ func TestRenderTreeWorkflowDependencies_CyclePrevention(t *testing.T) {
 	assert.Contains(t, got, ".github/workflows/w.yml")
 	assert.Contains(t, got, "org/a@v1")
 	assert.Contains(t, got, "org/b@v1")
+}
+
+func TestRenderTreeWorkflowDependencies_JobIDGrouping(t *testing.T) {
+	// Actions are grouped under job sub-nodes when JobID is set.
+	// Two jobs: "build" (checkout + setup-go) and "lint" (checkout only).
+	// "build" uses a composite action that can be recursed into.
+	sr := NewStringRenderer(nil)
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Name:   "CI",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20", JobID: "build"},
+				{Raw: "actions/setup-go@v5", Owner: "actions", Repo: "setup-go", Ref: "v5", Using: "node20", JobID: "build"},
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20", JobID: "lint"},
+			},
+		},
+	}
+	err := sr.Renderer.RenderTreeWorkflowDependencies(deps)
+	assert.NoError(t, err)
+	got := sr.Stdout.String()
+
+	// Root node must be the workflow source.
+	assert.Contains(t, got, ".github/workflows/ci.yml")
+
+	// Job IDs must appear as intermediate nodes.
+	assert.Contains(t, got, "build")
+	assert.Contains(t, got, "lint")
+
+	// Action labels must appear as leaves under their respective jobs.
+	assert.Contains(t, got, "actions/checkout@v4 [node20]")
+	assert.Contains(t, got, "actions/setup-go@v5 [node20]")
+}
+
+func TestRenderTreeWorkflowDependencies_JobIDGrouping_RecursionAndCycle(t *testing.T) {
+	// Actions with JobID are grouped under job sub-nodes, and recursion into
+	// known dep sources must still work; cycles must still be prevented.
+	// ci.yml / build job → composite action → checkout (leaf)
+	// ci.yml / deploy job → composite action (already visited: leaf, no re-expansion)
+	sr := NewStringRenderer(nil)
+	deps := []parser.WorkflowDependency{
+		{
+			Source: ".github/workflows/ci.yml",
+			Name:   "CI",
+			Actions: []parser.ActionReference{
+				{Raw: "org/composite@v1", Owner: "org", Repo: "composite", Ref: "v1", Using: "composite", JobID: "build"},
+				{Raw: "org/composite@v1", Owner: "org", Repo: "composite", Ref: "v1", Using: "composite", JobID: "deploy"},
+			},
+		},
+		{
+			Source: "org/composite:action.yml",
+			Actions: []parser.ActionReference{
+				{Raw: "actions/checkout@v4", Owner: "actions", Repo: "checkout", Ref: "v4", Using: "node20"},
+			},
+		},
+	}
+	err := sr.Renderer.RenderTreeWorkflowDependencies(deps)
+	assert.NoError(t, err)
+	got := sr.Stdout.String()
+
+	// Root and job nodes must be present.
+	assert.Contains(t, got, ".github/workflows/ci.yml")
+	assert.Contains(t, got, "build")
+	assert.Contains(t, got, "deploy")
+
+	// The composite action must appear under both jobs.
+	assert.Contains(t, got, "org/composite@v1 [composite]")
+
+	// The grandchild (checkout) must appear at least once (expanded under the first job).
+	assert.Contains(t, got, "actions/checkout@v4 [node20]")
+
+	// The output must be finite (no panic / stack overflow due to cycle).
 }
