@@ -12,7 +12,7 @@ import (
 )
 
 // GitCmdEnv returns a git command environment that disables prompts and injects
-// bearer-token credentials for rawURL via GIT_CONFIG_* variables.
+// git authentication configuration for rawURL via GIT_CONFIG_* variables.
 // Any existing GIT_CONFIG_COUNT/KEY/VALUE entries in the parent environment are
 // stripped to avoid leaving git with duplicate or conflicting config variables.
 func GitCmdEnv(g *GitHubClient, rawURL string) []string {
