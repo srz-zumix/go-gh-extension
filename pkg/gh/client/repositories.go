@@ -216,6 +216,16 @@ func (g *GitHubClient) UpdateFile(ctx context.Context, owner, repo, path string,
 	return response, nil
 }
 
+// CreateRepository creates a new repository for the authenticated user.
+// Pass an empty string for org to create under the authenticated user.
+func (g *GitHubClient) CreateRepository(ctx context.Context, org string, repo *github.Repository) (*github.Repository, error) {
+	created, _, err := g.client.Repositories.Create(ctx, org, repo)
+	if err != nil {
+		return nil, err
+	}
+	return created, nil
+}
+
 // DeleteFile deletes a file in a repository.
 func (g *GitHubClient) DeleteFile(ctx context.Context, owner, repo, path string, opts *github.RepositoryContentFileOptions) error {
 	_, _, err := g.client.Repositories.DeleteFile(ctx, owner, repo, path, opts)

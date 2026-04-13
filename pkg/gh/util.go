@@ -3,6 +3,7 @@ package gh
 import (
 	"errors"
 	"net/http"
+	"os"
 	"strings"
 
 	"slices"
@@ -10,6 +11,24 @@ import (
 	"github.com/google/go-github/v84/github"
 )
 
+// GitCmdEnv returns a git command environment that disables prompts and injects
+// bearer-token credentials for rawURL via GIT_CONFIG_* variables.
+// Any existing GIT_CONFIG_COUNT/KEY/VALUE entries in the parent environment are
+// stripped to avoid leaving git with duplicate or conflicting config variables.
+func GitCmdEnv(g *GitHubClient, rawURL string) []string {
+	base := make([]string, 0, len(os.Environ()))
+	for _, kv := range os.Environ() {
+		key, _, _ := strings.Cut(kv, "=")
+		if key == "GIT_CONFIG_COUNT" || strings.HasPrefix(key, "GIT_CONFIG_KEY_") || strings.HasPrefix(key, "GIT_CONFIG_VALUE_") {
+			continue
+		}
+		base = append(base, kv)
+	}
+	base = append(base, "GIT_TERMINAL_PROMPT=0")
+	return append(base, g.GitAuthEnvs(rawURL)...)
+}
+
+// FindRepository searches for a repository in a list by matching IDs and returns it, or nil if not found.
 func FindRepository(target *github.Repository, repos []*github.Repository) *github.Repository {
 	for _, r := range repos {
 		if *r.ID == *target.ID {
