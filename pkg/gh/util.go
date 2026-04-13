@@ -16,8 +16,9 @@ import (
 // Any existing GIT_CONFIG_COUNT/KEY/VALUE entries in the parent environment are
 // stripped to avoid leaving git with duplicate or conflicting config variables.
 func GitCmdEnv(g *GitHubClient, rawURL string) []string {
-	base := make([]string, 0, len(os.Environ()))
-	for _, kv := range os.Environ() {
+	env := os.Environ()
+	base := make([]string, 0, len(env))
+	for _, kv := range env {
 		key, _, _ := strings.Cut(kv, "=")
 		if key == "GIT_CONFIG_COUNT" || strings.HasPrefix(key, "GIT_CONFIG_KEY_") || strings.HasPrefix(key, "GIT_CONFIG_VALUE_") {
 			continue
