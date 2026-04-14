@@ -18,8 +18,14 @@ type stubTokenRoundTripper struct {
 	token string
 }
 
-func (s stubTokenRoundTripper) RoundTrip(_ *http.Request) (*http.Response, error) {
-	return nil, nil
+func (s stubTokenRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		Status:        "501 Not Implemented",
+		StatusCode:    http.StatusNotImplemented,
+		Body:          http.NoBody,
+		ContentLength: 0,
+		Request:       req,
+	}, nil
 }
 
 func (s stubTokenRoundTripper) Token() string {
