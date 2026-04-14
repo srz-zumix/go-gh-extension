@@ -50,23 +50,6 @@ func CopyGist(ctx context.Context, src, dst *GitHubClient, gistID string) (*gith
 	return dst.CreateGist(ctx, newGist)
 }
 
-// gitCmdEnv returns a git command environment that disables prompts and injects
-// bearer-token credentials for rawURL via GIT_CONFIG_* variables.
-// Any existing GIT_CONFIG_COUNT/KEY/VALUE entries in the parent environment are
-// stripped to avoid leaving git with duplicate or conflicting config variables.
-func gitCmdEnv(g *GitHubClient, rawURL string) []string {
-	base := make([]string, 0, len(os.Environ()))
-	for _, kv := range os.Environ() {
-		key, _, _ := strings.Cut(kv, "=")
-		if key == "GIT_CONFIG_COUNT" || strings.HasPrefix(key, "GIT_CONFIG_KEY_") || strings.HasPrefix(key, "GIT_CONFIG_VALUE_") {
-			continue
-		}
-		base = append(base, kv)
-	}
-	base = append(base, "GIT_TERMINAL_PROMPT=0")
-	return append(base, g.GitAuthEnvs(rawURL)...)
-}
-
 // MigrateGist migrates a gist from src to dst, preserving the full git history
 // via git clone --mirror + git push --mirror.
 // Authentication uses bearer tokens obtained from each GitHubClient's transport
@@ -100,7 +83,7 @@ func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (_ 
 	if err != nil {
 		return nil, fmt.Errorf("prepare git clone --mirror: %w", err)
 	}
-	cloneCmd.Env = gitCmdEnv(src, srcURL)
+	cloneCmd.Env = GitCmdEnv(src, srcURL)
 	if err := cloneCmd.Run(); err != nil {
 		return nil, fmt.Errorf("git clone --mirror: %w", err)
 	}
@@ -144,7 +127,7 @@ func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (_ 
 		migrateErr = fmt.Errorf("prepare git push --mirror: %w", err)
 		return nil, migrateErr
 	}
-	pushCmd.Env = gitCmdEnv(dst, dstURL)
+	pushCmd.Env = GitCmdEnv(dst, dstURL)
 	if err := pushCmd.Run(); err != nil {
 		migrateErr = fmt.Errorf("git push --mirror: %w", err)
 		return nil, migrateErr
@@ -173,7 +156,7 @@ func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (_ 
 			migrateErr = fmt.Errorf("prepare git push HEAD fix: %w", err)
 			return nil, migrateErr
 		}
-		fixCmd.Env = gitCmdEnv(dst, dstURL)
+		fixCmd.Env = GitCmdEnv(dst, dstURL)
 		if err := fixCmd.Run(); err != nil {
 			migrateErr = fmt.Errorf("git push HEAD fix: %w", err)
 			return nil, migrateErr
