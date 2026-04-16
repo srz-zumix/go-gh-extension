@@ -94,6 +94,9 @@ func TestNonEmptyStringSliceVar_DefaultAndParse(t *testing.T) {
 	var vals []string
 	NonEmptyStringSliceVar(cmd, &vals, "items", []string{"default"}, "test flag")
 
+	flag := cmd.Flags().Lookup("items")
+	require.NotNil(t, flag)
+	assert.Equal(t, flag.Value.String(), flag.DefValue)
 	// Before parsing, default value must be reflected.
 	assert.Equal(t, []string{"default"}, vals)
 
