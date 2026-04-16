@@ -29,6 +29,7 @@ func newNonEmptyStringSliceValue(val []string, p *[]string) *nonEmptyStringSlice
 
 func (s *nonEmptyStringSliceValue) Set(val string) error {
 	r := csv.NewReader(strings.NewReader(val))
+	r.TrimLeadingSpace = true
 	parts, err := r.Read()
 	if err != nil {
 		return fmt.Errorf("failed to parse value %q: %w", val, err)
