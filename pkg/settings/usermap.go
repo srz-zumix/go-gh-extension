@@ -192,9 +192,9 @@ func SplitEMUSuffix(login string) (base, suffix string) {
 // EMU _<slug> suffix) into a single regex entry per (srcSuffix, dstSuffix) combination.
 //
 // Supported patterns:
-//   - both have suffix, same base:  src=alice_corp  dst=alice_new  → (.+)_corp → $1_new
+//   - both have suffix, same base:  src=alice_corp  dst=alice_new  → (.+)_corp → ${1}_new
 //   - src has suffix, dst has none: src=alice_corp  dst=alice      → (.+)_corp → $1
-//   - src has none, dst has suffix: src=alice       dst=alice_new  → (.+)      → $1_new
+//   - src has none, dst has suffix: src=alice       dst=alice_new  → (.+)      → ${1}_new
 //
 // Pairs with empty dst, or where bases differ, are kept as exact entries.
 //
@@ -248,7 +248,7 @@ func CompactEMUMappings(mappings []UserMapping) []UserMapping {
 				if dstSuffix == "" {
 					dstPattern = `$1`
 				} else {
-					dstPattern = `$1_` + strings.ReplaceAll(dstSuffix, "$", "$$")
+					dstPattern = `${1}_` + strings.ReplaceAll(dstSuffix, "$", "$$")
 				}
 				catchAllRegexEntries = append(catchAllRegexEntries, UserMapping{Src: `(.+)`, Dst: dstPattern})
 			}
@@ -260,7 +260,7 @@ func CompactEMUMappings(mappings []UserMapping) []UserMapping {
 				if dstSuffix == "" {
 					dstPattern = `$1`
 				} else {
-					dstPattern = `$1_` + strings.ReplaceAll(pair.dst, "$", "$$")
+					dstPattern = `${1}_` + strings.ReplaceAll(pair.dst, "$", "$$")
 				}
 				specificRegexEntries = append(specificRegexEntries, UserMapping{Src: srcPattern, Dst: dstPattern})
 			}
