@@ -134,6 +134,19 @@ func TestFilterVersions_VersionIDs_NilID(t *testing.T) {
 	assert.Equal(t, int64(2), *result[0].ID)
 }
 
+func TestFilterVersions_VersionIDs_PreservesInputOrder(t *testing.T) {
+	// Result order must follow the input slice, not the order of filter.VersionIDs.
+	versions := []*github.PackageVersion{
+		makeVersion(3, &t3),
+		makeVersion(1, &t1),
+		makeVersion(2, &t2),
+	}
+	result := FilterVersions(versions, VersionFilter{VersionIDs: []int64{1, 3}})
+	assert.Len(t, result, 2)
+	assert.Equal(t, int64(3), *result[0].ID) // 3 appears first in the input
+	assert.Equal(t, int64(1), *result[1].ID)
+}
+
 func TestFilterVersions_Since(t *testing.T) {
 	versions := []*github.PackageVersion{
 		makeVersion(1, &t1),
