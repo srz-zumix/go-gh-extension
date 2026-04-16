@@ -117,7 +117,7 @@ func TestNonEmptyStringSliceValue_EmptyStringReturnsError(t *testing.T) {
 	var p []string
 	v := newNonEmptyStringSliceValue(nil, &p)
 	err := v.Set("")
-	assert.Error(t, err, "Set(\"\") must return an error")
+	assert.EqualError(t, err, "empty string is not allowed")
 }
 
 func TestNonEmptyStringSliceValue_EmptyEntryInCommaListReturnsError(t *testing.T) {
@@ -125,6 +125,16 @@ func TestNonEmptyStringSliceValue_EmptyEntryInCommaListReturnsError(t *testing.T
 	v := newNonEmptyStringSliceValue(nil, &p)
 	err := v.Set("a,,b")
 	assert.Error(t, err, "Set(\"a,,b\") must return an error")
+}
+
+func TestNonEmptyStringSliceValue_NewlineReturnsError(t *testing.T) {
+	// A newline inside the value would introduce a second CSV record; the extra
+	// data must be rejected rather than silently truncated (e.g. "a,b\nc" must
+	// not parse as ["a","b"]).
+	var p []string
+	v := newNonEmptyStringSliceValue(nil, &p)
+	err := v.Set("a,b\nc")
+	assert.Error(t, err, "Set(\"a,b\\nc\") must return an error")
 }
 
 func TestNonEmptyStringSliceValue_CommaSeparatedSplits(t *testing.T) {

@@ -3,6 +3,7 @@ package cmdflags
 import (
 	"encoding/csv"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -103,11 +104,23 @@ func newNonEmptyStringSliceValue(val []string, p *[]string) *nonEmptyStringSlice
 }
 
 func (s *nonEmptyStringSliceValue) Set(val string) error {
+	// Reject empty input upfront so the error matches validateNonEmptyStringValues
+	// rather than surfacing an opaque CSV EOF error.
+	if val == "" {
+		return fmt.Errorf("empty string is not allowed")
+	}
+
 	r := csv.NewReader(strings.NewReader(val))
 	r.TrimLeadingSpace = true
 	parts, err := r.Read()
 	if err != nil {
 		return fmt.Errorf("failed to parse value %q: %w", val, err)
+	}
+
+	// Ensure the input contains exactly one CSV record; a second record means the
+	// value contained a newline, which would otherwise be silently truncated.
+	if _, err := r.Read(); err != io.EOF {
+		return fmt.Errorf("value %q must not contain newlines", val)
 	}
 
 	if err := validateNonEmptyStringValues(parts); err != nil {
