@@ -277,8 +277,9 @@ func TestFilterVersions_Names(t *testing.T) {
 		{ID: github.Ptr(int64(2)), Name: github.Ptr("v2.0"), CreatedAt: &github.Timestamp{Time: t2}},
 		{ID: github.Ptr(int64(3)), Name: github.Ptr("v3.0"), CreatedAt: &github.Timestamp{Time: t3}},
 	}
-	result := FilterVersions(versions, VersionFilter{Names: []string{"v1.0", "v3.0"}})
+	result := FilterVersions(versions, VersionFilter{Names: []string{"v3.0", "v1.0"}})
 	assert.Len(t, result, 2)
+	// Results should preserve the input slice order, not the filter.Names order.
 	assert.Equal(t, "v1.0", result[0].GetName())
 	assert.Equal(t, "v3.0", result[1].GetName())
 }
