@@ -122,3 +122,63 @@ func (g *GitHubClient) RemoveOrgRunner(ctx context.Context, owner string, runner
 	_, err := g.client.Actions.RemoveOrganizationRunner(ctx, owner, runnerID)
 	return err
 }
+
+// GetOrgRunnerGroup gets a single organization runner group by ID
+func (g *GitHubClient) GetOrgRunnerGroup(ctx context.Context, owner string, groupID int64) (*github.RunnerGroup, error) {
+	group, _, err := g.client.Actions.GetOrganizationRunnerGroup(ctx, owner, groupID)
+	if err != nil {
+		return nil, err
+	}
+	return group, nil
+}
+
+// CreateOrgRunnerGroup creates a new organization runner group
+func (g *GitHubClient) CreateOrgRunnerGroup(ctx context.Context, owner string, name string) (*github.RunnerGroup, error) {
+	group, _, err := g.client.Actions.CreateOrganizationRunnerGroup(ctx, owner, github.CreateRunnerGroupRequest{
+		Name: github.Ptr(name),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return group, nil
+}
+
+// ListOrgRunnerGroups lists all organization runner groups
+func (g *GitHubClient) ListOrgRunnerGroups(ctx context.Context, owner string) ([]*github.RunnerGroup, error) {
+	allGroups := []*github.RunnerGroup{}
+	opt := &github.ListOrgRunnerGroupOptions{
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
+	}
+	for {
+		groups, resp, err := g.client.Actions.ListOrganizationRunnerGroups(ctx, owner, opt)
+		if err != nil {
+			return nil, err
+		}
+		allGroups = append(allGroups, groups.RunnerGroups...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return allGroups, nil
+}
+
+// FindOrgRunnerGroup finds an organization runner group by name
+func (g *GitHubClient) FindOrgRunnerGroup(ctx context.Context, owner string, groupName string) (*github.RunnerGroup, error) {
+	groups, err := g.ListOrgRunnerGroups(ctx, owner)
+	if err != nil {
+		return nil, err
+	}
+	for _, group := range groups {
+		if group.GetName() == groupName {
+			return group, nil
+		}
+	}
+	return nil, nil
+}
+
+// DeleteOrgRunnerGroup deletes an organization runner group by ID
+func (g *GitHubClient) DeleteOrgRunnerGroup(ctx context.Context, owner string, groupID int64) error {
+	_, err := g.client.Actions.DeleteOrganizationRunnerGroup(ctx, owner, groupID)
+	return err
+}
