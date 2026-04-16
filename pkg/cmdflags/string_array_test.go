@@ -240,3 +240,14 @@ func TestNonEmptyStringSliceVarP_RejectsEmptyString(t *testing.T) {
 	err := cmd.Flags().Set("items", "")
 	assert.Error(t, err)
 }
+
+func TestNonEmptyStringSliceVar_DefValueMatchesStringOutput(t *testing.T) {
+	// The flag's DefValue (used in help text) must match String() on the default value.
+	cmd := &cobra.Command{Use: "test"}
+	var vals []string
+	NonEmptyStringSliceVar(cmd, &vals, "items", []string{"a", "b"}, "test flag")
+
+	flag := cmd.Flags().Lookup("items")
+	require.NotNil(t, flag)
+	assert.Equal(t, flag.Value.String(), flag.DefValue)
+}
