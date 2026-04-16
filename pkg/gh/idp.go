@@ -130,7 +130,7 @@ type ExternalGroupTeamDetail struct {
 // GetExternalGroupTeams fetches the teams connected to an external group identified by name.
 // For each ExternalGroupTeam entry the corresponding github.Team is fetched by slug.
 // When group.Teams is empty (e.g. due to insufficient permissions), it falls back to
-// GetExternalGroupTeamsByBruteForce.
+// ScanExternalGroupTeams.
 func GetExternalGroupTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, groupName string) ([]*ExternalGroupTeamDetail, error) {
 	group, err := GetExternalGroupByName(ctx, g, repo, groupName)
 	if err != nil {
