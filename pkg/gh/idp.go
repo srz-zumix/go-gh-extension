@@ -156,7 +156,7 @@ func GetExternalGroupTeams(ctx context.Context, g *GitHubClient, repo repository
 // ScanExternalGroupTeams finds teams connected to the named external group by
 // scanning all top-level teams that have no child teams and checking each one
 // via FindExternalGroupByTeamSlug. This is a fallback for when ExternalGroup.Teams is
-// empty due to insufficient API permissions.
+// nil, omitted, or otherwise unpopulated, for example due to insufficient API permissions.
 func ScanExternalGroupTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, groupName string) ([]*ExternalGroupTeamDetail, error) {
 	allTeams, err := g.ListTeams(ctx, repo.Owner)
 	if err != nil {
