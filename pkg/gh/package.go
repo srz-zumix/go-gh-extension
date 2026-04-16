@@ -358,7 +358,7 @@ func FilterVersions(versions []*github.PackageVersion, filter VersionFilter) []*
 	}
 
 	// Filter by name: treat filter.Names as a set and keep the original result
-	// order so matches are appended at most once.
+	// order so each matching version is appended at most once.
 	if len(filter.Names) > 0 {
 		requestedNames := make(map[string]struct{}, len(filter.Names))
 		for _, name := range filter.Names {
