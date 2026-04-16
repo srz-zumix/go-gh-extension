@@ -163,20 +163,6 @@ func (g *GitHubClient) ListOrgRunnerGroups(ctx context.Context, owner string) ([
 	return allGroups, nil
 }
 
-// FindOrgRunnerGroup finds an organization runner group by name
-func (g *GitHubClient) FindOrgRunnerGroup(ctx context.Context, owner string, groupName string) (*github.RunnerGroup, error) {
-	groups, err := g.ListOrgRunnerGroups(ctx, owner)
-	if err != nil {
-		return nil, err
-	}
-	for _, group := range groups {
-		if group.GetName() == groupName {
-			return group, nil
-		}
-	}
-	return nil, nil
-}
-
 // DeleteOrgRunnerGroup deletes an organization runner group by ID
 func (g *GitHubClient) DeleteOrgRunnerGroup(ctx context.Context, owner string, groupID int64) error {
 	_, err := g.client.Actions.DeleteOrganizationRunnerGroup(ctx, owner, groupID)
