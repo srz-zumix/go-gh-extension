@@ -129,10 +129,15 @@ type ExternalGroupTeamDetail struct {
 
 // GetExternalGroupTeams fetches the teams connected to an external group identified by name.
 // For each ExternalGroupTeam entry the corresponding github.Team is fetched by slug.
+// When group.Teams is empty (e.g. due to insufficient permissions), it falls back to
+// GetExternalGroupTeamsByBruteForce.
 func GetExternalGroupTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, groupName string) ([]*ExternalGroupTeamDetail, error) {
 	group, err := GetExternalGroupByName(ctx, g, repo, groupName)
 	if err != nil {
 		return nil, err
+	}
+	if len(group.Teams) == 0 {
+		return ScanExternalGroupTeams(ctx, g, repo, groupName)
 	}
 	var details []*ExternalGroupTeamDetail
 	for _, t := range group.Teams {
@@ -143,6 +148,50 @@ func GetExternalGroupTeams(ctx context.Context, g *GitHubClient, repo repository
 		details = append(details, &ExternalGroupTeamDetail{
 			Group: group,
 			Team:  team,
+		})
+	}
+	return details, nil
+}
+
+// ScanExternalGroupTeams finds teams connected to the named external group by
+// scanning all top-level teams that have no child teams and checking each one
+// via FindExternalGroupByTeamSlug. This is a fallback for when ExternalGroup.Teams is
+// empty due to insufficient API permissions.
+func ScanExternalGroupTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, groupName string) ([]*ExternalGroupTeamDetail, error) {
+	allTeams, err := g.ListTeams(ctx, repo.Owner)
+	if err != nil {
+		return nil, err
+	}
+
+	var details []*ExternalGroupTeamDetail
+	for _, t := range allTeams {
+		// Only consider top-level teams
+		if t.Parent != nil {
+			continue
+		}
+		slug := t.GetSlug()
+		if slug == "" {
+			continue
+		}
+		// Skip teams that have child teams
+		children, err := g.ListChildTeams(ctx, repo.Owner, slug)
+		if err != nil {
+			return nil, err
+		}
+		if len(children) > 0 {
+			continue
+		}
+		// Check if this team is connected to the target external group
+		group, err := FindExternalGroupByTeamSlug(ctx, g, repo, slug)
+		if err != nil {
+			return nil, err
+		}
+		if group == nil || group.GetGroupName() != groupName {
+			continue
+		}
+		details = append(details, &ExternalGroupTeamDetail{
+			Group: group,
+			Team:  t,
 		})
 	}
 	return details, nil
