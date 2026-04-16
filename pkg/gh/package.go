@@ -321,6 +321,7 @@ func GetPackageByOwnerType(ctx context.Context, g *GitHubClient, ownerType Owner
 // VersionFilter defines criteria for filtering package versions.
 type VersionFilter struct {
 	VersionIDs []int64
+	Names      []string
 	Latest     int
 	Since      *time.Time
 	Until      *time.Time
@@ -340,6 +341,18 @@ func FilterVersions(versions []*github.PackageVersion, filter VersionFilter) []*
 		var filtered []*github.PackageVersion
 		for _, v := range result {
 			if v.ID != nil && slices.Contains(filter.VersionIDs, *v.ID) {
+				filtered = append(filtered, v)
+			}
+		}
+		result = filtered
+		isNewSlice = true
+	}
+
+	// Filter by name
+	if len(filter.Names) > 0 {
+		var filtered []*github.PackageVersion
+		for _, v := range result {
+			if slices.Contains(filter.Names, v.GetName()) {
 				filtered = append(filtered, v)
 			}
 		}
