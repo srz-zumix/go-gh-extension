@@ -356,17 +356,18 @@ func FilterVersions(versions []*github.PackageVersion, filter VersionFilter) []*
 		isNewSlice = true
 	}
 
-	// Filter by name: build a map from name → versions, then iterate over the
-	// (typically smaller) filter.Names list for O(len(versions)+len(filter.Names)).
+	// Filter by name: treat filter.Names as a set and keep the original result
+	// order so matches are appended at most once.
 	if len(filter.Names) > 0 {
-		versionsByName := make(map[string][]*github.PackageVersion, len(result))
-		for _, v := range result {
-			name := v.GetName()
-			versionsByName[name] = append(versionsByName[name], v)
-		}
-		filtered := make([]*github.PackageVersion, 0, len(filter.Names))
+		requestedNames := make(map[string]struct{}, len(filter.Names))
 		for _, name := range filter.Names {
-			filtered = append(filtered, versionsByName[name]...)
+			requestedNames[name] = struct{}{}
+		}
+		filtered := make([]*github.PackageVersion, 0, len(result))
+		for _, v := range result {
+			if _, ok := requestedNames[v.GetName()]; ok {
+				filtered = append(filtered, v)
+			}
 		}
 		result = filtered
 		isNewSlice = true
