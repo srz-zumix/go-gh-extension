@@ -330,17 +330,25 @@ type VersionFilter struct {
 // FilterVersions applies the given filter to a list of package versions.
 // Filters are applied as intersection (AND):
 // 1. Filter by version IDs (if specified)
-// 2. Filter by date range (since/until)
-// 3. Sort by creation date descending, then apply latest N
+// 2. Filter by name (if specified)
+// 3. Filter by date range (since/until)
+// 4. Sort by creation date descending, then apply latest N
 func FilterVersions(versions []*github.PackageVersion, filter VersionFilter) []*github.PackageVersion {
 	result := versions
 	isNewSlice := false
 
-	// Filter by version IDs
+	// Filter by version IDs: build a map from ID → version, then iterate over the
+	// (typically smaller) filter.VersionIDs list for O(len(versions)+len(filter.VersionIDs)).
 	if len(filter.VersionIDs) > 0 {
-		var filtered []*github.PackageVersion
+		versionByID := make(map[int64]*github.PackageVersion, len(result))
 		for _, v := range result {
-			if v.ID != nil && slices.Contains(filter.VersionIDs, *v.ID) {
+			if v.ID != nil {
+				versionByID[*v.ID] = v
+			}
+		}
+		filtered := make([]*github.PackageVersion, 0, len(filter.VersionIDs))
+		for _, id := range filter.VersionIDs {
+			if v, ok := versionByID[id]; ok {
 				filtered = append(filtered, v)
 			}
 		}
@@ -348,13 +356,17 @@ func FilterVersions(versions []*github.PackageVersion, filter VersionFilter) []*
 		isNewSlice = true
 	}
 
-	// Filter by name
+	// Filter by name: build a map from name → versions, then iterate over the
+	// (typically smaller) filter.Names list for O(len(versions)+len(filter.Names)).
 	if len(filter.Names) > 0 {
-		var filtered []*github.PackageVersion
+		versionsByName := make(map[string][]*github.PackageVersion, len(result))
 		for _, v := range result {
-			if slices.Contains(filter.Names, v.GetName()) {
-				filtered = append(filtered, v)
-			}
+			name := v.GetName()
+			versionsByName[name] = append(versionsByName[name], v)
+		}
+		filtered := make([]*github.PackageVersion, 0, len(filter.Names))
+		for _, name := range filter.Names {
+			filtered = append(filtered, versionsByName[name]...)
 		}
 		result = filtered
 		isNewSlice = true
