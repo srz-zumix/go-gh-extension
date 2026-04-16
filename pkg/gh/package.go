@@ -321,6 +321,7 @@ func GetPackageByOwnerType(ctx context.Context, g *GitHubClient, ownerType Owner
 // VersionFilter defines criteria for filtering package versions.
 type VersionFilter struct {
 	VersionIDs []int64
+	Names      []string
 	Latest     int
 	Since      *time.Time
 	Until      *time.Time
@@ -329,17 +330,43 @@ type VersionFilter struct {
 // FilterVersions applies the given filter to a list of package versions.
 // Filters are applied as intersection (AND):
 // 1. Filter by version IDs (if specified)
-// 2. Filter by date range (since/until)
-// 3. Sort by creation date descending, then apply latest N
+// 2. Filter by name (if specified)
+// 3. Filter by date range (since/until)
+// 4. Sort by creation date descending, then apply latest N
 func FilterVersions(versions []*github.PackageVersion, filter VersionFilter) []*github.PackageVersion {
 	result := versions
 	isNewSlice := false
 
-	// Filter by version IDs
+	// Filter by version IDs: treat filter.VersionIDs as a set and keep the
+	// original result order so matches are returned in the same order as the
+	// input slice (consistent with the Names filter).
 	if len(filter.VersionIDs) > 0 {
-		var filtered []*github.PackageVersion
+		requestedIDs := make(map[int64]struct{}, len(filter.VersionIDs))
+		for _, id := range filter.VersionIDs {
+			requestedIDs[id] = struct{}{}
+		}
+		filtered := make([]*github.PackageVersion, 0, len(filter.VersionIDs))
 		for _, v := range result {
-			if v.ID != nil && slices.Contains(filter.VersionIDs, *v.ID) {
+			if v.ID != nil {
+				if _, ok := requestedIDs[*v.ID]; ok {
+					filtered = append(filtered, v)
+				}
+			}
+		}
+		result = filtered
+		isNewSlice = true
+	}
+
+	// Filter by name: treat filter.Names as a set and keep the original result
+	// order so each matching version is appended at most once.
+	if len(filter.Names) > 0 {
+		requestedNames := make(map[string]struct{}, len(filter.Names))
+		for _, name := range filter.Names {
+			requestedNames[name] = struct{}{}
+		}
+		filtered := make([]*github.PackageVersion, 0, len(result))
+		for _, v := range result {
+			if _, ok := requestedNames[v.GetName()]; ok {
 				filtered = append(filtered, v)
 			}
 		}

@@ -134,6 +134,19 @@ func TestFilterVersions_VersionIDs_NilID(t *testing.T) {
 	assert.Equal(t, int64(2), *result[0].ID)
 }
 
+func TestFilterVersions_VersionIDs_PreservesInputOrder(t *testing.T) {
+	// Result order must follow the input slice, not the order of filter.VersionIDs.
+	versions := []*github.PackageVersion{
+		makeVersion(3, &t3),
+		makeVersion(1, &t1),
+		makeVersion(2, &t2),
+	}
+	result := FilterVersions(versions, VersionFilter{VersionIDs: []int64{1, 3}})
+	assert.Len(t, result, 2)
+	assert.Equal(t, int64(3), *result[0].ID) // 3 appears first in the input
+	assert.Equal(t, int64(1), *result[1].ID)
+}
+
 func TestFilterVersions_Since(t *testing.T) {
 	versions := []*github.PackageVersion{
 		makeVersion(1, &t1),
@@ -256,6 +269,58 @@ func TestFilterVersions_VersionIDsAndLatest(t *testing.T) {
 	// newest first from {1,3,4}
 	assert.Equal(t, int64(4), *result[0].ID)
 	assert.Equal(t, int64(3), *result[1].ID)
+}
+
+func TestFilterVersions_Names(t *testing.T) {
+	versions := []*github.PackageVersion{
+		{ID: github.Ptr(int64(1)), Name: github.Ptr("v1.0"), CreatedAt: &github.Timestamp{Time: t1}},
+		{ID: github.Ptr(int64(2)), Name: github.Ptr("v2.0"), CreatedAt: &github.Timestamp{Time: t2}},
+		{ID: github.Ptr(int64(3)), Name: github.Ptr("v3.0"), CreatedAt: &github.Timestamp{Time: t3}},
+	}
+	result := FilterVersions(versions, VersionFilter{Names: []string{"v3.0", "v1.0"}})
+	assert.Len(t, result, 2)
+	// Results should preserve the input slice order, not the filter.Names order.
+	assert.Equal(t, "v1.0", result[0].GetName())
+	assert.Equal(t, "v3.0", result[1].GetName())
+}
+
+func TestFilterVersions_Names_NoMatch(t *testing.T) {
+	versions := []*github.PackageVersion{
+		{ID: github.Ptr(int64(1)), Name: github.Ptr("v1.0"), CreatedAt: &github.Timestamp{Time: t1}},
+	}
+	result := FilterVersions(versions, VersionFilter{Names: []string{"v9.9"}})
+	assert.Empty(t, result)
+}
+
+func TestFilterVersions_NamesAndSince(t *testing.T) {
+	// Combining Names and Since: only versions matching both criteria are returned.
+	versions := []*github.PackageVersion{
+		{ID: github.Ptr(int64(1)), Name: github.Ptr("v1.0"), CreatedAt: &github.Timestamp{Time: t1}},
+		{ID: github.Ptr(int64(2)), Name: github.Ptr("v2.0"), CreatedAt: &github.Timestamp{Time: t2}},
+		{ID: github.Ptr(int64(3)), Name: github.Ptr("v3.0"), CreatedAt: &github.Timestamp{Time: t3}},
+	}
+	result := FilterVersions(versions, VersionFilter{Names: []string{"v1.0", "v3.0"}, Since: &t2})
+	// v1.0 is before Since (t2), so only v3.0 passes both filters.
+	assert.Len(t, result, 1)
+	assert.Equal(t, "v3.0", result[0].GetName())
+}
+
+func TestFilterVersions_NamesAndLatest(t *testing.T) {
+	// Combining Names and Latest: latest N from the name-filtered set.
+	versions := []*github.PackageVersion{
+		{ID: github.Ptr(int64(1)), Name: github.Ptr("v1.0"), CreatedAt: &github.Timestamp{Time: t1}},
+		{ID: github.Ptr(int64(2)), Name: github.Ptr("v2.0"), CreatedAt: &github.Timestamp{Time: t2}},
+		{ID: github.Ptr(int64(3)), Name: github.Ptr("v3.0"), CreatedAt: &github.Timestamp{Time: t3}},
+		{ID: github.Ptr(int64(4)), Name: github.Ptr("v4.0"), CreatedAt: &github.Timestamp{Time: t4}},
+	}
+	result := FilterVersions(versions, VersionFilter{
+		Names:  []string{"v1.0", "v3.0", "v4.0"},
+		Latest: 2,
+	})
+	// Latest 2 from {v1.0, v3.0, v4.0}, newest first.
+	assert.Len(t, result, 2)
+	assert.Equal(t, "v4.0", result[0].GetName())
+	assert.Equal(t, "v3.0", result[1].GetName())
 }
 
 func TestFilterVersions_EmptyInput(t *testing.T) {
