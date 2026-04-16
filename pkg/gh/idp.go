@@ -129,14 +129,14 @@ type ExternalGroupTeamDetail struct {
 
 // GetExternalGroupTeams fetches the teams connected to an external group identified by name.
 // For each ExternalGroupTeam entry the corresponding github.Team is fetched by slug.
-// When group.Teams is empty (e.g. due to insufficient permissions), it falls back to
-// ScanExternalGroupTeams.
+// When group.Teams is nil (for example, when the field is omitted or unpopulated),
+// it falls back to ScanExternalGroupTeams.
 func GetExternalGroupTeams(ctx context.Context, g *GitHubClient, repo repository.Repository, groupName string) ([]*ExternalGroupTeamDetail, error) {
 	group, err := GetExternalGroupByName(ctx, g, repo, groupName)
 	if err != nil {
 		return nil, err
 	}
-	if len(group.Teams) == 0 {
+	if group.Teams == nil {
 		return ScanExternalGroupTeams(ctx, g, repo, groupName)
 	}
 	var details []*ExternalGroupTeamDetail
@@ -163,6 +163,14 @@ func ScanExternalGroupTeams(ctx context.Context, g *GitHubClient, repo repositor
 		return nil, err
 	}
 
+	// Build a set of team IDs that are referenced as a parent by any team.
+	parentIDs := make(map[int64]struct{})
+	for _, t := range allTeams {
+		if t.Parent != nil {
+			parentIDs[t.Parent.GetID()] = struct{}{}
+		}
+	}
+
 	var details []*ExternalGroupTeamDetail
 	for _, t := range allTeams {
 		// Only consider top-level teams
@@ -174,11 +182,7 @@ func ScanExternalGroupTeams(ctx context.Context, g *GitHubClient, repo repositor
 			continue
 		}
 		// Skip teams that have child teams
-		children, err := g.ListChildTeams(ctx, repo.Owner, slug)
-		if err != nil {
-			return nil, err
-		}
-		if len(children) > 0 {
+		if _, hasChildren := parentIDs[t.GetID()]; hasChildren {
 			continue
 		}
 		// Check if this team is connected to the target external group
