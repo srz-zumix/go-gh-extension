@@ -67,8 +67,8 @@ func ListOrgRunnerGroups(ctx context.Context, g *GitHubClient, repo repository.R
 	return g.ListOrgRunnerGroups(ctx, repo.Owner)
 }
 
-// FindOrgRunnerGroupByName finds an organization runner group by name (wrapper)
-func FindOrgRunnerGroupByName(ctx context.Context, g *GitHubClient, repo repository.Repository, groupName string) (*github.RunnerGroup, error) {
+// FindOrgRunnerGroup finds an organization runner group by name (wrapper)
+func FindOrgRunnerGroup(ctx context.Context, g *GitHubClient, repo repository.Repository, groupName string) (*github.RunnerGroup, error) {
 	groups, err := ListOrgRunnerGroups(ctx, g, repo)
 	if err != nil {
 		return nil, err
