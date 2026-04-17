@@ -62,9 +62,23 @@ func RemoveRunner(ctx context.Context, g *GitHubClient, repo repository.Reposito
 	return g.RemoveRunner(ctx, repo.Owner, repo.Name, runnerID)
 }
 
-// FindOrgRunnerGroup finds an organization runner group by name (wrapper)
-func FindOrgRunnerGroup(ctx context.Context, g *GitHubClient, repo repository.Repository, groupName string) (*github.RunnerGroup, error) {
-	return g.FindOrgRunnerGroup(ctx, repo.Owner, groupName)
+// ListOrgRunnerGroups lists all organization runner groups (wrapper)
+func ListOrgRunnerGroups(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.RunnerGroup, error) {
+	return g.ListOrgRunnerGroups(ctx, repo.Owner)
+}
+
+// FindOrgRunnerGroupByName finds an organization runner group by name (wrapper)
+func FindOrgRunnerGroupByName(ctx context.Context, g *GitHubClient, repo repository.Repository, groupName string) (*github.RunnerGroup, error) {
+	groups, err := ListOrgRunnerGroups(ctx, g, repo)
+	if err != nil {
+		return nil, err
+	}
+	for _, group := range groups {
+		if group.GetName() == groupName {
+			return group, nil
+		}
+	}
+	return nil, nil // Group not found
 }
 
 // CreateOrgRunnerGroup creates a new organization runner group (wrapper)
