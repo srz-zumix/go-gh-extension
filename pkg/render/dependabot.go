@@ -113,7 +113,8 @@ func (r *Renderer) RenderDependabotAlerts(alerts []*github.DependabotAlert, head
 	if r.exporter != nil {
 		return r.RenderExportedData(alerts)
 	}
-	if alerts == nil {
+	if len(alerts) == 0 {
+		r.writeLine("No Dependabot alerts found.")
 		return nil
 	}
 
@@ -141,48 +142,51 @@ func (r *Renderer) RenderDependabotAlert(alert *github.DependabotAlert) error {
 		return nil
 	}
 
-	r.writeLine(fmt.Sprintf("Number:    %s", ToString(alert.Number)))
-	r.writeLine(fmt.Sprintf("State:     %s", ToString(alert.State)))
+	// label width: longest label is "Vulnerable" (10 chars) + ":"
+	const labelFmt = "%-12s %s"
+
+	r.writeLine(fmt.Sprintf(labelFmt, "Number:", ToString(alert.Number)))
+	r.writeLine(fmt.Sprintf(labelFmt, "State:", ToString(alert.State)))
 
 	if alert.Dependency != nil {
 		if alert.Dependency.Package != nil {
-			r.writeLine(fmt.Sprintf("Package:   %s (%s)", ToString(alert.Dependency.Package.Name), ToString(alert.Dependency.Package.Ecosystem)))
+			r.writeLine(fmt.Sprintf(labelFmt, "Package:", fmt.Sprintf("%s (%s)", ToString(alert.Dependency.Package.Name), ToString(alert.Dependency.Package.Ecosystem))))
 		}
-		r.writeLine(fmt.Sprintf("Manifest:  %s", ToString(alert.Dependency.ManifestPath)))
-		r.writeLine(fmt.Sprintf("Scope:     %s", ToString(alert.Dependency.Scope)))
+		r.writeLine(fmt.Sprintf(labelFmt, "Manifest:", ToString(alert.Dependency.ManifestPath)))
+		r.writeLine(fmt.Sprintf(labelFmt, "Scope:", ToString(alert.Dependency.Scope)))
 	}
 
 	if alert.SecurityAdvisory != nil {
-		r.writeLine(fmt.Sprintf("Severity:  %s", ToString(alert.SecurityAdvisory.Severity)))
-		r.writeLine(fmt.Sprintf("GHSA ID:   %s", ToString(alert.SecurityAdvisory.GHSAID)))
-		r.writeLine(fmt.Sprintf("CVE ID:    %s", ToString(alert.SecurityAdvisory.CVEID)))
-		r.writeLine(fmt.Sprintf("Summary:   %s", ToString(alert.SecurityAdvisory.Summary)))
+		r.writeLine(fmt.Sprintf(labelFmt, "Severity:", ToString(alert.SecurityAdvisory.Severity)))
+		r.writeLine(fmt.Sprintf(labelFmt, "GHSA ID:", ToString(alert.SecurityAdvisory.GHSAID)))
+		r.writeLine(fmt.Sprintf(labelFmt, "CVE ID:", ToString(alert.SecurityAdvisory.CVEID)))
+		r.writeLine(fmt.Sprintf(labelFmt, "Summary:", ToString(alert.SecurityAdvisory.Summary)))
 		if alert.SecurityAdvisory.CVSS != nil && alert.SecurityAdvisory.CVSS.Score != nil {
-			r.writeLine(fmt.Sprintf("CVSS:      %.1f (%s)", *alert.SecurityAdvisory.CVSS.Score, ToString(alert.SecurityAdvisory.CVSS.VectorString)))
+			r.writeLine(fmt.Sprintf(labelFmt, "CVSS:", fmt.Sprintf("%.1f (%s)", *alert.SecurityAdvisory.CVSS.Score, ToString(alert.SecurityAdvisory.CVSS.VectorString))))
 		}
 	}
 
 	if alert.SecurityVulnerability != nil {
-		r.writeLine(fmt.Sprintf("Vulnerable: %s", ToString(alert.SecurityVulnerability.VulnerableVersionRange)))
+		r.writeLine(fmt.Sprintf(labelFmt, "Vulnerable:", ToString(alert.SecurityVulnerability.VulnerableVersionRange)))
 		if alert.SecurityVulnerability.FirstPatchedVersion != nil {
-			r.writeLine(fmt.Sprintf("Patched:   %s", ToString(alert.SecurityVulnerability.FirstPatchedVersion.Identifier)))
+			r.writeLine(fmt.Sprintf(labelFmt, "Patched:", ToString(alert.SecurityVulnerability.FirstPatchedVersion.Identifier)))
 		}
 	}
 
-	r.writeLine(fmt.Sprintf("URL:       %s", ToString(alert.HTMLURL)))
-	r.writeLine(fmt.Sprintf("Created:   %s", ToString(alert.CreatedAt)))
-	r.writeLine(fmt.Sprintf("Updated:   %s", ToString(alert.UpdatedAt)))
+	r.writeLine(fmt.Sprintf(labelFmt, "URL:", ToString(alert.HTMLURL)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Created:", ToString(alert.CreatedAt)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Updated:", ToString(alert.UpdatedAt)))
 
 	if alert.DismissedAt != nil {
-		r.writeLine(fmt.Sprintf("Dismissed: %s", ToString(alert.DismissedAt)))
-		r.writeLine(fmt.Sprintf("Reason:    %s", ToString(alert.DismissedReason)))
+		r.writeLine(fmt.Sprintf(labelFmt, "Dismissed:", ToString(alert.DismissedAt)))
+		r.writeLine(fmt.Sprintf(labelFmt, "Reason:", ToString(alert.DismissedReason)))
 		if alert.DismissedComment != nil {
-			r.writeLine(fmt.Sprintf("Comment:   %s", ToString(alert.DismissedComment)))
+			r.writeLine(fmt.Sprintf(labelFmt, "Comment:", ToString(alert.DismissedComment)))
 		}
 	}
 
 	if alert.FixedAt != nil {
-		r.writeLine(fmt.Sprintf("Fixed:     %s", ToString(alert.FixedAt)))
+		r.writeLine(fmt.Sprintf(labelFmt, "Fixed:", ToString(alert.FixedAt)))
 	}
 
 	return nil
