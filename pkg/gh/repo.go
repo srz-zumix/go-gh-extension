@@ -572,6 +572,11 @@ func EditRepository(ctx context.Context, g *GitHubClient, repo repository.Reposi
 	return g.EditRepository(ctx, repo.Owner, repo.Name, repoUpdate)
 }
 
+// RenameBranch renames a branch in a repository (wrapper).
+func RenameBranch(ctx context.Context, g *GitHubClient, repo repository.Repository, oldName, newName string) (*github.Branch, error) {
+	return g.RenameBranch(ctx, repo.Owner, repo.Name, oldName, newName)
+}
+
 // UnarchiveRepository unarchives a repository (wrapper).
 func UnarchiveRepository(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
 	return EditRepository(ctx, g, repo, &github.Repository{Archived: github.Ptr(false)})

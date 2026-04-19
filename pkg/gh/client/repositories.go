@@ -269,6 +269,12 @@ func (g *GitHubClient) EditRepository(ctx context.Context, owner, repo string, r
 	return updatedRepo, nil
 }
 
+// RenameBranch renames a branch in a repository.
+func (g *GitHubClient) RenameBranch(ctx context.Context, owner, repo, branch, newName string) (*github.Branch, error) {
+	b, _, err := g.client.Repositories.RenameBranch(ctx, owner, repo, branch, newName)
+	return b, err
+}
+
 // GetRepositoryNodeID retrieves the GraphQL node ID of a repository.
 func (g *GitHubClient) GetRepositoryNodeID(ctx context.Context, owner string, repo string) (githubv4.ID, error) {
 	graphql, err := g.GetOrCreateGraphQLClient()
