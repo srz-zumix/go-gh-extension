@@ -117,7 +117,7 @@ func (r *Renderer) RenderCodeScanningAlert(alert *github.Alert) error {
 		return nil
 	}
 
-	// label width: longest label is "Description" (11 chars) + ":"
+	// label width: longest label is "Sec Severity:" (13 chars)
 	const labelFmt = "%-13s %s"
 
 	r.writeLine(fmt.Sprintf(labelFmt, "Number:", ToString(alert.Number)))
