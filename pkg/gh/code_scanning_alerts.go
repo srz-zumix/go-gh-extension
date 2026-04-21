@@ -48,12 +48,12 @@ var CodeScanningAlertSortOptions = []string{
 
 // ListCodeScanningAlertsOptions holds filter/sort options for listing code scanning alerts.
 type ListCodeScanningAlertsOptions struct {
-	State    string
-	Severity string
-	ToolName string
-	ToolGUID string
-	Ref      string
-	Sort     string
+	State     string
+	Severity  string
+	ToolName  string
+	ToolGUID  string
+	Ref       string
+	Sort      string
 	Direction string
 }
 
