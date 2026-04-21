@@ -89,7 +89,7 @@ func (r *Renderer) RenderCodeScanningAlerts(alerts []*github.Alert, headers []st
 		return r.RenderExportedData(alerts)
 	}
 	if len(alerts) == 0 {
-		fmt.Println("No code scanning alerts found.")
+		r.writeLine("No code scanning alerts found.")
 		return nil
 	}
 
