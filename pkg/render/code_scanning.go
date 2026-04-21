@@ -54,13 +54,13 @@ func NewCodeScanningAlertFieldGetters() *CodeScanningAlertFieldGetters {
 			},
 			"CREATED": func(alert *github.Alert) string {
 				if alert.CreatedAt != nil {
-					return alert.CreatedAt.Format("2006-01-02 15:04:05")
+					return ToString(alert.CreatedAt)
 				}
 				return ""
 			},
 			"UPDATED": func(alert *github.Alert) string {
 				if alert.UpdatedAt != nil {
-					return alert.UpdatedAt.Format("2006-01-02 15:04:05")
+					return ToString(alert.UpdatedAt)
 				}
 				return ""
 			},
