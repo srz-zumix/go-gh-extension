@@ -443,7 +443,10 @@ func resolveGitHubActionsAppID(gitHubActionsAppID *int64, org *OrganizationProfi
 	return nil
 }
 
-// ImportMigrateRuleset imports a ruleset from a migrate config into the destination repository/org.
+// ImportMigrateRuleset transforms a ruleset from a migrate config for the destination repository/org.
+// It applies bypass actor remapping, org-specific rule adjustments, and condition/workflow/status-check remapping.
+// The returned ruleset is ready to be persisted via CreateOrUpdateRuleset, but no write operation is performed.
+// Returns nil, nil if the ruleset should be skipped (e.g. push target on unsupported platform).
 // If resolve is non-nil, it is called with each User bypass actor's source login to obtain
 // the destination login, enabling cross-org user remapping via a usermap.
 func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, migrateConfig *RepositoryRulesetMigrateConfig, gitHubActionsAppID *int64, resolve func(string) (string, bool)) (*github.RepositoryRuleset, error) {
@@ -575,12 +578,7 @@ func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.
 		return nil, err
 	}
 
-	result, err := CreateOrUpdateRuleset(ctx, g, repo, ruleset)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
+	return ruleset, nil
 }
 
 // importRulesetRequiredStatusChecks remaps required status checks integration IDs for the destination repository.
