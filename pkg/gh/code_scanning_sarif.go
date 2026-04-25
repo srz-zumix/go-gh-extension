@@ -15,7 +15,7 @@ type UploadSarifOptions struct {
 	Ref         string
 	Sarif       string
 	CheckoutURI string
-	StartedAt   string
+	StartedAt   time.Time
 	ToolName    string
 }
 
@@ -32,11 +32,8 @@ func toGitHubSarifAnalysis(opts *UploadSarifOptions) *github.SarifAnalysis {
 	if opts.CheckoutURI != "" {
 		s.CheckoutURI = &opts.CheckoutURI
 	}
-	if opts.StartedAt != "" {
-		t, err := time.Parse(time.RFC3339, opts.StartedAt)
-		if err == nil {
-			s.StartedAt = &github.Timestamp{Time: t}
-		}
+	if !opts.StartedAt.IsZero() {
+		s.StartedAt = &github.Timestamp{Time: opts.StartedAt}
 	}
 	if opts.ToolName != "" {
 		s.ToolName = &opts.ToolName

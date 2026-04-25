@@ -23,7 +23,7 @@ func (g *GitHubClient) ListAnalysesForRepo(ctx context.Context, owner, repo stri
 		if resp.NextPage == 0 {
 			break
 		}
-		opts.ListOptions.Page = resp.NextPage
+		opts.Page = resp.NextPage
 	}
 
 	return allAnalyses, nil
