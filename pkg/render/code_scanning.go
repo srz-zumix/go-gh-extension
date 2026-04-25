@@ -218,8 +218,8 @@ func (r *Renderer) RenderCodeQLDatabase(db *github.CodeQLDatabase) error {
 	return nil
 }
 
-// RenderScanningAnalyses renders a list of code scanning analyses as a table.
-func (r *Renderer) RenderScanningAnalyses(analyses []*github.ScanningAnalysis) error {
+// RenderCodeScanningAnalyses renders a list of code scanning analyses as a table.
+func (r *Renderer) RenderCodeScanningAnalyses(analyses []*github.ScanningAnalysis) error {
 	if r.exporter != nil {
 		return r.RenderExportedData(analyses)
 	}
@@ -248,8 +248,8 @@ func (r *Renderer) RenderScanningAnalyses(analyses []*github.ScanningAnalysis) e
 	return table.Render()
 }
 
-// RenderScanningAnalysis renders a single code scanning analysis in detail format.
-func (r *Renderer) RenderScanningAnalysis(analysis *github.ScanningAnalysis) error {
+// RenderCodeScanningAnalysis renders a single code scanning analysis in detail format.
+func (r *Renderer) RenderCodeScanningAnalysis(analysis *github.ScanningAnalysis) error {
 	if r.exporter != nil {
 		return r.RenderExportedData(analysis)
 	}
