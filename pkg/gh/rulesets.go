@@ -231,7 +231,9 @@ func ExportRuleset(ruleset *github.RepositoryRuleset) *RepositoryRulesetConfig {
 	return config
 }
 
-func ImportRuleset(config *RepositoryRulesetConfig, ruleset *github.RepositoryRuleset) *github.RepositoryRuleset {
+// ToRepositoryRuleset converts the RepositoryRulesetConfig to a github.RepositoryRuleset.
+// If ruleset is nil, a new empty RepositoryRuleset is created. Otherwise the fields are applied on top of it.
+func (config *RepositoryRulesetConfig) ToRepositoryRuleset(ruleset *github.RepositoryRuleset) *github.RepositoryRuleset {
 	if ruleset == nil {
 		ruleset = &github.RepositoryRuleset{}
 	}
@@ -443,13 +445,13 @@ func resolveGitHubActionsAppID(gitHubActionsAppID *int64, org *OrganizationProfi
 	return nil
 }
 
-// ImportMigrateRuleset transforms a ruleset from a migrate config for the destination repository/org.
+// TransformMigrateRuleset transforms a ruleset from a migrate config for the destination repository/org.
 // It applies bypass actor remapping, org-specific rule adjustments, and condition/workflow/status-check remapping.
 // The returned ruleset is ready to be persisted via CreateOrUpdateRuleset, but no write operation is performed.
 // Returns nil, nil if the ruleset should be skipped (e.g. push target on unsupported platform).
 // If resolve is non-nil, it is called with each User bypass actor's source login to obtain
 // the destination login, enabling cross-org user remapping via a usermap.
-func ImportMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, migrateConfig *RepositoryRulesetMigrateConfig, gitHubActionsAppID *int64, resolve func(string) (string, bool)) (*github.RepositoryRuleset, error) {
+func TransformMigrateRuleset(ctx context.Context, g *GitHubClient, repo repository.Repository, migrateConfig *RepositoryRulesetMigrateConfig, gitHubActionsAppID *int64, resolve func(string) (string, bool)) (*github.RepositoryRuleset, error) {
 	ruleset := migrateConfig.Ruleset
 	teams := GetRulesetActorsTeams(ctx, g, repo, ruleset)
 
