@@ -10,7 +10,7 @@ import (
 
 // ListCodeScanningAnalysesOptions holds filter options for listing code scanning analyses.
 type ListCodeScanningAnalysesOptions struct {
-	SarifID string
+	SARIFID string
 	Ref     string
 }
 
@@ -20,8 +20,8 @@ func toGitHubCodeScanningAnalysesListOptions(opts *ListCodeScanningAnalysesOptio
 		return nil
 	}
 	o := &github.AnalysesListOptions{}
-	if opts.SarifID != "" {
-		o.SarifID = &opts.SarifID
+	if opts.SARIFID != "" {
+		o.SarifID = &opts.SARIFID
 	}
 	if opts.Ref != "" {
 		o.Ref = &opts.Ref

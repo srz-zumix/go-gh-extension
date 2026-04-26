@@ -11,8 +11,10 @@ import (
 
 // UploadSARIFOptions holds the parameters for uploading SARIF data.
 type UploadSARIFOptions struct {
-	CommitSHA   string
-	Ref         string
+	CommitSHA string
+	Ref       string
+	// SARIF must be a base64-encoded SARIF payload. The GitHub API expects
+	// gzip-compressed SARIF content encoded as base64 rather than raw JSON.
 	SARIF       string
 	CheckoutURI string
 	StartedAt   time.Time
@@ -42,6 +44,9 @@ func toGitHubSARIFAnalysis(opts *UploadSARIFOptions) *github.SarifAnalysis {
 }
 
 // UploadSARIF uploads SARIF data to a repository.
+//
+// The SARIF payload must already be encoded in the format expected by the
+// GitHub API: base64-encoded and typically gzip-compressed.
 func UploadSARIF(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *UploadSARIFOptions) (*github.SarifID, error) {
 	sarifID, err := g.UploadSarif(ctx, repo.Owner, repo.Name, toGitHubSARIFAnalysis(opts))
 	if err != nil {
