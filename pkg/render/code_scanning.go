@@ -284,8 +284,8 @@ func (r *Renderer) RenderCodeScanningAnalysis(analysis *github.ScanningAnalysis)
 	return nil
 }
 
-// RenderSarifUpload renders a single SARIF upload status in detail format.
-func (r *Renderer) RenderSarifUpload(upload *github.SARIFUpload) error {
+// RenderSARIFUpload renders a single SARIF upload status in detail format.
+func (r *Renderer) RenderSARIFUpload(upload *github.SARIFUpload) error {
 	if r.exporter != nil {
 		return r.RenderExportedData(upload)
 	}
@@ -301,8 +301,8 @@ func (r *Renderer) RenderSarifUpload(upload *github.SARIFUpload) error {
 	return nil
 }
 
-// RenderSarifID renders the result of a SARIF upload.
-func (r *Renderer) RenderSarifID(sarifID *github.SarifID) error {
+// RenderSARIFID renders the result of a SARIF upload.
+func (r *Renderer) RenderSARIFID(sarifID *github.SarifID) error {
 	if r.exporter != nil {
 		return r.RenderExportedData(sarifID)
 	}
