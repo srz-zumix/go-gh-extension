@@ -65,3 +65,21 @@ func ListOrgRuleSuites(ctx context.Context, g *GitHubClient, repo repository.Rep
 func GetOrgRuleSuite(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleSuiteID int64) (*RuleSuite, error) {
 	return g.GetOrgRuleSuite(ctx, repo.Owner, ruleSuiteID)
 }
+
+// ListRuleSuites dispatches to the organization or repository rule-suite
+// listing API based on whether repo.Name is set.
+func ListRuleSuites(ctx context.Context, g *GitHubClient, repo repository.Repository, options *ListRuleSuitesOptions) ([]*RuleSuite, error) {
+	if repo.Name == "" {
+		return ListOrgRuleSuites(ctx, g, repo, options)
+	}
+	return ListRepositoryRuleSuites(ctx, g, repo, options)
+}
+
+// GetRuleSuite dispatches to the organization or repository rule-suite getter
+// API based on whether repo.Name is set.
+func GetRuleSuite(ctx context.Context, g *GitHubClient, repo repository.Repository, ruleSuiteID int64) (*RuleSuite, error) {
+	if repo.Name == "" {
+		return GetOrgRuleSuite(ctx, g, repo, ruleSuiteID)
+	}
+	return GetRepositoryRuleSuite(ctx, g, repo, ruleSuiteID)
+}
