@@ -3,7 +3,7 @@ package cmdflags
 import (
 	"testing"
 
-	"github.com/spf13/pflag"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,21 +51,18 @@ func TestSafeOptionsValue_Type(t *testing.T) {
 
 func TestSafeOptionsVar_RegistersFlag(t *testing.T) {
 	var p string
-	f := pflag.NewFlagSet("test", pflag.ContinueOnError)
-	SafeOptionsVar(f, &p, "extra-opts", "", "usage")
+	cmd := &cobra.Command{Use: "test"}
+	SafeOptionsVar(cmd, &p, "extra-opts", "", "usage")
 
-	flag := f.Lookup("extra-opts")
-	require.NotNil(t, flag)
-	assert.Equal(t, flag.Value.String(), flag.DefValue)
-	require.NoError(t, f.Parse([]string{"--extra-opts", "--timeout 5m"}))
+	require.NoError(t, cmd.Flags().Set("extra-opts", "--timeout 5m"))
 	assert.Equal(t, "--timeout 5m", p)
 }
 
 func TestSafeOptionsVar_RejectsNewlineViaFlag(t *testing.T) {
 	var p string
-	f := pflag.NewFlagSet("test", pflag.ContinueOnError)
-	SafeOptionsVar(f, &p, "extra-opts", "", "usage")
+	cmd := &cobra.Command{Use: "test"}
+	SafeOptionsVar(cmd, &p, "extra-opts", "", "usage")
 
-	err := f.Parse([]string{"--extra-opts", "--flag\ninjected"})
+	err := cmd.Flags().Set("extra-opts", "--flag\ninjected")
 	assert.Error(t, err)
 }

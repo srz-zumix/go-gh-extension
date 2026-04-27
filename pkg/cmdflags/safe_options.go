@@ -3,7 +3,7 @@ package cmdflags
 import (
 	"fmt"
 
-	"github.com/spf13/pflag"
+	"github.com/spf13/cobra"
 )
 
 // safeOptionsValue implements pflag.Value for a free-form options string that
@@ -35,10 +35,10 @@ func (v *safeOptionsValue) Type() string {
 	return "string"
 }
 
-// SafeOptionsVar registers a string flag on f whose value is rejected when it
+// SafeOptionsVar registers a string flag on cmd whose value is rejected when it
 // contains newlines or other ASCII control characters (U+0000–U+001F).
 // Quote the value when it contains spaces, e.g. --flag '--opt value'.
-func SafeOptionsVar(f *pflag.FlagSet, p *string, name, value, usage string) {
+func SafeOptionsVar(cmd *cobra.Command, p *string, name, value, usage string) {
 	*p = value
-	f.Var(&safeOptionsValue{value: p}, name, usage)
+	cmd.Flags().Var(&safeOptionsValue{value: p}, name, usage)
 }
