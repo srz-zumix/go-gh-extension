@@ -308,21 +308,56 @@ func ListRepositoryIssues(ctx context.Context, g *GitHubClient, repo repository.
 	return issues, nil
 }
 
-// ListAllRepositoryIssueComments lists all comments from issues in the repository.
-// state filters issues by state: "open", "closed", or "all".
-// When includePRs is true, issue comments on pull requests are also included.
-func ListAllRepositoryIssueComments(ctx context.Context, g *GitHubClient, repo repository.Repository, state string, includePRs bool) ([]*github.IssueComment, error) {
+// ListAllRepositoryIssueCommentsOptions configures bounded retrieval of issue comments.
+// Zero values mean no limit.
+type ListAllRepositoryIssueCommentsOptions struct {
+	MaxIssues   int
+	MaxComments int
+}
+
+// listAllRepositoryIssueCommentsWithOptions lists issue comments with optional limits.
+// This helper allows callers in this package to bound API usage and memory growth.
+func listAllRepositoryIssueCommentsWithOptions(ctx context.Context, g *GitHubClient, repo repository.Repository, state string, includePRs bool, opts ListAllRepositoryIssueCommentsOptions) ([]*github.IssueComment, error) {
 	issues, err := ListRepositoryIssues(ctx, g, repo, state, includePRs)
 	if err != nil {
 		return nil, err
 	}
+
 	var allComments []*github.IssueComment
-	for _, issue := range issues {
+	for i, issue := range issues {
+		if opts.MaxIssues > 0 && i >= opts.MaxIssues {
+			break
+		}
+
 		comments, err := ListIssueComments(ctx, g, repo, issue.GetNumber())
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to list comments for issue #%d: %w", issue.GetNumber(), err)
 		}
+
+		if opts.MaxComments > 0 {
+			remaining := opts.MaxComments - len(allComments)
+			if remaining <= 0 {
+				break
+			}
+			if len(comments) > remaining {
+				comments = comments[:remaining]
+			}
+		}
+
 		allComments = append(allComments, comments...)
+
+		if opts.MaxComments > 0 && len(allComments) >= opts.MaxComments {
+			break
+		}
 	}
 	return allComments, nil
+}
+
+// ListAllRepositoryIssueComments lists all comments from issues in the repository.
+// state filters issues by state: "open", "closed", or "all".
+// When includePRs is true, issue comments on pull requests are also included.
+// This may be expensive for repositories with many issues or comments because it
+// performs one additional API call per issue and accumulates all comments in memory.
+func ListAllRepositoryIssueComments(ctx context.Context, g *GitHubClient, repo repository.Repository, state string, includePRs bool) ([]*github.IssueComment, error) {
+	return listAllRepositoryIssueCommentsWithOptions(ctx, g, repo, state, includePRs, ListAllRepositoryIssueCommentsOptions{})
 }
