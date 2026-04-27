@@ -39,6 +39,9 @@ func (v *safeOptionsValue) Type() string {
 // contains newlines or other ASCII control characters (U+0000–U+001F).
 // Quote the value when it contains spaces, e.g. --flag '--opt value'.
 func SafeOptionsVar(cmd *cobra.Command, p *string, name, value, usage string) {
-	*p = value
-	cmd.Flags().Var(&safeOptionsValue{value: p}, name, usage)
+	v := &safeOptionsValue{value: p}
+	if err := v.Set(value); err != nil {
+		panic(fmt.Errorf("invalid default value for flag %q: %w", name, err))
+	}
+	cmd.Flags().Var(v, name, usage)
 }
