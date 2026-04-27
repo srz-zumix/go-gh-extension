@@ -330,7 +330,7 @@ func listAllRepositoryIssueCommentsWithOptions(ctx context.Context, g *GitHubCli
 	for _, issue := range issues {
 		comments, err := ListIssueComments(ctx, g, repo, issue.GetNumber())
 		if err != nil {
-			return nil, fmt.Errorf("failed to list comments for issue #%d: %w", issue.GetNumber(), err)
+			return nil, fmt.Errorf("failed to list comments for %s/%s issue #%d: %w", repo.Owner, repo.Name, issue.GetNumber(), err)
 		}
 
 		if opts.MaxComments > 0 {
