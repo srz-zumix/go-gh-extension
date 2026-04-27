@@ -296,3 +296,33 @@ func SearchIssues(ctx context.Context, g *GitHubClient, repo repository.Reposito
 	}
 	return issues, nil
 }
+
+// ListRepositoryIssues lists issues in the repository.
+// state filters issues by state: "open", "closed", or "all".
+// When includePRs is false, pull requests are excluded from the result.
+func ListRepositoryIssues(ctx context.Context, g *GitHubClient, repo repository.Repository, state string, includePRs bool) ([]*github.Issue, error) {
+	issues, err := g.ListRepositoryIssues(ctx, repo.Owner, repo.Name, state, includePRs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list issues in repository '%s/%s': %w", repo.Owner, repo.Name, err)
+	}
+	return issues, nil
+}
+
+// ListAllRepositoryIssueComments lists all comments from issues in the repository.
+// state filters issues by state: "open", "closed", or "all".
+// When includePRs is true, issue comments on pull requests are also included.
+func ListAllRepositoryIssueComments(ctx context.Context, g *GitHubClient, repo repository.Repository, state string, includePRs bool) ([]*github.IssueComment, error) {
+	issues, err := ListRepositoryIssues(ctx, g, repo, state, includePRs)
+	if err != nil {
+		return nil, err
+	}
+	var allComments []*github.IssueComment
+	for _, issue := range issues {
+		comments, err := ListIssueComments(ctx, g, repo, issue.GetNumber())
+		if err != nil {
+			return nil, fmt.Errorf("failed to list comments for issue #%d: %w", issue.GetNumber(), err)
+		}
+		allComments = append(allComments, comments...)
+	}
+	return allComments, nil
+}

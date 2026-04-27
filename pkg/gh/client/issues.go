@@ -104,6 +104,34 @@ func (g *GitHubClient) ListIssueComments(ctx context.Context, owner string, repo
 	return allComments, nil
 }
 
+// ListRepositoryIssues lists issues in the repository.
+// state filters issues by state: "open", "closed", or "all".
+// When includePRs is false, pull requests are excluded from the result.
+func (g *GitHubClient) ListRepositoryIssues(ctx context.Context, owner, repo, state string, includePRs bool) ([]*github.Issue, error) {
+	allIssues := []*github.Issue{}
+	opts := &github.IssueListByRepoOptions{
+		State:       state,
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
+	}
+	for {
+		issues, resp, err := g.client.Issues.ListByRepo(ctx, owner, repo, opts)
+		if err != nil {
+			return nil, err
+		}
+		for _, issue := range issues {
+			// Optionally filter out pull requests
+			if includePRs || issue.PullRequestLinks == nil {
+				allIssues = append(allIssues, issue)
+			}
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.ListOptions.Page = resp.NextPage
+	}
+	return allIssues, nil
+}
+
 // MinimizeComment hides (minimizes) a comment using the GraphQL minimizeComment mutation.
 // classifier must be one of: ABUSE, DUPLICATE, OFF_TOPIC, OUTDATED, RESOLVED, SPAM.
 func (g *GitHubClient) MinimizeComment(ctx context.Context, nodeID string, classifier string) error {
