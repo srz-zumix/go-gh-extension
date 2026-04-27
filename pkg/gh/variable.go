@@ -51,6 +51,12 @@ func isVariableNotFound(err error) bool {
 	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusNotFound
 }
 
+// IsVariableAlreadyExists returns true if the error is a GitHub 409 "Already exists" response.
+func IsVariableAlreadyExists(err error) bool {
+	var errResp *github.ErrorResponse
+	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusConflict
+}
+
 // CreateOrUpdateRepoVariable creates or updates a repository variable.
 // If overwrite is true, it attempts to update first and falls back to creation if the variable does not exist.
 // If overwrite is false, it attempts to create the variable and returns an error if creation fails.
