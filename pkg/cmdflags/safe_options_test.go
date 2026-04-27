@@ -54,6 +54,9 @@ func TestSafeOptionsVar_RegistersFlag(t *testing.T) {
 	f := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	SafeOptionsVar(f, &p, "extra-opts", "", "usage")
 
+	flag := f.Lookup("extra-opts")
+	require.NotNil(t, flag)
+	assert.Equal(t, flag.Value.String(), flag.DefValue)
 	require.NoError(t, f.Parse([]string{"--extra-opts", "--timeout 5m"}))
 	assert.Equal(t, "--timeout 5m", p)
 }
