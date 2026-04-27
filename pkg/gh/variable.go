@@ -51,7 +51,7 @@ func isVariableNotFound(err error) bool {
 	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusNotFound
 }
 
-// IsVariableAlreadyExists returns true if the error is a GitHub 409 "Already exists" response.
+// IsVariableAlreadyExists returns true if the error is a GitHub 409 Conflict response.
 func IsVariableAlreadyExists(err error) bool {
 	var errResp *github.ErrorResponse
 	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusConflict
