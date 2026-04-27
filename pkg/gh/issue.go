@@ -316,19 +316,18 @@ type ListAllRepositoryIssueCommentsOptions struct {
 }
 
 // listAllRepositoryIssueCommentsWithOptions lists issue comments with optional limits.
-// This helper allows callers in this package to bound API usage and memory growth.
+// This helper bounds downstream comment retrieval and memory growth for the returned data.
 func listAllRepositoryIssueCommentsWithOptions(ctx context.Context, g *GitHubClient, repo repository.Repository, state string, includePRs bool, opts ListAllRepositoryIssueCommentsOptions) ([]*github.IssueComment, error) {
 	issues, err := ListRepositoryIssues(ctx, g, repo, state, includePRs)
 	if err != nil {
 		return nil, err
 	}
+	if opts.MaxIssues > 0 && len(issues) > opts.MaxIssues {
+		issues = issues[:opts.MaxIssues]
+	}
 
 	var allComments []*github.IssueComment
-	for i, issue := range issues {
-		if opts.MaxIssues > 0 && i >= opts.MaxIssues {
-			break
-		}
-
+	for _, issue := range issues {
 		comments, err := ListIssueComments(ctx, g, repo, issue.GetNumber())
 		if err != nil {
 			return nil, fmt.Errorf("failed to list comments for issue #%d: %w", issue.GetNumber(), err)
