@@ -54,6 +54,12 @@ func TestSafeOptionsVar_RegistersFlag(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	SafeOptionsVar(cmd, &p, "extra-opts", "", "usage")
 
+	flag := cmd.Flags().Lookup("extra-opts")
+	require.NotNil(t, flag)
+
+	// Ensure the registered default metadata stays consistent with the value
+	// string representation used by help text rendering.
+	assert.Equal(t, flag.DefValue, flag.Value.String())
 	require.NoError(t, cmd.Flags().Set("extra-opts", "--timeout 5m"))
 	assert.Equal(t, "--timeout 5m", p)
 }
