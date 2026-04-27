@@ -320,7 +320,7 @@ func ListAllRepositoryIssueComments(ctx context.Context, g *GitHubClient, repo r
 	for _, issue := range issues {
 		comments, err := ListIssueComments(ctx, g, repo, issue.GetNumber())
 		if err != nil {
-			return nil, fmt.Errorf("failed to list comments for issue #%d: %w", issue.GetNumber(), err)
+			return nil, err
 		}
 		allComments = append(allComments, comments...)
 	}
