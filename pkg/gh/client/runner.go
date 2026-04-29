@@ -163,6 +163,24 @@ func (g *GitHubClient) ListOrgRunnerGroups(ctx context.Context, owner string) ([
 	return allGroups, nil
 }
 
+// ListOrgRunnerGroupRunners lists all self-hosted runners belonging to a runner group
+func (g *GitHubClient) ListOrgRunnerGroupRunners(ctx context.Context, owner string, groupID int64) ([]*github.Runner, error) {
+	allRunners := []*github.Runner{}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
+	for {
+		runners, resp, err := g.client.Actions.ListRunnerGroupRunners(ctx, owner, groupID, opt)
+		if err != nil {
+			return nil, err
+		}
+		allRunners = append(allRunners, runners.Runners...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return allRunners, nil
+}
+
 // DeleteOrgRunnerGroup deletes an organization runner group by ID
 func (g *GitHubClient) DeleteOrgRunnerGroup(ctx context.Context, owner string, groupID int64) error {
 	_, err := g.client.Actions.DeleteOrganizationRunnerGroup(ctx, owner, groupID)
