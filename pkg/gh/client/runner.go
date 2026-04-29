@@ -163,7 +163,7 @@ func (g *GitHubClient) ListOrgRunnerGroups(ctx context.Context, owner string) ([
 	return allGroups, nil
 }
 
-// ListOrgRunnerGroupRunners lists all self-hosted runners belonging to a runner group
+// ListOrgRunnerGroupRunners lists all self-hosted runners belonging to an organization runner group
 func (g *GitHubClient) ListOrgRunnerGroupRunners(ctx context.Context, owner string, groupID int64) ([]*github.Runner, error) {
 	allRunners := []*github.Runner{}
 	opt := &github.ListOptions{PerPage: defaultPerPage}
