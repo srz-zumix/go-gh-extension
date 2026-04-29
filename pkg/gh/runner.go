@@ -86,6 +86,11 @@ func CreateOrgRunnerGroup(ctx context.Context, g *GitHubClient, repo repository.
 	return g.CreateOrgRunnerGroup(ctx, repo.Owner, name)
 }
 
+// ListOrgRunnerGroupRunners lists all self-hosted runners belonging to an organization runner group (wrapper)
+func ListOrgRunnerGroupRunners(ctx context.Context, g *GitHubClient, repo repository.Repository, groupID int64) ([]*github.Runner, error) {
+	return g.ListOrgRunnerGroupRunners(ctx, repo.Owner, groupID)
+}
+
 // DeleteOrgRunnerGroup deletes an organization runner group by ID (wrapper)
 func DeleteOrgRunnerGroup(ctx context.Context, g *GitHubClient, repo repository.Repository, groupID int64) error {
 	return g.DeleteOrgRunnerGroup(ctx, repo.Owner, groupID)
