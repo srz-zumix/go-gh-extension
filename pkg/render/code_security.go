@@ -39,8 +39,9 @@ func (r *Renderer) RenderCodeSecurityConfiguration(c *github.CodeSecurityConfigu
 		return nil
 	}
 
-	// label width: longest label is "Secret Scanning Push Protection:" (32 chars)
-	const labelFmt = "%-37s %s"
+	// labelWidth keeps detail output aligned. It includes padding beyond the longest current label.
+	const labelWidth = 37
+	labelFmt := fmt.Sprintf("%%-%ds %%s", labelWidth)
 
 	r.writeLine(fmt.Sprintf(labelFmt, "ID:", ToString(c.ID)))
 	r.writeLine(fmt.Sprintf(labelFmt, "Name:", c.Name))
