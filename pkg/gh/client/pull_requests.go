@@ -279,6 +279,9 @@ func (g *GitHubClient) ListPullRequests(ctx context.Context, owner string, repo 
 		opt.Page = resp.NextPage
 	}
 
+	if maxCount > 0 && len(allPullRequests) > maxCount {
+		allPullRequests = allPullRequests[:maxCount]
+	}
 	return allPullRequests, nil
 }
 
