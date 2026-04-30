@@ -273,7 +273,7 @@ func (g *GitHubClient) ListPullRequests(ctx context.Context, owner string, repo 
 			return nil, err
 		}
 		allPullRequests = append(allPullRequests, prs...)
-		if resp.NextPage == 0 || maxCount < 0 || len(allPullRequests) >= maxCount {
+		if resp.NextPage == 0 || (maxCount > 0 && len(allPullRequests) >= maxCount) {
 			break
 		}
 		opt.Page = resp.NextPage
