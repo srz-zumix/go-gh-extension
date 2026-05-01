@@ -11,7 +11,7 @@ import (
 var SecretScanningPushProtectionSettings = []string{
 	"enabled",
 	"disabled",
-	"not-set",
+	"not_set",
 }
 
 // ListSecretScanningPatternConfigs lists secret scanning pattern configurations for an organization.
