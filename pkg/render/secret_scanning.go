@@ -15,6 +15,8 @@ func (r *Renderer) RenderSecretScanningPatternConfigs(configs *github.SecretScan
 		return nil
 	}
 
+	wroteSection := false
+
 	if len(configs.ProviderPatternOverrides) > 0 {
 		r.writeLine(fmt.Sprintf("Pattern Config Version: %s", ToString(configs.PatternConfigVersion)))
 		r.writeLine("")
@@ -34,10 +36,13 @@ func (r *Renderer) RenderSecretScanningPatternConfigs(configs *github.SecretScan
 		if err := table.Render(); err != nil {
 			return err
 		}
+		wroteSection = true
 	}
 
 	if len(configs.CustomPatternOverrides) > 0 {
-		r.writeLine("")
+		if wroteSection {
+			r.writeLine("")
+		}
 		r.writeLine("Custom Patterns:")
 		headers := []string{"Token Type", "Version", "Slug", "Display Name", "Setting", "Default Setting"}
 		table := r.newTableWriter(headers)
