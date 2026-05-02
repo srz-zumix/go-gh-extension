@@ -97,8 +97,13 @@ func ParseCustomPattern(s string) (*SecretScanningCustomPatternSetting, error) {
 		PushProtectionSetting: setting,
 	}
 	if colon := strings.Index(key, ":"); colon >= 0 {
-		result.TokenType = key[:colon]
-		result.CustomPatternVersion = key[colon+1:]
+		tokenType := key[:colon]
+		version := key[colon+1:]
+		if tokenType == "" || version == "" {
+			return nil, fmt.Errorf("invalid custom pattern %q: TOKEN_TYPE and VERSION must not be empty", s)
+		}
+		result.TokenType = tokenType
+		result.CustomPatternVersion = version
 	} else {
 		result.TokenType = key
 	}
