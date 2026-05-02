@@ -44,12 +44,18 @@ func toGitHubSecretScanningPatternConfigsUpdateOptions(opts *SecretScanningPatte
 	ghOpts := &github.SecretScanningPatternConfigsUpdateOptions{}
 	ghOpts.PatternConfigVersion = stringPtrIfSet(opts.PatternConfigVersion)
 	for _, p := range opts.ProviderPatternSettings {
+		if p == nil {
+			continue
+		}
 		ghOpts.ProviderPatternSettings = append(ghOpts.ProviderPatternSettings, &github.SecretScanningProviderPatternSetting{
 			TokenType:             p.TokenType,
 			PushProtectionSetting: p.PushProtectionSetting,
 		})
 	}
 	for _, p := range opts.CustomPatternSettings {
+		if p == nil {
+			continue
+		}
 		s := &github.SecretScanningCustomPatternSetting{
 			TokenType:             p.TokenType,
 			PushProtectionSetting: p.PushProtectionSetting,
