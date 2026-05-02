@@ -13,7 +13,7 @@ import (
 var SecretScanningPushProtectionSettings = []string{
 	"enabled",
 	"disabled",
-	"not-set",
+	"not_set",
 }
 
 // SecretScanningProviderPatternSetting holds a push protection setting for a provider pattern.
