@@ -68,6 +68,9 @@ func toGitHubSecretScanningPatternConfigsUpdateOptions(opts *SecretScanningPatte
 
 // ParseProviderPattern parses a "TOKEN_TYPE=SETTING" string into a SecretScanningProviderPatternSetting.
 func ParseProviderPattern(s string) (*SecretScanningProviderPatternSetting, error) {
+	if strings.Count(s, "=") != 1 {
+		return nil, fmt.Errorf("invalid provider pattern %q: expected exactly one '=' separator", s)
+	}
 	before, after, ok := strings.Cut(s, "=")
 	if !ok {
 		return nil, fmt.Errorf("invalid provider pattern %q: expected TOKEN_TYPE=SETTING", s)
