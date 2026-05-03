@@ -6,12 +6,12 @@ import (
 
 func TestParseCustomPattern(t *testing.T) {
 	tests := []struct {
-		name            string
-		input           string
-		wantTokenType   string
-		wantVersion     string
-		wantSetting     string
-		wantErr         bool
+		name          string
+		input         string
+		wantTokenType string
+		wantVersion   string
+		wantSetting   string
+		wantErr       bool
 	}{
 		{
 			name:          "TOKEN_TYPE=SETTING",
