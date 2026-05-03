@@ -548,3 +548,30 @@ func SortCommitsBy(commits []*DanglingCommit, field string, desc bool) error {
 	})
 	return nil
 }
+
+// FindLocalDanglingCommitsOnRemote checks which of the given commit SHAs exist on
+// the remote GitHub repository. SHAs that return a successful API response are
+// returned as DanglingCommit entries with their commit message populated.
+// SHAs that are not found on the remote (404) or any other API error are silently
+// skipped (logged at debug level).
+func FindLocalDanglingCommitsOnRemote(ctx context.Context, g *GitHubClient, repo repository.Repository, shas []string) ([]*DanglingCommit, error) {
+	logger.Info("checking local dangling commits against remote", "total", len(shas))
+	var result []*DanglingCommit
+	for _, sha := range shas {
+		commit, err := g.GetCommit(ctx, repo.Owner, repo.Name, sha)
+		if err != nil {
+			logger.Debug("commit not found on remote", "sha", sha, "error", err)
+			continue
+		}
+		message := ""
+		if commit.GetCommit() != nil {
+			message = commit.GetCommit().GetMessage()
+		}
+		result = append(result, &DanglingCommit{
+			SHA:     sha,
+			Message: message,
+		})
+	}
+	logger.Info("local dangling commit check complete", "found", len(result))
+	return result, nil
+}
