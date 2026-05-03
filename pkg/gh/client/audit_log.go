@@ -13,7 +13,7 @@ func (g *GitHubClient) GetAuditLog(ctx context.Context, org string, opts *github
 	if opts == nil {
 		opts = &github.GetAuditLogOptions{}
 	}
-	opts.ListCursorOptions.PerPage = defaultPerPage
+	opts.PerPage = defaultPerPage
 
 	var all []*github.AuditEntry
 	for {
@@ -28,7 +28,7 @@ func (g *GitHubClient) GetAuditLog(ctx context.Context, org string, opts *github
 		if resp.Cursor == "" {
 			break
 		}
-		opts.ListCursorOptions.Cursor = resp.Cursor
+		opts.Cursor = resp.Cursor
 	}
 	return all, nil
 }
