@@ -133,6 +133,21 @@ func FindPullRequest(ctx context.Context, g *GitHubClient, repo repository.Repos
 	return prs[0], nil
 }
 
+// GetPRsByNumbers fetches the given pull request numbers from the repository.
+// Results are returned in the same order as numbers.
+func GetPRsByNumbers(ctx context.Context, g *GitHubClient, repo repository.Repository, numbers []int) ([]*github.PullRequest, error) {
+	prs := make([]*github.PullRequest, 0, len(numbers))
+	for _, n := range numbers {
+		pr, err := g.GetPullRequest(ctx, repo.Owner, repo.Name, n)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get pull request #%d for %s/%s: %w", n, repo.Owner, repo.Name, err)
+		}
+		prs = append(prs, pr)
+	}
+	return prs, nil
+}
+
+// GetPRNumbersByStates fetches pull request numbers from the repository filtered by the given states.
 func GetRequestedReviewers(reviewers []string) ReviewersRequest {
 	reviewersRequest := ReviewersRequest{}
 	for _, reviewer := range reviewers {

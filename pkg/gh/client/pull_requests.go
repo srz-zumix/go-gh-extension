@@ -53,6 +53,78 @@ func (g *GitHubClient) ListPullRequestCommits(ctx context.Context, owner string,
 	return allCommits, nil
 }
 
+// PullRequestHeadRefForcePushEvent contains before/after commit SHAs from
+// a HeadRefForcePushedEvent in a pull request timeline.
+type PullRequestHeadRefForcePushEvent struct {
+	BeforeSHA string
+	AfterSHA  string
+}
+
+// ListPullRequestHeadRefForcePushEvents returns all head_ref_force_pushed
+// timeline events for a pull request.
+func (g *GitHubClient) ListPullRequestHeadRefForcePushEvents(ctx context.Context, owner string, repo string, number int) ([]*PullRequestHeadRefForcePushEvent, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var query struct {
+		Repository struct {
+			PullRequest struct {
+				TimelineItems struct {
+					Nodes []struct {
+						AsHeadRefForcePushedEvent struct {
+							BeforeCommit struct {
+								OID githubv4.GitObjectID
+							}
+							AfterCommit struct {
+								OID githubv4.GitObjectID
+							}
+						} `graphql:"... on HeadRefForcePushedEvent"`
+					}
+					PageInfo struct {
+						EndCursor   githubv4.String
+						HasNextPage bool
+					}
+				} `graphql:"timelineItems(first: 100, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT], after: $cursor)"`
+			} `graphql:"pullRequest(number: $pr)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	vars := map[string]any{
+		"owner":  githubv4.String(owner),
+		"repo":   githubv4.String(repo),
+		"pr":     githubv4.Int(number),
+		"cursor": (*githubv4.String)(nil),
+	}
+
+	var events []*PullRequestHeadRefForcePushEvent
+	for {
+		if err := graphql.Query(ctx, &query, vars); err != nil {
+			return nil, err
+		}
+
+		for _, n := range query.Repository.PullRequest.TimelineItems.Nodes {
+			before := string(n.AsHeadRefForcePushedEvent.BeforeCommit.OID)
+			after := string(n.AsHeadRefForcePushedEvent.AfterCommit.OID)
+			if before == "" || after == "" {
+				continue
+			}
+			events = append(events, &PullRequestHeadRefForcePushEvent{
+				BeforeSHA: before,
+				AfterSHA:  after,
+			})
+		}
+
+		if !query.Repository.PullRequest.TimelineItems.PageInfo.HasNextPage {
+			break
+		}
+		vars["cursor"] = githubv4.NewString(query.Repository.PullRequest.TimelineItems.PageInfo.EndCursor)
+	}
+
+	return events, nil
+}
+
 // ListFiles lists files for a pull request
 func (g *GitHubClient) ListPullRequestFiles(ctx context.Context, owner string, repo string, number int) ([]*github.CommitFile, error) {
 	allCommitFiles := []*github.CommitFile{}
