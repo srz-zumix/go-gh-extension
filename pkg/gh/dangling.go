@@ -193,8 +193,7 @@ func listForcePushedOutPRCommits(ctx context.Context, g *GitHubClient, repo repo
 		// and are no longer reachable from the updated head.
 		comp, err := g.CompareCommits(ctx, repo.Owner, repo.Name, e.AfterSHA, e.BeforeSHA)
 		if err != nil {
-			logger.Debug("skipping force-push event: failed to compare commits", "pr", prNumber, "before", e.BeforeSHA, "after", e.AfterSHA, "error", err)
-			continue
+			return nil, fmt.Errorf("compare commits for force-push event in PR #%d before=%s after=%s: %w", prNumber, e.BeforeSHA, e.AfterSHA, err)
 		}
 
 		result = appendUniqueCommitsBySHA(result, seen, comp.Commits)
