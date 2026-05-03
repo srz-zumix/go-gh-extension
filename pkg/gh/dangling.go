@@ -496,8 +496,7 @@ func iterateDanglingCommits(ctx context.Context, g *GitHubClient, repo repositor
 			return err
 		}
 		if len(chain) == 0 && len(forcePushed) == 0 {
-			continue
-		}
+				return nil, fmt.Errorf("reachability check failed for commit %s in PR #%d: %w", commitSHA, pr.GetNumber(), err)
 
 		chainDangling, err := processChainCandidates(ctx, g, repo, chain, opts, unreachableSHAs)
 		if err != nil {
