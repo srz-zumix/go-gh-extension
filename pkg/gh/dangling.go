@@ -49,23 +49,24 @@ const (
 	// ReachabilityCheckDefaultBranch uses the GitHub Compare API to confirm the
 	// commit is not reachable from the repository's default branch.
 	ReachabilityCheckDefaultBranch ReachabilityCheckMode = "default-branch"
-	// ReachabilityCheckAllBranches uses the GitHub Compare API to confirm the
-	// commit is not reachable from any branch. More accurate but requires one API
-	// call per branch per candidate commit.
-	ReachabilityCheckAllBranches ReachabilityCheckMode = "all-branches"
+	// ReachabilityCheckBranches uses the GitHub Compare API to confirm the commit
+	// is not reachable from any branch. Requires one API call per branch per
+	// candidate commit.
+	ReachabilityCheckBranches ReachabilityCheckMode = "branches"
+	// ReachabilityCheckRefs uses the GitHub Compare API to confirm the commit is
+	// not reachable from any branch or tag. More thorough than branches but
+	// requires additional API calls for tags.
+	ReachabilityCheckRefs ReachabilityCheckMode = "refs"
 	// ReachabilityCheckLocalObject checks whether the commit object exists in the
 	// local git repository after git fetch --all. Fastest check; a missing object
-	// means the commit is not reachable from any remote branch. Stale loose objects
+	// means the commit is not reachable from any remote ref. Stale loose objects
 	// from previous fetches can cause false negatives.
 	ReachabilityCheckLocalObject ReachabilityCheckMode = "local-object"
-	// ReachabilityCheckLocalDefault uses git merge-base --is-ancestor to confirm
-	// the commit is not an ancestor of the local default remote-tracking branch.
+	// ReachabilityCheckLocalRefs uses git branch -r --contains and git tag
+	// --contains to confirm the commit is not reachable from any remote-tracking
+	// branch or any tag.
 	// Requires git fetch --all to have been run first.
-	ReachabilityCheckLocalDefault ReachabilityCheckMode = "local-default"
-	// ReachabilityCheckLocalAnyBranch uses git branch -r --contains to confirm the
-	// commit is not reachable from any remote-tracking branch.
-	// Requires git fetch --all to have been run first.
-	ReachabilityCheckLocalAnyBranch ReachabilityCheckMode = "local-any"
+	ReachabilityCheckLocalRefs ReachabilityCheckMode = "local-refs"
 )
 
 // ReachabilityCheckModeValues is the ordered list of valid ReachabilityCheckMode
@@ -73,10 +74,10 @@ const (
 var ReachabilityCheckModeValues = []string{
 	string(ReachabilityCheckNone),
 	string(ReachabilityCheckDefaultBranch),
-	string(ReachabilityCheckAllBranches),
+	string(ReachabilityCheckBranches),
+	string(ReachabilityCheckRefs),
 	string(ReachabilityCheckLocalObject),
-	string(ReachabilityCheckLocalDefault),
-	string(ReachabilityCheckLocalAnyBranch),
+	string(ReachabilityCheckLocalRefs),
 }
 
 // DanglingOptions controls which detection methods are active when searching for
@@ -87,13 +88,22 @@ type DanglingOptions struct {
 	DisableForcePush    bool // if true, skip force-push dropped commit detection
 	DisableClosed       bool // if true, skip closed unmerged PR detection
 	// ReachabilityCheck specifies an optional secondary verification step that
-	// confirms each candidate commit is truly not reachable from any branch before
-	// it is included in results. Zero value skips the check.
+	// confirms each candidate commit is truly not reachable from any branch or tag
+	// before it is included in results. Zero value skips the check.
 	ReachabilityCheck ReachabilityCheckMode
-	// LocalDefaultBranch is the local remote-tracking ref used for
-	// ReachabilityCheckLocalDefault (e.g. "origin/main"). Auto-detected via
-	// git symbolic-ref when empty.
-	LocalDefaultBranch string
+}
+
+// parentUnreachable reports whether any of the given parent commits has a SHA
+// already recorded in unreachableSHAs. Because reachability from any ref is
+// closed under ancestry, a commit whose parent is unreachable is also unreachable,
+// so no further API or git call is needed.
+func parentUnreachable(parents []*github.Commit, unreachableSHAs map[string]bool) bool {
+	for _, p := range parents {
+		if unreachableSHAs[p.GetSHA()] {
+			return true
+		}
+	}
+	return false
 }
 
 // isCommitDanglingByReachability returns true if sha should be included in dangling
@@ -109,8 +119,14 @@ func isCommitDanglingByReachability(ctx context.Context, g *GitHubClient, repo r
 			return false, err
 		}
 		return !reachable, nil
-	case ReachabilityCheckAllBranches:
+	case ReachabilityCheckBranches:
 		reachable, err := IsCommitReachableFromAnyBranch(ctx, g, repo, sha)
+		if err != nil {
+			return false, err
+		}
+		return !reachable, nil
+	case ReachabilityCheckRefs:
+		reachable, err := IsCommitReachableFromAnyRef(ctx, g, repo, sha)
 		if err != nil {
 			return false, err
 		}
@@ -121,18 +137,8 @@ func isCommitDanglingByReachability(ctx context.Context, g *GitHubClient, repo r
 			return false, err
 		}
 		return !exists, nil
-	case ReachabilityCheckLocalDefault:
-		ref := opts.LocalDefaultBranch
-		if ref == "" {
-			ref = gitutil.ResolveDefaultBranch(ctx)
-		}
-		reachable, err := gitutil.IsCommitReachableFromDefaultBranch(ctx, sha, ref)
-		if err != nil {
-			return false, err
-		}
-		return !reachable, nil
-	case ReachabilityCheckLocalAnyBranch:
-		reachable, err := gitutil.IsCommitReachableFromAnyBranch(ctx, sha)
+	case ReachabilityCheckLocalRefs:
+		reachable, err := gitutil.IsCommitReachableFromAnyRef(ctx, sha)
 		if err != nil {
 			return false, err
 		}
@@ -197,103 +203,107 @@ func listForcePushedOutPRCommits(ctx context.Context, g *GitHubClient, repo repo
 	return result, nil
 }
 
-// listDanglingCommitCandidatesForPR collects commit candidates that may be
-// dangling for a merged PR. It includes commits from squash/rebase merges and
-// commits dropped by force-push on the PR head branch.
-func listDanglingCommitCandidatesForPR(ctx context.Context, g *GitHubClient, repo repository.Repository, pr *github.PullRequest, opts DanglingOptions) ([]*github.RepositoryCommit, error) {
-	seen := make(map[string]bool)
-	var result []*github.RepositoryCommit
-
-	if !opts.DisableSquashRebase {
-		mergeCommitSHA := pr.GetMergeCommitSHA()
-		head := pr.GetHead()
-		includePRCommits := false
-
-		if mergeCommitSHA == "" {
-			logger.Debug("skipping squash/rebase check: no merge commit SHA", "pr", pr.GetNumber())
-		} else if head == nil || head.GetSHA() == "" {
-			logger.Debug("skipping squash/rebase check: no head SHA", "pr", pr.GetNumber())
-		} else {
-			mergeCommit, err := g.GetCommit(ctx, repo.Owner, repo.Name, mergeCommitSHA)
-			if err != nil {
-				logger.Debug("skipping squash/rebase check: failed to get merge commit", "pr", pr.GetNumber(), "sha", mergeCommitSHA, "error", err)
-			} else if isSquashOrRebaseMerge(mergeCommit, head.GetSHA()) {
-				includePRCommits = true
-				logger.Debug("found squash/rebase merged PR", "pr", pr.GetNumber())
-			} else {
-				logger.Debug("PR is regular merge (not squash/rebase)", "pr", pr.GetNumber())
-			}
-		}
-
-		if includePRCommits {
-			prCommits, err := g.ListPullRequestCommits(ctx, repo.Owner, repo.Name, pr.GetNumber())
-			if err != nil {
-				return nil, fmt.Errorf("failed to list commits for PR #%d: %w", pr.GetNumber(), err)
-			}
-			result = appendUniqueCommitsBySHA(result, seen, prCommits)
-		}
+// listSquashRebaseChainCandidates returns the PR commit chain (oldest first)
+// when the PR was merged via squash or rebase. Returns nil for regular merges or
+// when required metadata is missing. The returned slice is the linear ancestry
+// chain leading to the PR head, suitable for the head-first reachability shortcut.
+func listSquashRebaseChainCandidates(ctx context.Context, g *GitHubClient, repo repository.Repository, pr *github.PullRequest) ([]*github.RepositoryCommit, error) {
+	mergeCommitSHA := pr.GetMergeCommitSHA()
+	head := pr.GetHead()
+	if mergeCommitSHA == "" {
+		logger.Debug("skipping squash/rebase check: no merge commit SHA", "pr", pr.GetNumber())
+		return nil, nil
 	}
-
-	if !opts.DisableForcePush {
-		forcePushedOut, err := listForcePushedOutPRCommits(ctx, g, repo, pr.GetNumber())
-		if err != nil {
-			logger.Debug("skipping force-push based commit collection", "pr", pr.GetNumber(), "error", err)
-		} else {
-			result = appendUniqueCommitsBySHA(result, seen, forcePushedOut)
-		}
+	if head == nil || head.GetSHA() == "" {
+		logger.Debug("skipping squash/rebase check: no head SHA", "pr", pr.GetNumber())
+		return nil, nil
 	}
-
-	return result, nil
+	mergeCommit, err := g.GetCommit(ctx, repo.Owner, repo.Name, mergeCommitSHA)
+	if err != nil {
+		logger.Debug("skipping squash/rebase check: failed to get merge commit", "pr", pr.GetNumber(), "sha", mergeCommitSHA, "error", err)
+		return nil, nil
+	}
+	if !isSquashOrRebaseMerge(mergeCommit, head.GetSHA()) {
+		logger.Debug("PR is regular merge (not squash/rebase)", "pr", pr.GetNumber())
+		return nil, nil
+	}
+	logger.Debug("found squash/rebase merged PR", "pr", pr.GetNumber())
+	prCommits, err := g.ListPullRequestCommits(ctx, repo.Owner, repo.Name, pr.GetNumber())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list commits for PR #%d: %w", pr.GetNumber(), err)
+	}
+	return prCommits, nil
 }
 
-// listDanglingCommitCandidatesForClosedUnmergedPR collects commit candidates for
-// a closed, unmerged PR. Commits are only dangling if the PR head branch no longer
-// exists; if the branch is still present its commits are reachable from that ref
-// and are not dangling. Commits dropped by force-push on the PR head branch are
-// also included regardless of branch existence.
-func listDanglingCommitCandidatesForClosedUnmergedPR(ctx context.Context, g *GitHubClient, repo repository.Repository, pr *github.PullRequest, opts DanglingOptions) ([]*github.RepositoryCommit, error) {
-	seen := make(map[string]bool)
-	var result []*github.RepositoryCommit
+// listClosedUnmergedChainCandidates returns the PR commit chain (oldest first)
+// for a closed, unmerged PR whose head branch is gone in the base repository.
+// Returns nil for fork PRs (the head branch lives in another repository) and
+// when the head branch still exists. Errors other than 404 from the branch
+// existence check are propagated to avoid misclassification on transient failures.
+func listClosedUnmergedChainCandidates(ctx context.Context, g *GitHubClient, repo repository.Repository, pr *github.PullRequest) ([]*github.RepositoryCommit, error) {
+	headRepo := pr.GetHead().GetRepo()
+	baseRepo := pr.GetBase().GetRepo()
+	if headRepo != nil && baseRepo != nil && headRepo.GetFullName() != baseRepo.GetFullName() {
+		logger.Debug("skipping closed unmerged fork PR", "pr", pr.GetNumber(), "head_repo", headRepo.GetFullName())
+		return nil, nil
+	}
 
-	// Check whether the head branch still exists. If it does, the commits are
-	// reachable from that branch ref and are not dangling.
 	headRef := pr.GetHead().GetRef()
 	if headRef != "" {
 		_, err := g.GetBranch(ctx, repo.Owner, repo.Name, headRef)
 		if err == nil {
 			logger.Debug("skipping closed PR: head branch still exists", "pr", pr.GetNumber(), "branch", headRef)
-			// Force-pushed-out commits are still dangling even if the branch exists.
-			if !opts.DisableForcePush {
-				forcePushedOut, err := listForcePushedOutPRCommits(ctx, g, repo, pr.GetNumber())
-				if err != nil {
-					logger.Debug("skipping force-push based commit collection", "pr", pr.GetNumber(), "error", err)
-				} else {
-					result = appendUniqueCommitsBySHA(result, seen, forcePushedOut)
-				}
-			}
-			return result, nil
+			return nil, nil
+		}
+		if !IsHTTPNotFound(err) {
+			return nil, fmt.Errorf("failed to check branch %q for PR #%d: %w", headRef, pr.GetNumber(), err)
 		}
 		logger.Debug("head branch not found, treating PR commits as dangling", "pr", pr.GetNumber(), "branch", headRef)
 	}
 
-	// Branch is gone: all PR commits are dangling candidates.
 	prCommits, err := g.ListPullRequestCommits(ctx, repo.Owner, repo.Name, pr.GetNumber())
 	if err != nil {
 		return nil, fmt.Errorf("failed to list commits for PR #%d: %w", pr.GetNumber(), err)
 	}
-	result = appendUniqueCommitsBySHA(result, seen, prCommits)
+	return prCommits, nil
+}
 
-	if !opts.DisableForcePush {
-		// Also collect commits dropped by force-pushes during the PR lifetime.
-		forcePushedOut, err := listForcePushedOutPRCommits(ctx, g, repo, pr.GetNumber())
+// listCandidatesForPR returns dangling commit candidates for a PR, separated by
+// source. The chain is the linear PR commit ancestry (oldest first) suitable for
+// chain-level shortcuts; forcePushed are independent commits dropped by
+// force-push events. Either may be nil.
+func listCandidatesForPR(ctx context.Context, g *GitHubClient, repo repository.Repository, pr *github.PullRequest, opts DanglingOptions) (chain, forcePushed []*github.RepositoryCommit, err error) {
+	if pr.MergedAt != nil {
+		if opts.DisableSquashRebase && opts.DisableForcePush {
+			logger.Debug("skipping merged PR: all merged-PR methods disabled", "pr", pr.GetNumber())
+			return nil, nil, nil
+		}
+		if !opts.DisableSquashRebase {
+			chain, err = listSquashRebaseChainCandidates(ctx, g, repo, pr)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+	} else {
+		if opts.DisableClosed {
+			logger.Debug("skipping closed unmerged PR: closed detection disabled", "pr", pr.GetNumber())
+			return nil, nil, nil
+		}
+		chain, err = listClosedUnmergedChainCandidates(ctx, g, repo, pr)
 		if err != nil {
-			logger.Debug("skipping force-push based commit collection", "pr", pr.GetNumber(), "error", err)
-		} else {
-			result = appendUniqueCommitsBySHA(result, seen, forcePushedOut)
+			return nil, nil, err
 		}
 	}
 
-	return result, nil
+	if !opts.DisableForcePush {
+		fp, fpErr := listForcePushedOutPRCommits(ctx, g, repo, pr.GetNumber())
+		if fpErr != nil {
+			logger.Debug("skipping force-push based commit collection", "pr", pr.GetNumber(), "error", fpErr)
+		} else {
+			forcePushed = fp
+		}
+	}
+	return chain, forcePushed, nil
 }
 
 // computeCommitTotalBlobSize sums blob sizes for a commit by traversing its tree recursively.
@@ -380,6 +390,142 @@ func ListClosedPRs(ctx context.Context, g *GitHubClient, repo repository.Reposit
 	return prs, nil
 }
 
+// checkCommitDangling determines whether a single commit should be treated as
+// dangling, applying the parent-based shortcut and recording the result in
+// unreachableSHAs when applicable. It is the single per-commit reachability
+// decision used by both chain and force-push processing.
+func checkCommitDangling(ctx context.Context, g *GitHubClient, repo repository.Repository, c *github.RepositoryCommit, opts DanglingOptions, unreachableSHAs map[string]bool) (bool, error) {
+	sha := c.GetSHA()
+	if unreachableSHAs[sha] {
+		return true, nil
+	}
+	if parentUnreachable(c.Parents, unreachableSHAs) {
+		unreachableSHAs[sha] = true
+		return true, nil
+	}
+	dangling, err := isCommitDanglingByReachability(ctx, g, repo, sha, opts)
+	if err != nil {
+		return false, err
+	}
+	if dangling {
+		unreachableSHAs[sha] = true
+	}
+	return dangling, nil
+}
+
+// processChainCandidates returns the dangling subset of a linear PR commit
+// chain (oldest first). Reachability is closed under ancestry:
+//   - oldest unreachable → all descendants unreachable via parent shortcut (common case)
+//   - oldest reachable → check newest; if newest is also reachable → all chain reachable
+//
+// Check order: oldest → (if reachable) newest → parent shortcut from oldest.
+// For the common "all unreachable" scenario, this costs exactly 1 API call.
+func processChainCandidates(ctx context.Context, g *GitHubClient, repo repository.Repository, chain []*github.RepositoryCommit, opts DanglingOptions, unreachableSHAs map[string]bool) ([]*github.RepositoryCommit, error) {
+	if len(chain) == 0 {
+		return nil, nil
+	}
+
+	// Two-endpoint shortcut: only when reachability verification is active and
+	// there are at least two commits to make the pre-checks worthwhile.
+	if opts.ReachabilityCheck != ReachabilityCheckNone && opts.ReachabilityCheck != "" && len(chain) > 1 {
+		oldest := chain[0]
+		if !unreachableSHAs[oldest.GetSHA()] && !parentUnreachable(oldest.Parents, unreachableSHAs) {
+			oldestDangling, err := isCommitDanglingByReachability(ctx, g, repo, oldest.GetSHA(), opts)
+			if err != nil {
+				return nil, fmt.Errorf("check chain oldest reachability for %s: %w", oldest.GetSHA(), err)
+			}
+			if oldestDangling {
+				// Oldest unreachable → parent shortcut propagates to every later commit
+				// in the chain; no further API/git calls needed for this shortcut.
+				unreachableSHAs[oldest.GetSHA()] = true
+				logger.Debug("chain oldest unreachable, parent shortcut covers rest", "sha", oldest.GetSHA(), "chain_len", len(chain))
+			} else {
+				// Oldest reachable → check newest for a full-chain reachable shortcut.
+				newest := chain[len(chain)-1]
+				if !unreachableSHAs[newest.GetSHA()] && !parentUnreachable(newest.Parents, unreachableSHAs) {
+					newestDangling, err := isCommitDanglingByReachability(ctx, g, repo, newest.GetSHA(), opts)
+					if err != nil {
+						return nil, fmt.Errorf("check chain newest reachability for %s: %w", newest.GetSHA(), err)
+					}
+					if !newestDangling {
+						// Both endpoints reachable → all chain commits reachable; skip.
+						logger.Debug("skipping chain: oldest and newest both reachable", "oldest", oldest.GetSHA(), "newest", newest.GetSHA())
+						return nil, nil
+					}
+					unreachableSHAs[newest.GetSHA()] = true
+				}
+			}
+		}
+	}
+
+	var result []*github.RepositoryCommit
+	for _, c := range chain {
+		dangling, err := checkCommitDangling(ctx, g, repo, c, opts, unreachableSHAs)
+		if err != nil {
+			return nil, fmt.Errorf("check commit reachability for %s: %w", c.GetSHA(), err)
+		}
+		if dangling {
+			result = append(result, c)
+		} else {
+			logger.Debug("skipping commit: reachable from a ref", "sha", c.GetSHA())
+		}
+	}
+	return result, nil
+}
+
+// danglingCommitVisitor is invoked for each PR with the confirmed dangling
+// commits found in that PR. The slice combines chain and force-push commits,
+// preserving their original collection order.
+type danglingCommitVisitor func(pr *github.PullRequest, commits []*github.RepositoryCommit) error
+
+// iterateDanglingCommits walks the PR list, collects candidates, applies all
+// reachability shortcuts, and invokes visit for each PR that has at least one
+// confirmed dangling commit. It is the shared driver behind FindDanglingCommits
+// and FindDanglingBlobs.
+func iterateDanglingCommits(ctx context.Context, g *GitHubClient, repo repository.Repository, prs []*github.PullRequest, opts DanglingOptions, visit danglingCommitVisitor) error {
+	// unreachableSHAs accumulates commit SHAs confirmed unreachable from any ref.
+	// It is shared across PRs because reachability is a property of the commit
+	// object itself, not of any individual PR.
+	unreachableSHAs := make(map[string]bool)
+
+	for i, pr := range prs {
+		logger.Debug("checking PR", "progress", fmt.Sprintf("%d/%d", i+1, len(prs)), "pr", pr.GetNumber(), "title", pr.GetTitle())
+
+		chain, forcePushed, err := listCandidatesForPR(ctx, g, repo, pr, opts)
+		if err != nil {
+			return err
+		}
+		if len(chain) == 0 && len(forcePushed) == 0 {
+			continue
+		}
+
+		chainDangling, err := processChainCandidates(ctx, g, repo, chain, opts, unreachableSHAs)
+		if err != nil {
+			return err
+		}
+
+		var fpDangling []*github.RepositoryCommit
+		for _, c := range forcePushed {
+			dangling, err := checkCommitDangling(ctx, g, repo, c, opts, unreachableSHAs)
+			if err != nil {
+				return fmt.Errorf("check commit reachability for %s: %w", c.GetSHA(), err)
+			}
+			if dangling {
+				fpDangling = append(fpDangling, c)
+			}
+		}
+
+		if len(chainDangling) == 0 && len(fpDangling) == 0 {
+			continue
+		}
+		combined := append(chainDangling, fpDangling...)
+		if err := visit(pr, combined); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // FindDanglingCommits finds commits that are not reachable from any normal branch
 // or tag ref. Detection methods are controlled by opts:
 //   - Squash/rebase merged PR commits (disabled by opts.DisableSquashRebase)
@@ -390,64 +536,27 @@ func ListClosedPRs(ctx context.Context, g *GitHubClient, repo repository.Reposit
 // accessible via PR refs even after the source branch is deleted.
 func FindDanglingCommits(ctx context.Context, g *GitHubClient, repo repository.Repository, prs []*github.PullRequest, opts DanglingOptions) ([]*DanglingCommit, error) {
 	logger.Info("inspecting PRs for dangling commits", "total", len(prs))
-
 	var result []*DanglingCommit
-
-	for i, pr := range prs {
-		logger.Debug("checking PR", "progress", fmt.Sprintf("%d/%d", i+1, len(prs)), "pr", pr.GetNumber(), "title", pr.GetTitle())
-
-		var prCommits []*github.RepositoryCommit
-		var err error
-
-		if pr.MergedAt != nil {
-			if opts.DisableSquashRebase && opts.DisableForcePush {
-				logger.Debug("skipping merged PR: all merged-PR methods disabled", "pr", pr.GetNumber())
-				continue
-			}
-			prCommits, err = listDanglingCommitCandidatesForPR(ctx, g, repo, pr, opts)
-		} else {
-			if opts.DisableClosed {
-				logger.Debug("skipping closed unmerged PR: closed detection disabled", "pr", pr.GetNumber())
-				continue
-			}
-			prCommits, err = listDanglingCommitCandidatesForClosedUnmergedPR(ctx, g, repo, pr, opts)
-		}
-		if err != nil {
-			return nil, err
-		}
-		if len(prCommits) == 0 {
-			continue
-		}
-
-		for _, c := range prCommits {
+	err := iterateDanglingCommits(ctx, g, repo, prs, opts, func(pr *github.PullRequest, commits []*github.RepositoryCommit) error {
+		for _, c := range commits {
 			sha := c.GetSHA()
-			logger.Debug("processing commit", "pr", pr.GetNumber(), "sha", sha)
-
-			dangling, err := isCommitDanglingByReachability(ctx, g, repo, sha, opts)
-			if err != nil {
-				return nil, fmt.Errorf("check commit reachability for %s: %w", sha, err)
-			}
-			if !dangling {
-				logger.Debug("skipping commit: reachable from branch", "sha", sha)
-				continue
-			}
-
 			message := ""
 			if c.GetCommit() != nil {
 				message = c.GetCommit().GetMessage()
 			}
-			totalBlobSize := computeCommitTotalBlobSize(ctx, g, repo, sha)
-
 			result = append(result, &DanglingCommit{
 				SHA:           sha,
 				Message:       message,
 				PRNumber:      pr.GetNumber(),
 				PRURL:         pr.GetHTMLURL(),
-				TotalBlobSize: totalBlobSize,
+				TotalBlobSize: computeCommitTotalBlobSize(ctx, g, repo, sha),
 			})
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-
 	logger.Info("dangling commit search complete", "found", len(result))
 	return result, nil
 }
@@ -458,52 +567,12 @@ func FindDanglingCommits(ctx context.Context, g *GitHubClient, repo repository.R
 // Blobs are deduplicated by SHA within each PR.
 func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Repository, prs []*github.PullRequest, opts DanglingOptions) ([]*DanglingBlob, error) {
 	logger.Info("inspecting PRs for dangling blobs", "total", len(prs))
-
 	var result []*DanglingBlob
-
-	for i, pr := range prs {
-		logger.Debug("checking PR", "progress", fmt.Sprintf("%d/%d", i+1, len(prs)), "pr", pr.GetNumber(), "title", pr.GetTitle())
-
-		var prCommits []*github.RepositoryCommit
-		var err error
-
-		if pr.MergedAt != nil {
-			if opts.DisableSquashRebase && opts.DisableForcePush {
-				logger.Debug("skipping merged PR: all merged-PR methods disabled", "pr", pr.GetNumber())
-				continue
-			}
-			prCommits, err = listDanglingCommitCandidatesForPR(ctx, g, repo, pr, opts)
-		} else {
-			if opts.DisableClosed {
-				logger.Debug("skipping closed unmerged PR: closed detection disabled", "pr", pr.GetNumber())
-				continue
-			}
-			prCommits, err = listDanglingCommitCandidatesForClosedUnmergedPR(ctx, g, repo, pr, opts)
-		}
-		if err != nil {
-			return nil, err
-		}
-		if len(prCommits) == 0 {
-			continue
-		}
-
+	err := iterateDanglingCommits(ctx, g, repo, prs, opts, func(pr *github.PullRequest, commits []*github.RepositoryCommit) error {
 		// Deduplicate blob SHAs within this PR to avoid redundant output.
 		seen := make(map[string]bool)
-
-		for _, c := range prCommits {
+		for _, c := range commits {
 			commitSHA := c.GetSHA()
-			logger.Debug("processing commit", "pr", pr.GetNumber(), "sha", commitSHA)
-
-			dangling, err := isCommitDanglingByReachability(ctx, g, repo, commitSHA, opts)
-			if err != nil {
-				logger.Debug("skipping commit: reachability check failed", "sha", commitSHA, "error", err)
-				continue
-			}
-			if !dangling {
-				logger.Debug("skipping commit: reachable from branch", "sha", commitSHA)
-				continue
-			}
-
 			gitCommit, err := g.GetGitCommit(ctx, repo.Owner, repo.Name, commitSHA)
 			if err != nil {
 				logger.Debug("skipping commit: failed to get git commit", "sha", commitSHA, "error", err)
@@ -514,13 +583,11 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 				logger.Debug("skipping commit: empty tree SHA", "sha", commitSHA)
 				continue
 			}
-
 			tree, err := g.GetGitTree(ctx, repo.Owner, repo.Name, treeSHA, true)
 			if err != nil {
 				logger.Debug("skipping commit: failed to get git tree", "sha", commitSHA, "tree", treeSHA, "error", err)
 				continue
 			}
-
 			for _, entry := range tree.Entries {
 				if entry.GetType() != "blob" {
 					continue
@@ -540,8 +607,11 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 				})
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-
 	logger.Info("dangling blob search complete", "found", len(result))
 	return result, nil
 }

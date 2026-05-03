@@ -8,24 +8,6 @@ import (
 	"github.com/cli/cli/v2/git"
 )
 
-// ResolveDefaultBranch returns the local remote-tracking ref for the default branch
-// (e.g. "origin/main") by reading git symbolic-ref refs/remotes/origin/HEAD.
-// Falls back to "origin/main" if the symbolic ref is not configured.
-// The caller must ensure git fetch --all has been run so that the symbolic ref is set.
-func ResolveDefaultBranch(ctx context.Context) string {
-	c := NewClient()
-	cmd, err := c.Command(ctx, "symbolic-ref", "refs/remotes/origin/HEAD", "--short")
-	if err == nil {
-		out, err := cmd.Output()
-		if err == nil {
-			if ref := strings.TrimSpace(string(out)); ref != "" {
-				return ref
-			}
-		}
-	}
-	return "origin/main"
-}
-
 // IsCommitObjectExists reports whether the commit object for sha exists in the local
 // git object store using `git cat-file -e`.
 //
@@ -53,27 +35,6 @@ func IsCommitObjectExists(ctx context.Context, sha string) (bool, error) {
 	return true, nil
 }
 
-// IsCommitReachableFromDefaultBranch reports whether sha is an ancestor of the
-// given defaultBranch remote-tracking ref (e.g. "origin/main") using
-// `git merge-base --is-ancestor`.
-// The caller must ensure all remote refs have been fetched (e.g. git fetch --all).
-func IsCommitReachableFromDefaultBranch(ctx context.Context, sha, defaultBranch string) (bool, error) {
-	c := NewClient()
-	cmd, err := c.Command(ctx, "merge-base", "--is-ancestor", sha, defaultBranch)
-	if err != nil {
-		return false, err
-	}
-	if err := cmd.Run(); err != nil {
-		// Exit code 1 means "not an ancestor".
-		var ge *git.GitError
-		if errors.As(err, &ge) && ge.ExitCode == 1 {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
-}
-
 // IsCommitReachableFromAnyBranch reports whether sha is reachable from any
 // remote-tracking branch using `git branch -r --contains`.
 // The caller must ensure all remote refs have been fetched (e.g. git fetch --all).
@@ -88,4 +49,35 @@ func IsCommitReachableFromAnyBranch(ctx context.Context, sha string) (bool, erro
 		return false, err
 	}
 	return strings.TrimSpace(string(out)) != "", nil
+}
+
+// IsCommitReachableFromAnyTag reports whether sha is reachable from any tag
+// using `git tag --contains`.
+// The caller must ensure all remote refs have been fetched (e.g. git fetch --all).
+func IsCommitReachableFromAnyTag(ctx context.Context, sha string) (bool, error) {
+	c := NewClient()
+	cmd, err := c.Command(ctx, "tag", "--contains", sha)
+	if err != nil {
+		return false, err
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(string(out)) != "", nil
+}
+
+// IsCommitReachableFromAnyRef reports whether sha is reachable from any
+// remote-tracking branch or any tag.
+// This is a combination of IsCommitReachableFromAnyBranch and IsCommitReachableFromAnyTag.
+// The caller must ensure all remote refs have been fetched (e.g. git fetch --all).
+func IsCommitReachableFromAnyRef(ctx context.Context, sha string) (bool, error) {
+	reachable, err := IsCommitReachableFromAnyBranch(ctx, sha)
+	if err != nil {
+		return false, err
+	}
+	if reachable {
+		return true, nil
+	}
+	return IsCommitReachableFromAnyTag(ctx, sha)
 }
