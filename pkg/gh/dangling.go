@@ -454,8 +454,10 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 
 			dangling, err := isCommitDanglingByReachability(ctx, g, repo, commitSHA, opts)
 			if err != nil {
-				logger.Debug("skipping reachability check: error", "sha", commitSHA, "error", err)
-			} else if !dangling {
+				logger.Debug("skipping commit: reachability check failed", "sha", commitSHA, "error", err)
+				continue
+			}
+			if !dangling {
 				logger.Debug("skipping commit: reachable from branch", "sha", commitSHA)
 				continue
 			}
