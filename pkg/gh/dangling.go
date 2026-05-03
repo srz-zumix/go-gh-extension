@@ -311,16 +311,58 @@ func computeCommitTotalBlobSize(ctx context.Context, g *GitHubClient, repo repos
 
 	tree, err := g.GetGitTree(ctx, repo.Owner, repo.Name, treeSHA, true)
 	if err != nil {
+		logger.Debug("failed to get git tree for size calculation", "sha", commitSHA, "tree", treeSHA, "error", err)
 		return 0
+	}
+
+	if !tree.GetTruncated() {
+		totalBlobSize := 0
+		for _, entry := range tree.Entries {
+			if entry.GetType() == "blob" {
+				totalBlobSize += entry.GetSize()
+			}
+		}
+		return totalBlobSize
+	}
+
+	logger.Debug("git tree response was truncated, falling back to full tree traversal", "sha", commitSHA, "tree", treeSHA)
+
+	totalBlobSize, err := computeTreeTotalBlobSize(ctx, g, repo, treeSHA)
+	if err != nil {
+		logger.Debug("failed to traverse truncated git tree for size calculation", "sha", commitSHA, "tree", treeSHA, "error", err)
+		return 0
+	}
+
+	return totalBlobSize
+}
+
+// computeTreeTotalBlobSize sums blob sizes by traversing tree objects without using truncated recursive responses.
+func computeTreeTotalBlobSize(ctx context.Context, g *GitHubClient, repo repository.Repository, treeSHA string) (int, error) {
+	tree, err := g.GetGitTree(ctx, repo.Owner, repo.Name, treeSHA, false)
+	if err != nil {
+		return 0, err
 	}
 
 	totalBlobSize := 0
 	for _, entry := range tree.Entries {
-		if entry.GetType() == "blob" {
+		switch entry.GetType() {
+		case "blob":
 			totalBlobSize += entry.GetSize()
+		case "tree":
+			childTreeSHA := entry.GetSHA()
+			if childTreeSHA == "" {
+				continue
+			}
+
+			childSize, err := computeTreeTotalBlobSize(ctx, g, repo, childTreeSHA)
+			if err != nil {
+				return 0, err
+			}
+			totalBlobSize += childSize
 		}
 	}
-	return totalBlobSize
+
+	return totalBlobSize, nil
 }
 
 // ListClosedPRs returns all closed pull requests for the repository, ordered by
