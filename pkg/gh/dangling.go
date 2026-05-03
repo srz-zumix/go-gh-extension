@@ -383,8 +383,9 @@ func FindDanglingCommits(ctx context.Context, g *GitHubClient, repo repository.R
 
 			dangling, err := isCommitDanglingByReachability(ctx, g, repo, sha, opts)
 			if err != nil {
-				logger.Debug("skipping reachability check: error", "sha", sha, "error", err)
-			} else if !dangling {
+				return nil, fmt.Errorf("check commit reachability for %s: %w", sha, err)
+			}
+			if !dangling {
 				logger.Debug("skipping commit: reachable from branch", "sha", sha)
 				continue
 			}
