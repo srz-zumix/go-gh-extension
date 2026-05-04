@@ -70,24 +70,29 @@ func ListUnreachableCommits(ctx context.Context, noReflogs bool) ([]string, erro
 	return shas, nil
 }
 
+// remoteURLMatchesRepo checks whether a single remote URL matches the target repository.
+func remoteURLMatchesRepo(repo repository.Repository, url fmt.Stringer) bool {
+	if url == nil {
+		return false
+	}
+
+	parsedRepo, err := repository.Parse(url.String())
+	if err != nil {
+		return false
+	}
+
+	if parsedRepo.Owner != repo.Owner || parsedRepo.Name != repo.Name {
+		return false
+	}
+
+	return repo.Host == "" || parsedRepo.Host == repo.Host
+}
+
 // repoMatchesRemote checks if the repository matches any of the git remotes
 func repoMatchesRemote(repo repository.Repository, remotes git.RemoteSet) bool {
 	for _, remote := range remotes {
-		url := remote.FetchURL
-		if url == nil {
-			if remote.PushURL == nil {
-				continue
-			}
-			url = remote.PushURL
-		}
-		parsedRepo, err := repository.Parse(url.String())
-		if err != nil {
-			continue
-		}
-		if parsedRepo.Owner == repo.Owner && parsedRepo.Name == repo.Name {
-			if repo.Host == "" || parsedRepo.Host == repo.Host {
-				return true
-			}
+		if remoteURLMatchesRepo(repo, remote.FetchURL) || remoteURLMatchesRepo(repo, remote.PushURL) {
+			return true
 		}
 	}
 	return false
