@@ -259,29 +259,22 @@ func listSquashRebaseChainCandidates(ctx context.Context, g *GitHubClient, repo 
 // when the head branch still exists. Errors other than 404 from the branch
 // existence check are propagated to avoid misclassification on transient failures.
 //
-// Limitation: closed unmerged fork PRs are not supported. The commits from such
-// PRs exist on the base repository under refs/pull/<number>/head and may be
-// unreachable from every normal branch or tag once the fork branch is deleted,
-// but detecting them would require listing all PR commits unconditionally for
-// every fork PR regardless of whether the head branch still exists in the fork.
-// This is a known false-negative case.
+// When the source fork has been deleted, pr.Head.Repo may be nil. In that case
+// the head branch is definitively gone, but the PR commits are still available
+// from the base repository's pull request refs, so the PR remains a valid
+// dangling candidate.
 func listClosedUnmergedChainCandidates(ctx context.Context, g *GitHubClient, repo repository.Repository, pr *github.PullRequest) ([]*github.RepositoryCommit, error) {
 	headRepo := pr.GetHead().GetRepo()
 	baseRepo := pr.GetBase().GetRepo()
-	// headRepo is nil when the source fork has been deleted. In that case we
-	// cannot determine the origin repo and must not check branches on the base
-	// repo, so skip just like an active fork PR.
 	if headRepo == nil {
-		logger.Debug("skipping closed unmerged PR: head repo is nil (deleted fork or missing metadata)", "pr", pr.GetNumber())
-		return nil, nil
-	}
-	if baseRepo != nil && headRepo.GetFullName() != baseRepo.GetFullName() {
+		logger.Debug("head repo is nil; treating closed unmerged PR as dangling candidate", "pr", pr.GetNumber())
+	} else if baseRepo != nil && headRepo.GetFullName() != baseRepo.GetFullName() {
 		logger.Debug("skipping closed unmerged fork PR", "pr", pr.GetNumber(), "head_repo", headRepo.GetFullName())
 		return nil, nil
 	}
 
 	headRef := pr.GetHead().GetRef()
-	if headRef != "" {
+	if headRepo != nil && headRef != "" {
 		_, err := g.GetBranch(ctx, repo.Owner, repo.Name, headRef)
 		if err == nil {
 			logger.Debug("skipping closed PR: head branch still exists", "pr", pr.GetNumber(), "branch", headRef)
