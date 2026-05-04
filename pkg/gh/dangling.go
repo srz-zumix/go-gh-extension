@@ -629,7 +629,9 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 			}
 			for _, f := range commit.Files {
 				// Removed files remain referenced by the parent tree; skip them.
-				if f.GetStatus() == "removed" {
+				// Rename-only files also keep referencing an existing blob from the parent tree.
+				status := f.GetStatus()
+				if status == "removed" || (status == "renamed" && f.GetChanges() == 0) {
 					continue
 				}
 				blobSHA := f.GetSHA()
