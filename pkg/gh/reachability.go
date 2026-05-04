@@ -2,8 +2,11 @@ package gh
 
 import (
 	"context"
+	"errors"
+	"net/http"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
+	"github.com/google/go-github/v84/github"
 )
 
 // IsCommitReachableFromDefaultBranch reports whether sha is an ancestor of (or equal
@@ -31,7 +34,10 @@ func IsCommitReachableFromAnyBranch(ctx context.Context, g *GitHubClient, repo r
 	for _, b := range branches {
 		reachable, err := isCommitReachableFromRef(ctx, g, repo, sha, b.GetName())
 		if err != nil {
-			// Skip branches that cannot be compared (e.g. empty repos).
+			if !isSkippableCompareError(err) {
+				return false, err
+			}
+			// Skip branches that cannot be compared (e.g. empty repos, no common ancestor).
 			continue
 		}
 		if reachable {
@@ -58,6 +64,9 @@ func IsCommitReachableFromAnyRef(ctx context.Context, g *GitHubClient, repo repo
 	for _, t := range tags {
 		reachable, err := isCommitReachableFromRef(ctx, g, repo, sha, t.GetName())
 		if err != nil {
+			if !isSkippableCompareError(err) {
+				return false, err
+			}
 			continue
 		}
 		if reachable {
@@ -80,3 +89,25 @@ func isCommitReachableFromRef(ctx context.Context, g *GitHubClient, repo reposit
 	return comp.GetAheadBy() == 0, nil
 }
 
+// isSkippableCompareError reports whether err is an expected, non-transient error
+// from the Compare API that indicates the ref and sha simply cannot be compared
+// (e.g. ref not found, no common ancestor). Transient errors such as rate-limit
+// or server errors must NOT be skipped so that callers surface them correctly.
+func isSkippableCompareError(err error) bool {
+	// Rate-limit errors must be propagated, not silently skipped.
+	if _, ok := errors.AsType[*github.RateLimitError](err); ok {
+		return false
+	}
+	if _, ok := errors.AsType[*github.AbuseRateLimitError](err); ok {
+		return false
+	}
+	// 404 (ref/sha not found) and 422 (no common ancestor, too divergent) are
+	// expected when comparing across unrelated histories and can be skipped.
+	if errResp, ok := errors.AsType[*github.ErrorResponse](err); ok {
+		switch errResp.Response.StatusCode {
+		case http.StatusNotFound, http.StatusUnprocessableEntity:
+			return true
+		}
+	}
+	return false
+}

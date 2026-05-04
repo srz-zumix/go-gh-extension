@@ -26,7 +26,10 @@ func newDanglingCommitFieldGetters() *danglingCommitFieldGetters {
 				return c.PRURL
 			},
 			"SIZE": func(c *gh.DanglingCommit) string {
-				return humanize.Bytes(uint64(c.TotalBlobSize))
+				if c.TotalBlobSize == nil {
+					return ""
+				}
+				return humanize.Bytes(*c.TotalBlobSize)
 			},
 			"MESSAGE": func(c *gh.DanglingCommit) string {
 				return firstLineOf(c.Message)

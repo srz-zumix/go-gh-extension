@@ -22,7 +22,7 @@ type DanglingCommit struct {
 	Message       string
 	PRNumber      int
 	PRURL         string
-	TotalBlobSize int
+	TotalBlobSize *uint64
 }
 
 // DanglingBlob represents a blob that is referenced only by dangling commits.
@@ -219,8 +219,7 @@ func listSquashRebaseChainCandidates(ctx context.Context, g *GitHubClient, repo 
 	}
 	mergeCommit, err := g.GetCommit(ctx, repo.Owner, repo.Name, mergeCommitSHA)
 	if err != nil {
-		logger.Debug("skipping squash/rebase check: failed to get merge commit", "pr", pr.GetNumber(), "sha", mergeCommitSHA, "error", err)
-		return nil, nil
+		return nil, fmt.Errorf("failed to get merge commit for PR #%d: %w", pr.GetNumber(), err)
 	}
 	if !isSquashOrRebaseMerge(mergeCommit, head.GetSHA()) {
 		logger.Debug("PR is regular merge (not squash/rebase)", "pr", pr.GetNumber())
@@ -306,57 +305,56 @@ func listCandidatesForPR(ctx context.Context, g *GitHubClient, repo repository.R
 }
 
 // computeCommitTotalBlobSize sums blob sizes for a commit by traversing its tree recursively.
-func computeCommitTotalBlobSize(ctx context.Context, g *GitHubClient, repo repository.Repository, commitSHA string) int {
+// Returns nil and an error when the size cannot be determined, allowing callers to distinguish
+// an unknown size from an actual empty tree.
+func computeCommitTotalBlobSize(ctx context.Context, g *GitHubClient, repo repository.Repository, commitSHA string) (*uint64, error) {
 	gitCommit, err := g.GetGitCommit(ctx, repo.Owner, repo.Name, commitSHA)
 	if err != nil {
-		logger.Debug("failed to get git commit for size calculation", "sha", commitSHA, "error", err)
-		return 0
+		return nil, fmt.Errorf("get git commit: %w", err)
 	}
 
 	treeSHA := gitCommit.GetTree().GetSHA()
 	if treeSHA == "" {
-		return 0
+		return nil, fmt.Errorf("commit %s has empty tree SHA", commitSHA)
 	}
 
 	tree, err := g.GetGitTree(ctx, repo.Owner, repo.Name, treeSHA, true)
 	if err != nil {
-		logger.Debug("failed to get git tree for size calculation", "sha", commitSHA, "tree", treeSHA, "error", err)
-		return 0
+		return nil, fmt.Errorf("get git tree %s: %w", treeSHA, err)
 	}
 
 	if !tree.GetTruncated() {
-		totalBlobSize := 0
+		var totalBlobSize uint64
 		for _, entry := range tree.Entries {
 			if entry.GetType() == "blob" {
-				totalBlobSize += entry.GetSize()
+				totalBlobSize += uint64(entry.GetSize())
 			}
 		}
-		return totalBlobSize
+		return &totalBlobSize, nil
 	}
 
 	logger.Debug("git tree response was truncated, falling back to full tree traversal", "sha", commitSHA, "tree", treeSHA)
 
 	totalBlobSize, err := computeTreeTotalBlobSize(ctx, g, repo, treeSHA)
 	if err != nil {
-		logger.Debug("failed to traverse truncated git tree for size calculation", "sha", commitSHA, "tree", treeSHA, "error", err)
-		return 0
+		return nil, fmt.Errorf("traverse truncated git tree %s: %w", treeSHA, err)
 	}
 
-	return totalBlobSize
+	return &totalBlobSize, nil
 }
 
 // computeTreeTotalBlobSize sums blob sizes by traversing tree objects without using truncated recursive responses.
-func computeTreeTotalBlobSize(ctx context.Context, g *GitHubClient, repo repository.Repository, treeSHA string) (int, error) {
+func computeTreeTotalBlobSize(ctx context.Context, g *GitHubClient, repo repository.Repository, treeSHA string) (uint64, error) {
 	tree, err := g.GetGitTree(ctx, repo.Owner, repo.Name, treeSHA, false)
 	if err != nil {
 		return 0, err
 	}
 
-	totalBlobSize := 0
+	var totalBlobSize uint64
 	for _, entry := range tree.Entries {
 		switch entry.GetType() {
 		case "blob":
-			totalBlobSize += entry.GetSize()
+			totalBlobSize += uint64(entry.GetSize())
 		case "tree":
 			childTreeSHA := entry.GetSHA()
 			if childTreeSHA == "" {
@@ -495,7 +493,8 @@ func iterateDanglingCommits(ctx context.Context, g *GitHubClient, repo repositor
 			return err
 		}
 		if len(chain) == 0 && len(forcePushed) == 0 {
-				return nil, fmt.Errorf("reachability check failed for commit %s in PR #%d: %w", commitSHA, pr.GetNumber(), err)
+			continue
+		}
 
 		chainDangling, err := processChainCandidates(ctx, g, repo, chain, opts, unreachableSHAs)
 		if err != nil {
@@ -542,12 +541,16 @@ func FindDanglingCommits(ctx context.Context, g *GitHubClient, repo repository.R
 			if c.GetCommit() != nil {
 				message = c.GetCommit().GetMessage()
 			}
+			blobSize, blobSizeErr := computeCommitTotalBlobSize(ctx, g, repo, sha)
+			if blobSizeErr != nil {
+				logger.Debug("failed to compute total blob size for commit", "sha", sha, "error", blobSizeErr)
+			}
 			result = append(result, &DanglingCommit{
 				SHA:           sha,
 				Message:       message,
 				PRNumber:      pr.GetNumber(),
 				PRURL:         pr.GetHTMLURL(),
-				TotalBlobSize: computeCommitTotalBlobSize(ctx, g, repo, sha),
+				TotalBlobSize: blobSize,
 			})
 		}
 		return nil
@@ -647,7 +650,13 @@ func SortCommitsBy(commits []*DanglingCommit, field string, desc bool) error {
 	var less func(a, b *DanglingCommit) int
 	switch strings.ToLower(field) {
 	case "size":
-		less = func(a, b *DanglingCommit) int { return cmp.Compare(a.TotalBlobSize, b.TotalBlobSize) }
+		deref := func(p *uint64) uint64 {
+			if p == nil {
+				return 0
+			}
+			return *p
+		}
+		less = func(a, b *DanglingCommit) int { return cmp.Compare(deref(a.TotalBlobSize), deref(b.TotalBlobSize)) }
 	case "pr_number":
 		less = func(a, b *DanglingCommit) int { return cmp.Compare(a.PRNumber, b.PRNumber) }
 	default:
@@ -663,18 +672,20 @@ func SortCommitsBy(commits []*DanglingCommit, field string, desc bool) error {
 }
 
 // FindLocalDanglingCommitsOnRemote checks which of the given commit SHAs exist on
-// the remote GitHub repository. SHAs that return a successful API response are
-// returned as DanglingCommit entries with their commit message populated.
-// SHAs that are not found on the remote (404) or any other API error are silently
-// skipped (logged at debug level).
+// the remote GitHub repository. SHAs that are not found on the remote (404) are
+// skipped and treated as not present. Any other error (auth, rate-limit, network,
+// etc.) is returned immediately to prevent silent partial results.
 func FindLocalDanglingCommitsOnRemote(ctx context.Context, g *GitHubClient, repo repository.Repository, shas []string) ([]*DanglingCommit, error) {
 	logger.Info("checking local dangling commits against remote", "total", len(shas))
 	var result []*DanglingCommit
 	for _, sha := range shas {
 		commit, err := g.GetCommit(ctx, repo.Owner, repo.Name, sha)
 		if err != nil {
-			logger.Debug("commit not found on remote", "sha", sha, "error", err)
-			continue
+			if IsHTTPNotFound(err) {
+				logger.Debug("commit not found on remote", "sha", sha)
+				continue
+			}
+			return nil, fmt.Errorf("failed to get commit %s from remote: %w", sha, err)
 		}
 		message := ""
 		if commit.GetCommit() != nil {
