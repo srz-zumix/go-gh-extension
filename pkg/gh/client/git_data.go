@@ -29,22 +29,44 @@ func (g *GitHubClient) GetGitTree(ctx context.Context, owner, repo, sha string, 
 	return tree, nil
 }
 
+// GetGitTreeRecursive fetches a tree non-recursively and then manually
+// traverses into each subtree entry, prefixing child paths with the parent
+// directory so that every entry in the returned slice carries a full path
+// relative to the root tree (e.g. "dir/file.txt" instead of "file.txt").
+// This avoids the GitHub 100,000-entry truncation limit of recursive fetches.
 func (g *GitHubClient) GetGitTreeRecursive(ctx context.Context, owner, repo, sha string) (*github.Tree, error) {
+	return g.getGitTreeRecursive(ctx, owner, repo, sha, "")
+}
+
+// getGitTreeRecursive is the internal implementation that carries the path
+// prefix accumulated from parent tree entries.
+func (g *GitHubClient) getGitTreeRecursive(ctx context.Context, owner, repo, sha, prefix string) (*github.Tree, error) {
 	tree, _, err := g.client.Git.GetTree(ctx, owner, repo, sha, false)
 	if err != nil {
 		return nil, err
 	}
-	entries := make([]*github.TreeEntry, len(tree.Entries))
-	copy(entries, tree.Entries)
+
+	// Build a new entry slice with corrected paths.
+	entries := make([]*github.TreeEntry, 0, len(tree.Entries))
 	for _, entry := range tree.Entries {
+		fullPath := entry.GetPath()
+		if prefix != "" {
+			fullPath = prefix + "/" + fullPath
+		}
+		// Copy the entry with the updated path.
+		e := *entry
+		e.Path = github.Ptr(fullPath)
+		entries = append(entries, &e)
+
 		if entry.GetType() == "tree" {
-			subtree, err := g.GetGitTreeRecursive(ctx, owner, repo, entry.GetSHA())
+			subtree, err := g.getGitTreeRecursive(ctx, owner, repo, entry.GetSHA(), fullPath)
 			if err != nil {
 				return nil, err
 			}
 			entries = append(entries, subtree.Entries...)
 		}
 	}
+
 	tree.Entries = entries
 	return tree, nil
 }

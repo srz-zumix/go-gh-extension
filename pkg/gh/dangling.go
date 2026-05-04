@@ -597,9 +597,12 @@ func FindDanglingCommits(ctx context.Context, g *GitHubClient, repo repository.R
 	return result, nil
 }
 
-// FindDanglingBlobs finds blobs that are referenced only by dangling commits.
-// Detection methods are controlled by opts (same as FindDanglingCommits).
-// For each dangling commit the full git tree is traversed recursively.
+// FindDanglingBlobs finds blobs that were introduced by dangling commits but are
+// not reachable from any current branch or tag. Only files added or modified by
+// each dangling commit are considered; files removed by the commit are skipped
+// because those blobs may still be referenced by the parent commit's tree. This
+// avoids false positives from content-addressed blobs that happen to exist on
+// live branches with identical file content.
 // Blobs are deduplicated by SHA within each PR.
 func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Repository, prs []*github.PullRequest, opts DanglingOptions) ([]*DanglingBlob, error) {
 	logger.Info("inspecting PRs for dangling blobs", "total", len(prs))
@@ -609,62 +612,34 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 		seen := make(map[string]bool)
 		for _, c := range commits {
 			commitSHA := c.GetSHA()
-			gitCommit, err := g.GetGitCommit(ctx, repo.Owner, repo.Name, commitSHA)
+			// Fetch the commit diff rather than traversing the full tree.
+			// This ensures we only report blobs introduced by this commit,
+			// not blobs inherited from reachable parent commits.
+			commit, err := g.GetCommit(ctx, repo.Owner, repo.Name, commitSHA)
 			if err != nil {
 				if IsHTTPNotFound(err) {
-					logger.Debug("skipping commit: git commit object not found (may have been GC'd)", "sha", commitSHA)
+					logger.Debug("skipping commit: not found (may have been GC'd)", "sha", commitSHA)
 					continue
 				}
 				if opts.StrictErrors {
-					return fmt.Errorf("failed to get git commit %s: %w", commitSHA, err)
+					return fmt.Errorf("failed to get commit %s: %w", commitSHA, err)
 				}
-				logger.Warn("skipping commit: failed to fetch git commit (lenient mode)", "sha", commitSHA, "error", err)
+				logger.Warn("skipping commit: failed to fetch (lenient mode)", "sha", commitSHA, "error", err)
 				continue
 			}
-			treeSHA := gitCommit.GetTree().GetSHA()
-			if treeSHA == "" {
-				logger.Debug("skipping commit: empty tree SHA", "sha", commitSHA)
-				continue
-			}
-			tree, err := g.GetGitTree(ctx, repo.Owner, repo.Name, treeSHA, true)
-			if err != nil {
-				if IsHTTPNotFound(err) {
-					logger.Debug("skipping commit: git tree object not found (may have been GC'd)", "sha", commitSHA, "tree", treeSHA)
+			for _, f := range commit.Files {
+				// Removed files remain referenced by the parent tree; skip them.
+				if f.GetStatus() == "removed" {
 					continue
 				}
-				if opts.StrictErrors {
-					return fmt.Errorf("failed to get git tree %s for commit %s: %w", treeSHA, commitSHA, err)
-				}
-				logger.Warn("skipping commit: failed to fetch git tree (lenient mode)", "sha", commitSHA, "tree", treeSHA, "error", err)
-				continue
-			}
-			if tree.GetTruncated() {
-				tree, err = g.GetGitTreeRecursive(ctx, repo.Owner, repo.Name, treeSHA)
-				if err != nil {
-					if IsHTTPNotFound(err) {
-						logger.Debug("skipping commit: git tree object not found on recursive fetch (may have been GC'd)", "sha", commitSHA, "tree", treeSHA)
-						continue
-					}
-					if opts.StrictErrors {
-						return fmt.Errorf("failed to get recursive git tree %s for commit %s: %w", treeSHA, commitSHA, err)
-					}
-					logger.Warn("skipping commit: failed to fetch recursive git tree (lenient mode)", "sha", commitSHA, "tree", treeSHA, "error", err)
-					continue
-				}
-			}
-			for _, entry := range tree.Entries {
-				if entry.GetType() != "blob" {
-					continue
-				}
-				blobSHA := entry.GetSHA()
-				if seen[blobSHA] {
+				blobSHA := f.GetSHA()
+				if blobSHA == "" || seen[blobSHA] {
 					continue
 				}
 				seen[blobSHA] = true
 				result = append(result, &DanglingBlob{
 					SHA:       blobSHA,
-					Path:      entry.GetPath(),
-					Size:      entry.GetSize(),
+					Path:      f.GetFilename(),
 					CommitSHA: commitSHA,
 					PRNumber:  pr.GetNumber(),
 					PRURL:     pr.GetHTMLURL(),

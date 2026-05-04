@@ -8,19 +8,56 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v84/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
 var defaultBranchCache sync.Map
+var branchListCache sync.Map
+var tagListCache sync.Map
 
-// defaultBranchCacheKey returns a stable cache key for repository-scoped lookups.
-func defaultBranchCacheKey(repo repository.Repository) string {
-	return repo.Owner + "/" + repo.Name
+// repoCacheKey returns a stable cache key for repository-scoped lookups.
+// Host is included to correctly distinguish github.com from GitHub Enterprise
+// Server instances when the same process targets multiple hosts.
+func repoCacheKey(repo repository.Repository) string {
+	return parser.GetRepositoryFullNameWithHost(repo)
+}
+
+// listBranchesCached returns all branches for the repository, caching the result
+// for the duration of the process. The branch list is repo-scoped and stable for
+// a single scan, so fetching it once avoids O(candidates) extra API calls in
+// branches/refs reachability mode.
+func listBranchesCached(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Branch, error) {
+	key := repoCacheKey(repo)
+	if cached, ok := branchListCache.Load(key); ok {
+		return cached.([]*github.Branch), nil
+	}
+	branches, err := g.ListBranches(ctx, repo.Owner, repo.Name, nil)
+	if err != nil {
+		return nil, err
+	}
+	branchListCache.Store(key, branches)
+	return branches, nil
+}
+
+// listTagsCached returns all tags for the repository, caching the result for the
+// duration of the process. Same rationale as listBranchesCached.
+func listTagsCached(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.RepositoryTag, error) {
+	key := repoCacheKey(repo)
+	if cached, ok := tagListCache.Load(key); ok {
+		return cached.([]*github.RepositoryTag), nil
+	}
+	tags, err := g.ListTags(ctx, repo.Owner, repo.Name)
+	if err != nil {
+		return nil, err
+	}
+	tagListCache.Store(key, tags)
+	return tags, nil
 }
 
 // getDefaultBranch returns the repository default branch, caching the result to
 // avoid fetching repository metadata for every reachability check.
 func getDefaultBranch(ctx context.Context, g *GitHubClient, repo repository.Repository) (string, error) {
-	if branch, ok := defaultBranchCache.Load(defaultBranchCacheKey(repo)); ok {
+	if branch, ok := defaultBranchCache.Load(repoCacheKey(repo)); ok {
 		if cached, ok := branch.(string); ok && cached != "" {
 			return cached, nil
 		}
@@ -36,7 +73,7 @@ func getDefaultBranch(ctx context.Context, g *GitHubClient, repo repository.Repo
 		defaultBranch = "main"
 	}
 
-	defaultBranchCache.Store(defaultBranchCacheKey(repo), defaultBranch)
+	defaultBranchCache.Store(repoCacheKey(repo), defaultBranch)
 	return defaultBranch, nil
 }
 
@@ -53,8 +90,9 @@ func IsCommitReachableFromDefaultBranch(ctx context.Context, g *GitHubClient, re
 
 // IsCommitReachableFromAnyBranch reports whether sha is an ancestor of any branch
 // in the repository, using the GitHub Compare API. Short-circuits on first match.
+// The branch list is fetched once and cached for subsequent calls on the same repo.
 func IsCommitReachableFromAnyBranch(ctx context.Context, g *GitHubClient, repo repository.Repository, sha string) (bool, error) {
-	branches, err := g.ListBranches(ctx, repo.Owner, repo.Name, nil)
+	branches, err := listBranchesCached(ctx, g, repo)
 	if err != nil {
 		return false, err
 	}
@@ -84,7 +122,7 @@ func IsCommitReachableFromAnyRef(ctx context.Context, g *GitHubClient, repo repo
 	if reachable {
 		return true, nil
 	}
-	tags, err := g.ListTags(ctx, repo.Owner, repo.Name)
+	tags, err := listTagsCached(ctx, g, repo)
 	if err != nil {
 		return false, err
 	}
