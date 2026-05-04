@@ -91,6 +91,11 @@ type DanglingOptions struct {
 	// confirms each candidate commit is truly not reachable from any branch or tag
 	// before it is included in results. Zero value skips the check.
 	ReachabilityCheck ReachabilityCheckMode
+	// StrictErrors controls behavior when API or git errors are encountered during
+	// search. When false (default), errors are logged as warnings and processing
+	// continues; results may be incomplete. When true, any error terminates the
+	// search immediately.
+	StrictErrors bool
 }
 
 // parentUnreachable reports whether any of the given parent commits has a SHA
@@ -389,7 +394,13 @@ func checkCommitDangling(ctx context.Context, g *GitHubClient, repo repository.R
 	}
 	dangling, err := isCommitDanglingByReachability(ctx, g, repo, sha, opts)
 	if err != nil {
-		return false, err
+		if opts.StrictErrors {
+			return false, err
+		}
+		// Lenient mode: treat as dangling but do not update unreachableSHAs to
+		// avoid cascading misclassification when the error is transient.
+		logger.Warn("reachability check failed, treating commit as dangling (lenient mode)", "sha", sha, "error", err)
+		return true, nil
 	}
 	if dangling {
 		unreachableSHAs[sha] = true
@@ -416,9 +427,12 @@ func processChainCandidates(ctx context.Context, g *GitHubClient, repo repositor
 		if !unreachableSHAs[oldest.GetSHA()] && !parentUnreachable(oldest.Parents, unreachableSHAs) {
 			oldestDangling, err := isCommitDanglingByReachability(ctx, g, repo, oldest.GetSHA(), opts)
 			if err != nil {
-				return nil, fmt.Errorf("check chain oldest reachability for %s: %w", oldest.GetSHA(), err)
-			}
-			if oldestDangling {
+				if opts.StrictErrors {
+					return nil, fmt.Errorf("check chain oldest reachability for %s: %w", oldest.GetSHA(), err)
+				}
+				// Lenient mode: skip the two-endpoint shortcut and fall through to per-commit iteration.
+				logger.Warn("reachability check failed for chain oldest, skipping chain shortcut", "sha", oldest.GetSHA(), "error", err)
+			} else if oldestDangling {
 				// Oldest unreachable → parent shortcut propagates to every later commit
 				// in the chain; no further API/git calls needed for this shortcut.
 				unreachableSHAs[oldest.GetSHA()] = true
@@ -429,14 +443,18 @@ func processChainCandidates(ctx context.Context, g *GitHubClient, repo repositor
 				if !unreachableSHAs[newest.GetSHA()] && !parentUnreachable(newest.Parents, unreachableSHAs) {
 					newestDangling, err := isCommitDanglingByReachability(ctx, g, repo, newest.GetSHA(), opts)
 					if err != nil {
-						return nil, fmt.Errorf("check chain newest reachability for %s: %w", newest.GetSHA(), err)
-					}
-					if !newestDangling {
+						if opts.StrictErrors {
+							return nil, fmt.Errorf("check chain newest reachability for %s: %w", newest.GetSHA(), err)
+						}
+						// Lenient mode: skip full-chain shortcut and fall through to per-commit iteration.
+						logger.Warn("reachability check failed for chain newest, skipping full-chain shortcut", "sha", newest.GetSHA(), "error", err)
+					} else if !newestDangling {
 						// Both endpoints reachable → all chain commits reachable; skip.
 						logger.Debug("skipping chain: oldest and newest both reachable", "oldest", oldest.GetSHA(), "newest", newest.GetSHA())
 						return nil, nil
+					} else {
+						unreachableSHAs[newest.GetSHA()] = true
 					}
-					unreachableSHAs[newest.GetSHA()] = true
 				}
 			}
 		}
@@ -483,13 +501,20 @@ func iterateDanglingCommits(ctx context.Context, g *GitHubClient, repo repositor
 
 		chain, err := listCandidatesForPR(ctx, g, repo, pr, opts)
 		if err != nil {
-			return err
+			if opts.StrictErrors {
+				return err
+			}
+			logger.Warn("skipping PR: failed to collect chain candidates", "pr", pr.GetNumber(), "error", err)
+			continue
 		}
 
 		var forcePushed []*github.RepositoryCommit
 		if !opts.DisableForcePush {
 			fp, fpErr := listForcePushedOutPRCommits(ctx, g, repo, pr.GetNumber())
 			if fpErr != nil {
+				if opts.StrictErrors {
+					return fpErr
+				}
 				logger.Debug("skipping force-push based commit collection", "pr", pr.GetNumber(), "error", fpErr)
 			} else {
 				forcePushed = fp
@@ -502,7 +527,10 @@ func iterateDanglingCommits(ctx context.Context, g *GitHubClient, repo repositor
 
 		chainDangling, err := processChainCandidates(ctx, g, repo, chain, opts, unreachableSHAs)
 		if err != nil {
-			return err
+			if opts.StrictErrors {
+				return err
+			}
+			logger.Warn("partial result: chain reachability check failed", "pr", pr.GetNumber(), "error", err)
 		}
 
 		var fpDangling []*github.RepositoryCommit
@@ -584,7 +612,11 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 					logger.Debug("skipping commit: git commit object not found (may have been GC'd)", "sha", commitSHA)
 					continue
 				}
-				return fmt.Errorf("failed to get git commit %s: %w", commitSHA, err)
+				if opts.StrictErrors {
+					return fmt.Errorf("failed to get git commit %s: %w", commitSHA, err)
+				}
+				logger.Warn("skipping commit: failed to fetch git commit (lenient mode)", "sha", commitSHA, "error", err)
+				continue
 			}
 			treeSHA := gitCommit.GetTree().GetSHA()
 			if treeSHA == "" {
@@ -597,7 +629,11 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 					logger.Debug("skipping commit: git tree object not found (may have been GC'd)", "sha", commitSHA, "tree", treeSHA)
 					continue
 				}
-				return fmt.Errorf("failed to get git tree %s for commit %s: %w", treeSHA, commitSHA, err)
+				if opts.StrictErrors {
+					return fmt.Errorf("failed to get git tree %s for commit %s: %w", treeSHA, commitSHA, err)
+				}
+				logger.Warn("skipping commit: failed to fetch git tree (lenient mode)", "sha", commitSHA, "tree", treeSHA, "error", err)
+				continue
 			}
 			if tree.GetTruncated() {
 				tree, err = g.GetGitTreeRecursive(ctx, repo.Owner, repo.Name, treeSHA)
@@ -606,7 +642,11 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 						logger.Debug("skipping commit: git tree object not found on recursive fetch (may have been GC'd)", "sha", commitSHA, "tree", treeSHA)
 						continue
 					}
-					return fmt.Errorf("failed to get recursive git tree %s for commit %s: %w", treeSHA, commitSHA, err)
+					if opts.StrictErrors {
+						return fmt.Errorf("failed to get recursive git tree %s for commit %s: %w", treeSHA, commitSHA, err)
+					}
+					logger.Warn("skipping commit: failed to fetch recursive git tree (lenient mode)", "sha", commitSHA, "tree", treeSHA, "error", err)
+					continue
 				}
 			}
 			for _, entry := range tree.Entries {
