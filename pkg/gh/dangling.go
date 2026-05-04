@@ -217,7 +217,7 @@ func listSquashRebaseChainCandidates(ctx context.Context, g *GitHubClient, repo 
 		logger.Debug("skipping squash/rebase check: no head SHA", "pr", pr.GetNumber())
 		return nil, nil
 	}
-	mergeCommit, err := g.GetCommit(ctx, repo.Owner, repo.Name, mergeCommitSHA)
+	mergeCommit, err := g.GetCommitMeta(ctx, repo.Owner, repo.Name, mergeCommitSHA)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get merge commit for PR #%d: %w", pr.GetNumber(), err)
 	}
@@ -241,7 +241,14 @@ func listSquashRebaseChainCandidates(ctx context.Context, g *GitHubClient, repo 
 func listClosedUnmergedChainCandidates(ctx context.Context, g *GitHubClient, repo repository.Repository, pr *github.PullRequest) ([]*github.RepositoryCommit, error) {
 	headRepo := pr.GetHead().GetRepo()
 	baseRepo := pr.GetBase().GetRepo()
-	if headRepo != nil && baseRepo != nil && headRepo.GetFullName() != baseRepo.GetFullName() {
+	// headRepo is nil when the source fork has been deleted. In that case we
+	// cannot determine the origin repo and must not check branches on the base
+	// repo, so skip just like an active fork PR.
+	if headRepo == nil {
+		logger.Debug("skipping closed unmerged PR: head repo is nil (deleted fork or missing metadata)", "pr", pr.GetNumber())
+		return nil, nil
+	}
+	if baseRepo != nil && headRepo.GetFullName() != baseRepo.GetFullName() {
 		logger.Debug("skipping closed unmerged fork PR", "pr", pr.GetNumber(), "head_repo", headRepo.GetFullName())
 		return nil, nil
 	}
@@ -266,42 +273,22 @@ func listClosedUnmergedChainCandidates(ctx context.Context, g *GitHubClient, rep
 	return prCommits, nil
 }
 
-// listCandidatesForPR returns dangling commit candidates for a PR, separated by
-// source. The chain is the linear PR commit ancestry (oldest first) suitable for
-// chain-level shortcuts; forcePushed are independent commits dropped by
-// force-push events. Either may be nil.
-func listCandidatesForPR(ctx context.Context, g *GitHubClient, repo repository.Repository, pr *github.PullRequest, opts DanglingOptions) (chain, forcePushed []*github.RepositoryCommit, err error) {
+// listCandidatesForPR returns the linear PR commit chain (oldest first) for a PR.
+// The chain is suitable for chain-level reachability shortcuts.
+// Force-push dropped commits are collected separately by the caller.
+func listCandidatesForPR(ctx context.Context, g *GitHubClient, repo repository.Repository, pr *github.PullRequest, opts DanglingOptions) ([]*github.RepositoryCommit, error) {
 	if pr.MergedAt != nil {
-		if opts.DisableSquashRebase && opts.DisableForcePush {
-			logger.Debug("skipping merged PR: all merged-PR methods disabled", "pr", pr.GetNumber())
-			return nil, nil, nil
+		if opts.DisableSquashRebase {
+			logger.Debug("skipping squash/rebase detection: disabled", "pr", pr.GetNumber())
+			return nil, nil
 		}
-		if !opts.DisableSquashRebase {
-			chain, err = listSquashRebaseChainCandidates(ctx, g, repo, pr)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-	} else {
-		if opts.DisableClosed {
-			logger.Debug("skipping closed unmerged PR: closed detection disabled", "pr", pr.GetNumber())
-			return nil, nil, nil
-		}
-		chain, err = listClosedUnmergedChainCandidates(ctx, g, repo, pr)
-		if err != nil {
-			return nil, nil, err
-		}
+		return listSquashRebaseChainCandidates(ctx, g, repo, pr)
 	}
-
-	if !opts.DisableForcePush {
-		fp, fpErr := listForcePushedOutPRCommits(ctx, g, repo, pr.GetNumber())
-		if fpErr != nil {
-			logger.Debug("skipping force-push based commit collection", "pr", pr.GetNumber(), "error", fpErr)
-		} else {
-			forcePushed = fp
-		}
+	if opts.DisableClosed {
+		logger.Debug("skipping closed unmerged PR: closed detection disabled", "pr", pr.GetNumber())
+		return nil, nil
 	}
-	return chain, forcePushed, nil
+	return listClosedUnmergedChainCandidates(ctx, g, repo, pr)
 }
 
 // computeCommitTotalBlobSize sums blob sizes for a commit by traversing its tree recursively.
@@ -488,10 +475,27 @@ func iterateDanglingCommits(ctx context.Context, g *GitHubClient, repo repositor
 	for i, pr := range prs {
 		logger.Debug("checking PR", "progress", fmt.Sprintf("%d/%d", i+1, len(prs)), "pr", pr.GetNumber(), "title", pr.GetTitle())
 
-		chain, forcePushed, err := listCandidatesForPR(ctx, g, repo, pr, opts)
+		// Skip merged PRs that have all detection methods disabled.
+		if pr.MergedAt != nil && opts.DisableSquashRebase && opts.DisableForcePush {
+			logger.Debug("skipping merged PR: all merged-PR methods disabled", "pr", pr.GetNumber())
+			continue
+		}
+
+		chain, err := listCandidatesForPR(ctx, g, repo, pr, opts)
 		if err != nil {
 			return err
 		}
+
+		var forcePushed []*github.RepositoryCommit
+		if !opts.DisableForcePush {
+			fp, fpErr := listForcePushedOutPRCommits(ctx, g, repo, pr.GetNumber())
+			if fpErr != nil {
+				logger.Debug("skipping force-push based commit collection", "pr", pr.GetNumber(), "error", fpErr)
+			} else {
+				forcePushed = fp
+			}
+		}
+
 		if len(chain) == 0 && len(forcePushed) == 0 {
 			continue
 		}
@@ -576,8 +580,11 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 			commitSHA := c.GetSHA()
 			gitCommit, err := g.GetGitCommit(ctx, repo.Owner, repo.Name, commitSHA)
 			if err != nil {
-				logger.Debug("skipping commit: failed to get git commit", "sha", commitSHA, "error", err)
-				continue
+				if IsHTTPNotFound(err) {
+					logger.Debug("skipping commit: git commit object not found (may have been GC'd)", "sha", commitSHA)
+					continue
+				}
+				return fmt.Errorf("failed to get git commit %s: %w", commitSHA, err)
 			}
 			treeSHA := gitCommit.GetTree().GetSHA()
 			if treeSHA == "" {
@@ -586,8 +593,21 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 			}
 			tree, err := g.GetGitTree(ctx, repo.Owner, repo.Name, treeSHA, true)
 			if err != nil {
-				logger.Debug("skipping commit: failed to get git tree", "sha", commitSHA, "tree", treeSHA, "error", err)
-				continue
+				if IsHTTPNotFound(err) {
+					logger.Debug("skipping commit: git tree object not found (may have been GC'd)", "sha", commitSHA, "tree", treeSHA)
+					continue
+				}
+				return fmt.Errorf("failed to get git tree %s for commit %s: %w", treeSHA, commitSHA, err)
+			}
+			if tree.GetTruncated() {
+				tree, err = g.GetGitTreeRecursive(ctx, repo.Owner, repo.Name, treeSHA)
+				if err != nil {
+					if IsHTTPNotFound(err) {
+						logger.Debug("skipping commit: git tree object not found on recursive fetch (may have been GC'd)", "sha", commitSHA, "tree", treeSHA)
+						continue
+					}
+					return fmt.Errorf("failed to get recursive git tree %s for commit %s: %w", treeSHA, commitSHA, err)
+				}
 			}
 			for _, entry := range tree.Entries {
 				if entry.GetType() != "blob" {
@@ -675,11 +695,13 @@ func SortCommitsBy(commits []*DanglingCommit, field string, desc bool) error {
 // the remote GitHub repository. SHAs that are not found on the remote (404) are
 // skipped and treated as not present. Any other error (auth, rate-limit, network,
 // etc.) is returned immediately to prevent silent partial results.
+// GetCommitMeta is used instead of GetCommit to avoid paginating file details,
+// since only commit existence and message are needed.
 func FindLocalDanglingCommitsOnRemote(ctx context.Context, g *GitHubClient, repo repository.Repository, shas []string) ([]*DanglingCommit, error) {
 	logger.Info("checking local dangling commits against remote", "total", len(shas))
 	var result []*DanglingCommit
 	for _, sha := range shas {
-		commit, err := g.GetCommit(ctx, repo.Owner, repo.Name, sha)
+		commit, err := g.GetCommitMeta(ctx, repo.Owner, repo.Name, sha)
 		if err != nil {
 			if IsHTTPNotFound(err) {
 				logger.Debug("commit not found on remote", "sha", sha)

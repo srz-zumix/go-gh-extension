@@ -28,3 +28,23 @@ func (g *GitHubClient) GetGitTree(ctx context.Context, owner, repo, sha string, 
 	}
 	return tree, nil
 }
+
+func (g *GitHubClient) GetGitTreeRecursive(ctx context.Context, owner, repo, sha string) (*github.Tree, error) {
+	tree, _, err := g.client.Git.GetTree(ctx, owner, repo, sha, false)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]*github.TreeEntry, len(tree.Entries))
+	copy(entries, tree.Entries)
+	for _, entry := range tree.Entries {
+		if entry.GetType() == "tree" {
+			subtree, err := g.GetGitTreeRecursive(ctx, owner, repo, entry.GetSHA())
+			if err != nil {
+				return nil, err
+			}
+			entries = append(entries, subtree.Entries...)
+		}
+	}
+	tree.Entries = entries
+	return tree, nil
+}

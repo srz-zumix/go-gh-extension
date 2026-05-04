@@ -71,7 +71,22 @@ func IsCommitReachableFromAnyTag(ctx context.Context, sha string) (bool, error) 
 // remote-tracking branch or any tag.
 // This is a combination of IsCommitReachableFromAnyBranch and IsCommitReachableFromAnyTag.
 // The caller must ensure all remote refs have been fetched (e.g. git fetch --all).
+//
+// If the commit object is not present in the local object store (pruned or
+// never fetched), the function returns (false, nil) without error, because
+// git branch/tag --contains exits non-zero for unknown objects and there is
+// nothing to check reachability against.
 func IsCommitReachableFromAnyRef(ctx context.Context, sha string) (bool, error) {
+	// If the object doesn't exist locally it cannot be reachable from any local
+	// ref, and git branch/tag --contains would exit non-zero for this SHA.
+	exists, err := IsCommitObjectExists(ctx, sha)
+	if err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, nil
+	}
+
 	reachable, err := IsCommitReachableFromAnyBranch(ctx, sha)
 	if err != nil {
 		return false, err

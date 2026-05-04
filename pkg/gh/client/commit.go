@@ -75,6 +75,14 @@ func (g *GitHubClient) GetCommit(ctx context.Context, owner, repo, sha string) (
 	return commit, nil
 }
 
+func (g *GitHubClient) GetCommitMeta(ctx context.Context, owner, repo, sha string) (*github.RepositoryCommit, error) {
+	commit, _, err := g.client.Repositories.GetCommit(ctx, owner, repo, sha, &github.ListOptions{PerPage: 1})
+	if err != nil {
+		return nil, err
+	}
+	return commit, nil
+}
+
 func (g *GitHubClient) GetCommitSHA1(ctx context.Context, owner, repo, ref string, lastSHA string) (string, error) {
 	commit, _, err := g.client.Repositories.GetCommitSHA1(ctx, owner, repo, ref, lastSHA)
 	if err != nil {
