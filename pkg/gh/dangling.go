@@ -575,6 +575,9 @@ func FindDanglingCommits(ctx context.Context, g *GitHubClient, repo repository.R
 			}
 			blobSize, blobSizeErr := computeCommitTotalBlobSize(ctx, g, repo, sha)
 			if blobSizeErr != nil {
+				if opts.StrictErrors {
+					return fmt.Errorf("compute total blob size for commit %s: %w", sha, blobSizeErr)
+				}
 				logger.Debug("failed to compute total blob size for commit", "sha", sha, "error", blobSizeErr)
 			}
 			result = append(result, &DanglingCommit{
