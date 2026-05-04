@@ -114,6 +114,16 @@ func (r *Renderer) WriteError(err error) {
 	logger.Warn("rendering error", "error", err)
 }
 
+// IsExporting reports whether an exporter is configured on this Renderer.
+func (r *Renderer) IsExporting() bool {
+	return r.exporter != nil
+}
+
+// NewTableWriter creates a TableWriter with the given column headers.
+func (r *Renderer) NewTableWriter(header []string) *TableWriter {
+	return r.newTableWriter(header)
+}
+
 // ToString converts various types to their string representation, handling pointers and nil values gracefully
 func ToString(v any) string {
 	if str, ok := v.(*string); ok {
