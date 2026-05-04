@@ -58,14 +58,15 @@ const (
 	// requires additional API calls for tags.
 	ReachabilityCheckRefs ReachabilityCheckMode = "refs"
 	// ReachabilityCheckLocalObject checks whether the commit object exists in the
-	// local git repository after git fetch --all. Fastest check; a missing object
-	// means the commit is not reachable from any remote ref. Stale loose objects
-	// from previous fetches can cause false negatives.
+	// local git repository. Fastest check; a missing object means the commit is
+	// not reachable from any remote ref. Stale loose objects from previous fetches
+	// can cause false negatives. Requires git fetch --all --tags to have been run
+	// first; git fetch --all alone does not fetch tags unreachable from any branch.
 	ReachabilityCheckLocalObject ReachabilityCheckMode = "local-object"
 	// ReachabilityCheckLocalRefs uses git branch -r --contains and git tag
 	// --contains to confirm the commit is not reachable from any remote-tracking
-	// branch or any tag.
-	// Requires git fetch --all to have been run first.
+	// branch or any tag. Requires git fetch --all --tags to have been run first;
+	// git fetch --all alone does not fetch tags unreachable from any branch.
 	ReachabilityCheckLocalRefs ReachabilityCheckMode = "local-refs"
 )
 
@@ -625,8 +626,9 @@ func FindDanglingCommits(ctx context.Context, g *GitHubClient, repo repository.R
 // dangling commit may also appear in a live branch tree via identical file content
 // (e.g. package-lock.json, generated files). Without a local reachability check
 // there is no API-efficient way to detect this. Use --reachability-check
-// local-object (after git fetch --all) to filter out blobs that are still
-// reachable from any local ref.
+// local-object (after git fetch --all --tags) to filter out blobs that are
+// still reachable from any local ref. Note: git fetch --all alone does not
+// fetch tags unreachable from any branch.
 //
 // Blobs are deduplicated by SHA within each PR.
 func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Repository, prs []*github.PullRequest, opts DanglingOptions) ([]*DanglingBlob, error) {
