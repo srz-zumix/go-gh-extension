@@ -19,7 +19,8 @@ type GetAuditLogOptions struct {
 	Include string
 	// Order is the sort order of events. Can be "asc" or "desc". Default: "desc". (Optional.)
 	Order string
-	// MaxEntries limits the total number of entries returned. Use -1 for unlimited.
+	// MaxEntries limits the total number of entries returned.
+	// Leave it unset (0) for unlimited, or use -1 explicitly for unlimited.
 	MaxEntries int
 }
 
