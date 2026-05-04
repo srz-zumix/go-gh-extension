@@ -119,11 +119,16 @@ func (g *GitHubClient) CompareCommits(ctx context.Context, owner, repo, base, he
 
 // CompareCommitsMeta fetches only the first page of the comparison result without
 // paginating through commits. Use this when only metadata fields (e.g. AheadBy,
-// BehindBy, Status) are needed and the commit list is not required.
+// BehindBy, Status) are needed and the commit and file lists are not required.
 func (g *GitHubClient) CompareCommitsMeta(ctx context.Context, owner, repo, base, head string) (*github.CommitsComparison, error) {
 	comp, _, err := g.client.Repositories.CompareCommits(ctx, owner, repo, base, head, &github.ListOptions{PerPage: 1})
 	if err != nil {
 		return nil, err
+	}
+	if comp != nil {
+		// Clear paginated fields so callers cannot accidentally consume truncated data.
+		comp.Commits = nil
+		comp.Files = nil
 	}
 	return comp, nil
 }
