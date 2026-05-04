@@ -4,22 +4,49 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v84/github"
 )
 
+var defaultBranchCache sync.Map
+
+// defaultBranchCacheKey returns a stable cache key for repository-scoped lookups.
+func defaultBranchCacheKey(repo repository.Repository) string {
+	return repo.Owner + "/" + repo.Name
+}
+
+// getDefaultBranch returns the repository default branch, caching the result to
+// avoid fetching repository metadata for every reachability check.
+func getDefaultBranch(ctx context.Context, g *GitHubClient, repo repository.Repository) (string, error) {
+	if branch, ok := defaultBranchCache.Load(defaultBranchCacheKey(repo)); ok {
+		if cached, ok := branch.(string); ok && cached != "" {
+			return cached, nil
+		}
+	}
+
+	repoInfo, err := g.GetRepository(ctx, repo.Owner, repo.Name)
+	if err != nil {
+		return "", err
+	}
+
+	defaultBranch := repoInfo.GetDefaultBranch()
+	if defaultBranch == "" {
+		defaultBranch = "main"
+	}
+
+	defaultBranchCache.Store(defaultBranchCacheKey(repo), defaultBranch)
+	return defaultBranch, nil
+}
+
 // IsCommitReachableFromDefaultBranch reports whether sha is an ancestor of (or equal
 // to) the repository's default branch, using the GitHub Compare API.
 // Returns (true, nil) if reachable, (false, nil) if not reachable.
 func IsCommitReachableFromDefaultBranch(ctx context.Context, g *GitHubClient, repo repository.Repository, sha string) (bool, error) {
-	repoInfo, err := g.GetRepository(ctx, repo.Owner, repo.Name)
+	defaultBranch, err := getDefaultBranch(ctx, g, repo)
 	if err != nil {
 		return false, err
-	}
-	defaultBranch := repoInfo.GetDefaultBranch()
-	if defaultBranch == "" {
-		defaultBranch = "main"
 	}
 	return isCommitReachableFromRef(ctx, g, repo, sha, defaultBranch)
 }
