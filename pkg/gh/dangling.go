@@ -258,6 +258,13 @@ func listSquashRebaseChainCandidates(ctx context.Context, g *GitHubClient, repo 
 // Returns nil for fork PRs (the head branch lives in another repository) and
 // when the head branch still exists. Errors other than 404 from the branch
 // existence check are propagated to avoid misclassification on transient failures.
+//
+// Limitation: closed unmerged fork PRs are not supported. The commits from such
+// PRs exist on the base repository under refs/pull/<number>/head and may be
+// unreachable from every normal branch or tag once the fork branch is deleted,
+// but detecting them would require listing all PR commits unconditionally for
+// every fork PR regardless of whether the head branch still exists in the fork.
+// This is a known false-negative case.
 func listClosedUnmergedChainCandidates(ctx context.Context, g *GitHubClient, repo repository.Repository, pr *github.PullRequest) ([]*github.RepositoryCommit, error) {
 	headRepo := pr.GetHead().GetRepo()
 	baseRepo := pr.GetBase().GetRepo()
@@ -578,6 +585,12 @@ func iterateDanglingCommits(ctx context.Context, g *GitHubClient, repo repositor
 //
 // Note: GitHub retains refs/pull/{number}/head for all PRs, so these commits remain
 // accessible via PR refs even after the source branch is deleted.
+//
+// Limitation: closed unmerged fork PRs are not reported. Commits from such PRs
+// exist on the base repository under refs/pull/<number>/head, but because the
+// head branch lives in the fork repository there is no reliable way to confirm
+// that the branch has been deleted without querying the fork. This is a known
+// false-negative for fork-based PR workflows.
 func FindDanglingCommits(ctx context.Context, g *GitHubClient, repo repository.Repository, prs []*github.PullRequest, opts DanglingOptions) ([]*DanglingCommit, error) {
 	var result []*DanglingCommit
 	err := iterateDanglingCommits(ctx, g, repo, prs, opts, func(pr *github.PullRequest, commits []*github.RepositoryCommit) error {
@@ -650,6 +663,29 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 				logger.Warn("skipping commit: failed to fetch (lenient mode)", "sha", commitSHA, "error", err)
 				continue
 			}
+			// Build a blob SHA→size map from the commit's tree.
+			// Git tree entries include blob sizes without requiring content download,
+			// which avoids the expensive full-content fetch that the Blob API performs.
+			// A nil map signals that sizes are unavailable for this commit.
+			var blobSizeMap map[string]int
+			if innerCommit := commit.GetCommit(); innerCommit != nil {
+				if treeSHA := innerCommit.GetTree().GetSHA(); treeSHA != "" {
+					tree, treeErr := g.GetGitTreeRecursive(ctx, repo.Owner, repo.Name, treeSHA)
+					if treeErr != nil {
+						if opts.StrictErrors {
+							return fmt.Errorf("failed to get tree for commit %s: %w", commitSHA, treeErr)
+						}
+						logger.Warn("skipping blob sizes: failed to fetch tree (lenient mode)", "sha", commitSHA, "error", treeErr)
+					} else {
+						blobSizeMap = make(map[string]int, len(tree.Entries))
+						for _, entry := range tree.Entries {
+							if entry.GetType() == "blob" {
+								blobSizeMap[entry.GetSHA()] = entry.GetSize()
+							}
+						}
+					}
+				}
+			}
 			for _, f := range commit.Files {
 				// Removed files remain referenced by the parent tree; skip them.
 				// Rename-only files also keep referencing an existing blob from the parent tree.
@@ -686,16 +722,11 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 				}
 				seen[blobSHA] = true
 				var blobSize *int
-				blob, blobErr := g.GetGitBlob(ctx, repo.Owner, repo.Name, blobSHA)
-				if blobErr != nil {
-					if !IsHTTPNotFound(blobErr) {
-						if opts.StrictErrors {
-							return fmt.Errorf("failed to get blob size for %s: %w", blobSHA, blobErr)
-						}
-						logger.Warn("skipping blob size: failed to fetch (lenient mode)", "sha", blobSHA, "error", blobErr)
+				if blobSizeMap != nil {
+					if sz, ok := blobSizeMap[blobSHA]; ok {
+						s := sz
+						blobSize = &s
 					}
-				} else {
-					blobSize = blob.Size
 				}
 				result = append(result, &DanglingBlob{
 					SHA:       blobSHA,

@@ -18,8 +18,9 @@ func (g *GitHubClient) GetGitCommit(ctx context.Context, owner, repo, sha string
 }
 
 // GetGitBlob returns the git blob object for the given SHA.
-// The returned Blob may include blob content as well as the Size field, so callers
-// should not treat this as a cheap metadata-only lookup.
+// The response always includes the base64-encoded content; there is no REST API
+// endpoint that returns blob size alone. Prefer reading sizes from tree entries
+// (GetGitTree / GetGitTreeRecursive) when content is not needed.
 func (g *GitHubClient) GetGitBlob(ctx context.Context, owner, repo, sha string) (*github.Blob, error) {
 	blob, _, err := g.client.Git.GetBlob(ctx, owner, repo, sha)
 	if err != nil {

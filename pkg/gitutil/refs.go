@@ -50,7 +50,9 @@ func ListUnreachableCommits(ctx context.Context, noReflogs bool) ([]string, erro
 	if err != nil {
 		return nil, err
 	}
-	out, err := cmd.Output()
+	// git fsck writes unreachable/dangling object lines to stderr, not stdout.
+	// Use CombinedOutput so that both streams are captured together.
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		// git fsck exits non-zero when it finds connectivity or fsck errors.
 		// We still want to parse whatever output was produced.
