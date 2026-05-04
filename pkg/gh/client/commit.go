@@ -75,11 +75,15 @@ func (g *GitHubClient) GetCommit(ctx context.Context, owner, repo, sha string) (
 	return commit, nil
 }
 
+// GetCommitMeta fetches commit metadata without paginating file details.
+// Files is cleared before returning so callers cannot mistake a partial first page
+// of files for a complete file list.
 func (g *GitHubClient) GetCommitMeta(ctx context.Context, owner, repo, sha string) (*github.RepositoryCommit, error) {
 	commit, _, err := g.client.Repositories.GetCommit(ctx, owner, repo, sha, &github.ListOptions{PerPage: 1})
 	if err != nil {
 		return nil, err
 	}
+	commit.Files = nil
 	return commit, nil
 }
 
