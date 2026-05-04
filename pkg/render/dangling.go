@@ -89,7 +89,10 @@ func newDanglingBlobFieldGetters() *danglingBlobFieldGetters {
 				return b.Path
 			},
 			"SIZE": func(b *gh.DanglingBlob) string {
-				return humanize.Bytes(uint64(b.Size))
+				if b.Size == nil {
+					return ""
+				}
+				return humanize.Bytes(uint64(*b.Size))
 			},
 			"COMMIT_SHA": func(b *gh.DanglingBlob) string {
 				return b.CommitSHA

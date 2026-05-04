@@ -3,6 +3,7 @@ package gitutil
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/cli/cli/v2/git"
@@ -95,4 +96,29 @@ func IsCommitReachableFromAnyRef(ctx context.Context, sha string) (bool, error) 
 		return true, nil
 	}
 	return IsCommitReachableFromAnyTag(ctx, sha)
+}
+
+// IsBlobReachableFromAnyRef reports whether the given blob SHA is referenced by
+// any commit reachable from any local ref (branches, tags, remotes).
+//
+// Git blobs are content-addressed: the same SHA can appear in multiple commits
+// across different branches. This function returns true if ANY commit reachable
+// from any local ref references the blob, meaning git will not garbage-collect it.
+//
+// Implementation uses git log --all --find-object which traverses local ref
+// history. Requires git fetch --all to have been run first to include
+// remote-tracking refs.
+func IsBlobReachableFromAnyRef(ctx context.Context, sha string) (bool, error) {
+	c := NewClient()
+	// --find-object=<sha> searches commits that reference the object anywhere
+	// in their diff (added or removed). -1 stops after the first match.
+	cmd, err := c.Command(ctx, "log", "--all", "--find-object="+sha, "--format=%H", "-1")
+	if err != nil {
+		return false, err
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("git log --find-object: %w", err)
+	}
+	return strings.TrimSpace(string(out)) != "", nil
 }

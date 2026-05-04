@@ -17,6 +17,16 @@ func (g *GitHubClient) GetGitCommit(ctx context.Context, owner, repo, sha string
 	return commit, nil
 }
 
+// GetGitBlob returns the git blob object for the given SHA.
+// The returned Blob includes the Size field (in bytes) without fetching content.
+func (g *GitHubClient) GetGitBlob(ctx context.Context, owner, repo, sha string) (*github.Blob, error) {
+	blob, _, err := g.client.Git.GetBlob(ctx, owner, repo, sha)
+	if err != nil {
+		return nil, err
+	}
+	return blob, nil
+}
+
 // GetGitTree returns the git tree for the given SHA.
 // If recursive is true, all nested subtrees are included in Entries.
 // Note: GitHub truncates recursive trees with more than 100,000 entries;

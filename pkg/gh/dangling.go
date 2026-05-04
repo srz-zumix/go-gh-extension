@@ -31,7 +31,7 @@ type DanglingCommit struct {
 type DanglingBlob struct {
 	SHA       string
 	Path      string
-	Size      int
+	Size      *int // nil when size is unavailable (e.g. diff-based detection)
 	CommitSHA string
 	PRNumber  int
 	PRURL     string
@@ -180,7 +180,12 @@ func appendUniqueCommitsBySHA(dst []*github.RepositoryCommit, seen map[string]bo
 
 // listForcePushedOutPRCommits returns commits that became unreachable from a PR
 // head branch due to head_ref_force_pushed timeline events.
-func listForcePushedOutPRCommits(ctx context.Context, g *GitHubClient, repo repository.Repository, prNumber int) ([]*github.RepositoryCommit, error) {
+// Each force-push event is processed independently; a Compare failure for one
+// event does not discard results already collected from earlier events.
+// Skippable errors (HTTP 404/422, e.g. no common ancestor) are always silently
+// skipped per event. Non-skippable errors (rate-limit, 5xx, etc.) are fatal
+// when opts.StrictErrors is true, or logged and skipped otherwise.
+func listForcePushedOutPRCommits(ctx context.Context, g *GitHubClient, repo repository.Repository, prNumber int, opts DanglingOptions) ([]*github.RepositoryCommit, error) {
 	events, err := g.ListPullRequestHeadRefForcePushEvents(ctx, repo.Owner, repo.Name, prNumber)
 	if err != nil {
 		return nil, err
@@ -198,7 +203,17 @@ func listForcePushedOutPRCommits(ctx context.Context, g *GitHubClient, repo repo
 		// and are no longer reachable from the updated head.
 		comp, err := g.CompareCommits(ctx, repo.Owner, repo.Name, e.AfterSHA, e.BeforeSHA)
 		if err != nil {
-			return nil, fmt.Errorf("compare commits for force-push event in PR #%d before=%s after=%s: %w", prNumber, e.BeforeSHA, e.AfterSHA, err)
+			if isSkippableCompareError(err) {
+				// 404 = no common ancestor (e.g. rewrite onto unrelated history) or
+				// 422 = invalid range; commits from this event are not enumerable.
+				logger.Debug("skipping force-push event: compare not available", "pr", prNumber, "before", e.BeforeSHA, "after", e.AfterSHA, "error", err)
+				continue
+			}
+			if opts.StrictErrors {
+				return nil, fmt.Errorf("compare commits for force-push event in PR #%d before=%s after=%s: %w", prNumber, e.BeforeSHA, e.AfterSHA, err)
+			}
+			logger.Warn("skipping force-push event: compare failed (lenient mode)", "pr", prNumber, "before", e.BeforeSHA, "after", e.AfterSHA, "error", err)
+			continue
 		}
 
 		result = appendUniqueCommitsBySHA(result, seen, comp.Commits)
@@ -510,7 +525,7 @@ func iterateDanglingCommits(ctx context.Context, g *GitHubClient, repo repositor
 
 		var forcePushed []*github.RepositoryCommit
 		if !opts.DisableForcePush {
-			fp, fpErr := listForcePushedOutPRCommits(ctx, g, repo, pr.GetNumber())
+			fp, fpErr := listForcePushedOutPRCommits(ctx, g, repo, pr.GetNumber(), opts)
 			if fpErr != nil {
 				if opts.StrictErrors {
 					return fpErr
@@ -564,7 +579,6 @@ func iterateDanglingCommits(ctx context.Context, g *GitHubClient, repo repositor
 // Note: GitHub retains refs/pull/{number}/head for all PRs, so these commits remain
 // accessible via PR refs even after the source branch is deleted.
 func FindDanglingCommits(ctx context.Context, g *GitHubClient, repo repository.Repository, prs []*github.PullRequest, opts DanglingOptions) ([]*DanglingCommit, error) {
-	logger.Info("inspecting PRs for dangling commits", "total", len(prs))
 	var result []*DanglingCommit
 	err := iterateDanglingCommits(ctx, g, repo, prs, opts, func(pr *github.PullRequest, commits []*github.RepositoryCommit) error {
 		for _, c := range commits {
@@ -593,20 +607,29 @@ func FindDanglingCommits(ctx context.Context, g *GitHubClient, repo repository.R
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("dangling commit search complete", "found", len(result))
 	return result, nil
 }
 
 // FindDanglingBlobs finds blobs that were introduced by dangling commits but are
 // not reachable from any current branch or tag. Only files added or modified by
 // each dangling commit are considered; files removed by the commit are skipped
-// because those blobs may still be referenced by the parent commit's tree. This
-// avoids false positives from content-addressed blobs that happen to exist on
-// live branches with identical file content.
+// because those blobs may still be referenced by the parent commit's tree.
+//
+// False positives: Git blobs are content-addressed, so a blob introduced by a
+// dangling commit may also appear in a live branch tree via identical file content
+// (e.g. package-lock.json, generated files). Without a local reachability check
+// there is no API-efficient way to detect this. Use --reachability-check
+// local-object (after git fetch --all) to filter out blobs that are still
+// reachable from any local ref.
+//
 // Blobs are deduplicated by SHA within each PR.
 func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Repository, prs []*github.PullRequest, opts DanglingOptions) ([]*DanglingBlob, error) {
-	logger.Info("inspecting PRs for dangling blobs", "total", len(prs))
 	var result []*DanglingBlob
+	// reachableBlobSHAs caches blob SHAs confirmed reachable from a local ref so
+	// they are not re-checked across multiple PRs. Only positive (reachable)
+	// results are cached because a reachable blob must be skipped globally,
+	// whereas unreachable blobs are per-PR-deduplicated via the visitor's seen map.
+	reachableBlobSHAs := make(map[string]bool)
 	err := iterateDanglingCommits(ctx, g, repo, prs, opts, func(pr *github.PullRequest, commits []*github.RepositoryCommit) error {
 		// Deduplicate blob SHAs within this PR to avoid redundant output.
 		seen := make(map[string]bool)
@@ -638,10 +661,46 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 				if blobSHA == "" || seen[blobSHA] {
 					continue
 				}
+				// When a local reachability check is active, verify the blob is not
+				// reachable from any local ref. Git blobs are content-addressed, so
+				// identical content in a live branch tree has the same SHA and would
+				// otherwise be falsely reported as dangling.
+				if opts.ReachabilityCheck == ReachabilityCheckLocalObject {
+					if reachableBlobSHAs[blobSHA] {
+						logger.Debug("skipping blob: reachable from a local ref (cached)", "sha", blobSHA)
+						seen[blobSHA] = true
+						continue
+					}
+					reachable, err := gitutil.IsBlobReachableFromAnyRef(ctx, blobSHA)
+					if err != nil {
+						if opts.StrictErrors {
+							return fmt.Errorf("check blob reachability for %s: %w", blobSHA, err)
+						}
+						logger.Warn("blob reachability check failed, treating as dangling (lenient mode)", "sha", blobSHA, "error", err)
+					} else if reachable {
+						logger.Debug("skipping blob: reachable from a local ref", "sha", blobSHA)
+						reachableBlobSHAs[blobSHA] = true
+						seen[blobSHA] = true
+						continue
+					}
+				}
 				seen[blobSHA] = true
+				var blobSize *int
+				blob, blobErr := g.GetGitBlob(ctx, repo.Owner, repo.Name, blobSHA)
+				if blobErr != nil {
+					if !IsHTTPNotFound(blobErr) {
+						if opts.StrictErrors {
+							return fmt.Errorf("failed to get blob size for %s: %w", blobSHA, blobErr)
+						}
+						logger.Warn("skipping blob size: failed to fetch (lenient mode)", "sha", blobSHA, "error", blobErr)
+					}
+				} else {
+					blobSize = blob.Size
+				}
 				result = append(result, &DanglingBlob{
 					SHA:       blobSHA,
 					Path:      f.GetFilename(),
+					Size:      blobSize,
 					CommitSHA: commitSHA,
 					PRNumber:  pr.GetNumber(),
 					PRURL:     pr.GetHTMLURL(),
@@ -653,7 +712,6 @@ func FindDanglingBlobs(ctx context.Context, g *GitHubClient, repo repository.Rep
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("dangling blob search complete", "found", len(result))
 	return result, nil
 }
 
@@ -665,7 +723,13 @@ func SortBlobsBy(blobs []*DanglingBlob, field string, desc bool) error {
 	var less func(a, b *DanglingBlob) int
 	switch strings.ToLower(field) {
 	case "size":
-		less = func(a, b *DanglingBlob) int { return cmp.Compare(a.Size, b.Size) }
+		derefBlob := func(p *int) int {
+			if p == nil {
+				return 0
+			}
+			return *p
+		}
+		less = func(a, b *DanglingBlob) int { return cmp.Compare(derefBlob(a.Size), derefBlob(b.Size)) }
 	case "path":
 		less = func(a, b *DanglingBlob) int { return cmp.Compare(a.Path, b.Path) }
 	case "pr_number":
