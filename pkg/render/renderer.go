@@ -114,11 +114,6 @@ func (r *Renderer) WriteError(err error) {
 	logger.Warn("rendering error", "error", err)
 }
 
-// IsExporting reports whether an exporter is configured on this Renderer.
-func (r *Renderer) IsExporting() bool {
-	return r.exporter != nil
-}
-
 // NewTableWriter creates a TableWriter with the given column headers.
 func (r *Renderer) NewTableWriter(header []string) *TableWriter {
 	return r.newTableWriter(header)
