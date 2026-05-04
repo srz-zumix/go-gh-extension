@@ -16,7 +16,7 @@ import (
 // from remote branches are fetched. In long-lived repositories that have not had
 // `git gc --prune` run, unreachable loose objects from previous fetches may still
 // be present, so this check can produce false negatives for dangling detection.
-// Use IsCommitReachableFromAnyBranch for a precise reachability check.
+// Use IsCommitReachableFromAnyRef for a precise reachability check across branches and tags.
 //
 // The caller must ensure all remote refs have been fetched (e.g. git fetch --all).
 func IsCommitObjectExists(ctx context.Context, sha string) (bool, error) {
