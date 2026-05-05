@@ -57,8 +57,12 @@ func GetAuditLog(ctx context.Context, g *GitHubClient, repo repository.Repositor
 }
 
 // AuditEntryStringField returns the string value for key from an audit log
-// entry's AdditionalFields or Data maps. Returns empty string if not found.
+// entry's AdditionalFields or Data maps. Returns empty string if e is nil,
+// the key is not found, or the value is not a non-empty string.
 func AuditEntryStringField(e *github.AuditEntry, key string) string {
+	if e == nil {
+		return ""
+	}
 	for _, m := range []map[string]any{e.AdditionalFields, e.Data} {
 		if v, ok := m[key]; ok {
 			if s, ok := v.(string); ok && s != "" {

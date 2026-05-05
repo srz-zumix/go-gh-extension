@@ -10,14 +10,18 @@ import (
 // given options, following cursor-based pagination until all results are fetched.
 // maxEntries limits the total number of entries returned; use 0 or a negative value for unlimited.
 func (g *GitHubClient) GetAuditLog(ctx context.Context, org string, opts *github.GetAuditLogOptions, maxEntries int) ([]*github.AuditEntry, error) {
-	if opts == nil {
-		opts = &github.GetAuditLogOptions{}
+	// Clone opts so that pagination mutations (PerPage, Cursor) do not affect
+	// the caller's struct across repeated invocations.
+	local := &github.GetAuditLogOptions{}
+	if opts != nil {
+		*local = *opts
 	}
-	opts.PerPage = defaultPerPage
+	local.PerPage = defaultPerPage
+	local.Cursor = ""
 
 	var all []*github.AuditEntry
 	for {
-		entries, resp, err := g.client.Organizations.GetAuditLog(ctx, org, opts)
+		entries, resp, err := g.client.Organizations.GetAuditLog(ctx, org, local)
 		if err != nil {
 			return nil, err
 		}
@@ -28,7 +32,7 @@ func (g *GitHubClient) GetAuditLog(ctx context.Context, org string, opts *github
 		if resp.Cursor == "" {
 			break
 		}
-		opts.Cursor = resp.Cursor
+		local.Cursor = resp.Cursor
 	}
 	return all, nil
 }
