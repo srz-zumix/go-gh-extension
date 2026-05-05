@@ -144,8 +144,14 @@ func (g *GitHubClient) GetWorkflowRunUsageByID(ctx context.Context, owner string
 // The maxRedirects parameter specifies the maximum number of redirects to follow.
 // Setting maxRedirects to 0 will return the redirect URL without following it.
 func (g *GitHubClient) GetWorkflowRunLogs(ctx context.Context, owner string, repo string, runID int64, maxRedirects int) (string, error) {
-	logURL, _, err := g.client.Actions.GetWorkflowRunLogs(ctx, owner, repo, runID, maxRedirects)
+	logURL, resp, err := g.client.Actions.GetWorkflowRunLogs(ctx, owner, repo, runID, maxRedirects)
 	if err != nil {
+		// Actions.GetWorkflowRunLogs uses roundTripWithOptionalFollowRedirect and
+		// returns a plain error instead of *github.ErrorResponse for non-200
+		// responses. Normalize it so callers can use IsHTTPNotFound, etc.
+		if resp != nil && resp.Response != nil {
+			return "", &github.ErrorResponse{Response: resp.Response}
+		}
 		return "", err
 	}
 	return logURL.String(), nil
@@ -155,8 +161,14 @@ func (g *GitHubClient) GetWorkflowRunLogs(ctx context.Context, owner string, rep
 // The maxRedirects parameter specifies the maximum number of redirects to follow.
 // Setting maxRedirects to 0 will return the redirect URL without following it.
 func (g *GitHubClient) GetWorkflowRunAttemptLogs(ctx context.Context, owner string, repo string, runID int64, attemptNumber int, maxRedirects int) (string, error) {
-	logURL, _, err := g.client.Actions.GetWorkflowRunAttemptLogs(ctx, owner, repo, runID, attemptNumber, maxRedirects)
+	logURL, resp, err := g.client.Actions.GetWorkflowRunAttemptLogs(ctx, owner, repo, runID, attemptNumber, maxRedirects)
 	if err != nil {
+		// Actions.GetWorkflowRunAttemptLogs uses roundTripWithOptionalFollowRedirect and
+		// returns a plain error instead of *github.ErrorResponse for non-200
+		// responses. Normalize it so callers can use IsHTTPNotFound, etc.
+		if resp != nil && resp.Response != nil {
+			return "", &github.ErrorResponse{Response: resp.Response}
+		}
 		return "", err
 	}
 	return logURL.String(), nil

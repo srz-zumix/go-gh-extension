@@ -234,8 +234,14 @@ func (g *GitHubClient) DeleteFile(ctx context.Context, owner, repo, path string,
 
 // GetBranch retrieves a branch by name.
 func (g *GitHubClient) GetBranch(ctx context.Context, owner, repo, branch string) (*github.Branch, error) {
-	b, _, err := g.client.Repositories.GetBranch(ctx, owner, repo, branch, 0)
+	b, resp, err := g.client.Repositories.GetBranch(ctx, owner, repo, branch, 0)
 	if err != nil {
+		// Repositories.GetBranch uses roundTripWithOptionalFollowRedirect and returns a
+		// plain "unexpected status code: NNN" error instead of *github.ErrorResponse for
+		// non-200 responses. Normalize it here so callers can use IsHTTPNotFound, etc.
+		if resp != nil && resp.Response != nil {
+			return nil, &github.ErrorResponse{Response: resp.Response}
+		}
 		return nil, err
 	}
 	return b, nil

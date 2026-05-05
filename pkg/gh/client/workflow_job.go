@@ -80,8 +80,14 @@ func (g *GitHubClient) RerunFailedJobsByID(ctx context.Context, owner string, re
 // The maxRedirects parameter specifies the maximum number of redirects to follow.
 // Setting maxRedirects to 0 will return the redirect URL without following it.
 func (g *GitHubClient) GetWorkflowJobLogs(ctx context.Context, owner string, repo string, jobID int64, maxRedirects int) (string, error) {
-	logURL, _, err := g.client.Actions.GetWorkflowJobLogs(ctx, owner, repo, jobID, maxRedirects)
+	logURL, resp, err := g.client.Actions.GetWorkflowJobLogs(ctx, owner, repo, jobID, maxRedirects)
 	if err != nil {
+		// Actions.GetWorkflowJobLogs uses roundTripWithOptionalFollowRedirect and
+		// returns a plain error instead of *github.ErrorResponse for non-200
+		// responses. Normalize it so callers can use IsHTTPNotFound, etc.
+		if resp != nil && resp.Response != nil {
+			return "", &github.ErrorResponse{Response: resp.Response}
+		}
 		return "", err
 	}
 	return logURL.String(), nil
@@ -90,8 +96,14 @@ func (g *GitHubClient) GetWorkflowJobLogs(ctx context.Context, owner string, rep
 // GetWorkflowJobLogsContent retrieves the logs content for a workflow job.
 // This function downloads the logs from the URL and returns the content as bytes.
 func (g *GitHubClient) GetWorkflowJobLogsContent(ctx context.Context, owner string, repo string, jobID int64, maxRedirects int) ([]byte, error) {
-	logURL, _, err := g.client.Actions.GetWorkflowJobLogs(ctx, owner, repo, jobID, maxRedirects)
+	logURL, ghResp, err := g.client.Actions.GetWorkflowJobLogs(ctx, owner, repo, jobID, maxRedirects)
 	if err != nil {
+		// Actions.GetWorkflowJobLogs uses roundTripWithOptionalFollowRedirect and
+		// returns a plain error instead of *github.ErrorResponse for non-200
+		// responses. Normalize it so callers can use IsHTTPNotFound, etc.
+		if ghResp != nil && ghResp.Response != nil {
+			return nil, &github.ErrorResponse{Response: ghResp.Response}
+		}
 		return nil, err
 	}
 
