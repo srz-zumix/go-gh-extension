@@ -75,6 +75,18 @@ func (g *GitHubClient) GetCommit(ctx context.Context, owner, repo, sha string) (
 	return commit, nil
 }
 
+// GetCommitMeta fetches commit metadata without paginating file details.
+// Files is cleared before returning so callers cannot mistake a partial first page
+// of files for a complete file list.
+func (g *GitHubClient) GetCommitMeta(ctx context.Context, owner, repo, sha string) (*github.RepositoryCommit, error) {
+	commit, _, err := g.client.Repositories.GetCommit(ctx, owner, repo, sha, &github.ListOptions{PerPage: 1})
+	if err != nil {
+		return nil, err
+	}
+	commit.Files = nil
+	return commit, nil
+}
+
 func (g *GitHubClient) GetCommitSHA1(ctx context.Context, owner, repo, ref string, lastSHA string) (string, error) {
 	commit, _, err := g.client.Repositories.GetCommitSHA1(ctx, owner, repo, ref, lastSHA)
 	if err != nil {
@@ -103,4 +115,20 @@ func (g *GitHubClient) CompareCommits(ctx context.Context, owner, repo, base, he
 	}
 
 	return commitComparison, nil
+}
+
+// CompareCommitsMeta fetches only the first page of the comparison result without
+// paginating through commits. Use this when only metadata fields (e.g. AheadBy,
+// BehindBy, Status) are needed and the commit and file lists are not required.
+func (g *GitHubClient) CompareCommitsMeta(ctx context.Context, owner, repo, base, head string) (*github.CommitsComparison, error) {
+	comp, _, err := g.client.Repositories.CompareCommits(ctx, owner, repo, base, head, &github.ListOptions{PerPage: 1})
+	if err != nil {
+		return nil, err
+	}
+	if comp != nil {
+		// Clear paginated fields so callers cannot accidentally consume truncated data.
+		comp.Commits = nil
+		comp.Files = nil
+	}
+	return comp, nil
 }

@@ -2,6 +2,7 @@ package gh
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
@@ -110,4 +111,69 @@ func GetCommitSHA1(ctx context.Context, g *GitHubClient, repo repository.Reposit
 
 func CompareCommits(ctx context.Context, g *GitHubClient, repo repository.Repository, base, head string) (*github.CommitsComparison, error) {
 	return g.CompareCommits(ctx, repo.Owner, repo.Name, base, head)
+}
+
+// ComputeCommitTotalBlobSize sums blob sizes for a commit by traversing its tree recursively.
+// Returns nil and an error when the size cannot be determined, allowing callers to distinguish
+// an unknown size from an actual empty tree.
+func ComputeCommitTotalBlobSize(ctx context.Context, g *GitHubClient, repo repository.Repository, commitSHA string) (*uint64, error) {
+	gitCommit, err := g.GetGitCommit(ctx, repo.Owner, repo.Name, commitSHA)
+	if err != nil {
+		return nil, fmt.Errorf("get git commit: %w", err)
+	}
+
+	treeSHA := gitCommit.GetTree().GetSHA()
+	if treeSHA == "" {
+		return nil, fmt.Errorf("commit %s has empty tree SHA", commitSHA)
+	}
+
+	tree, err := g.GetGitTree(ctx, repo.Owner, repo.Name, treeSHA, true)
+	if err != nil {
+		return nil, fmt.Errorf("get git tree %s: %w", treeSHA, err)
+	}
+
+	if !tree.GetTruncated() {
+		var totalBlobSize uint64
+		for _, entry := range tree.Entries {
+			if entry.GetType() == "blob" {
+				totalBlobSize += uint64(entry.GetSize())
+			}
+		}
+		return &totalBlobSize, nil
+	}
+
+	totalBlobSize, err := computeTreeTotalBlobSize(ctx, g, repo, treeSHA)
+	if err != nil {
+		return nil, fmt.Errorf("traverse truncated git tree %s: %w", treeSHA, err)
+	}
+
+	return &totalBlobSize, nil
+}
+
+// computeTreeTotalBlobSize sums blob sizes by traversing tree objects without using truncated recursive responses.
+func computeTreeTotalBlobSize(ctx context.Context, g *GitHubClient, repo repository.Repository, treeSHA string) (uint64, error) {
+	tree, err := g.GetGitTree(ctx, repo.Owner, repo.Name, treeSHA, false)
+	if err != nil {
+		return 0, err
+	}
+
+	var totalBlobSize uint64
+	for _, entry := range tree.Entries {
+		switch entry.GetType() {
+		case "blob":
+			totalBlobSize += uint64(entry.GetSize())
+		case "tree":
+			childTreeSHA := entry.GetSHA()
+			if childTreeSHA == "" {
+				continue
+			}
+			childSize, err := computeTreeTotalBlobSize(ctx, g, repo, childTreeSHA)
+			if err != nil {
+				return 0, err
+			}
+			totalBlobSize += childSize
+		}
+	}
+
+	return totalBlobSize, nil
 }
