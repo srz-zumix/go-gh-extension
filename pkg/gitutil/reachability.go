@@ -30,8 +30,9 @@ func IsCommitObjectExists(ctx context.Context, sha string) (bool, error) {
 		return false, err
 	}
 	if err := cmd.Run(); err != nil {
-		var ge *git.GitError
-		if errors.As(err, &ge) && ge.ExitCode == 1 {
+		if _, ok := errors.AsType[*git.GitError](err); ok {
+			// git cat-file -e exits non-zero (1 or 128) whenever the object is
+			// absent; any *git.GitError here means "not found".
 			return false, nil
 		}
 		return false, err
@@ -121,6 +122,73 @@ func IsBlobReachableFromAnyRef(ctx context.Context, sha string) (bool, error) {
 	c := NewClient()
 	// --find-object=<sha> searches commits that reference the object anywhere
 	// in their diff (added or removed). -1 stops after the first match.
+	cmd, err := c.Command(ctx, "log", "--all", "--find-object="+sha, "--format=%H", "-1")
+	if err != nil {
+		return false, err
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("git log --find-object: %w", err)
+	}
+	return strings.TrimSpace(string(out)) != "", nil
+}
+
+// IsCommitObjectExistsInDir is like IsCommitObjectExists but operates in the given git directory.
+func IsCommitObjectExistsInDir(ctx context.Context, dir string, sha string) (bool, error) {
+	c := NewClientWithDir(dir)
+	cmd, err := c.Command(ctx, "cat-file", "-e", sha)
+	if err != nil {
+		return false, err
+	}
+	if err := cmd.Run(); err != nil {
+		var ge *git.GitError
+		if errors.As(err, &ge) {
+			// git cat-file -e exits non-zero (1 or 128) whenever the object is
+			// absent; any *git.GitError here means "not found".
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// IsCommitReachableFromAnyRefInDir is like IsCommitReachableFromAnyRef but operates in the given git directory.
+func IsCommitReachableFromAnyRefInDir(ctx context.Context, dir string, sha string) (bool, error) {
+	exists, err := IsCommitObjectExistsInDir(ctx, dir, sha)
+	if err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, nil
+	}
+
+	c := NewClientWithDir(dir)
+	cmd, err := c.Command(ctx, "branch", "-r", "--contains", sha)
+	if err != nil {
+		return false, err
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(string(out)) != "" {
+		return true, nil
+	}
+
+	cmd, err = c.Command(ctx, "tag", "--contains", sha)
+	if err != nil {
+		return false, err
+	}
+	out, err = cmd.Output()
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(string(out)) != "", nil
+}
+
+// IsBlobReachableFromAnyRefInDir is like IsBlobReachableFromAnyRef but operates in the given git directory.
+func IsBlobReachableFromAnyRefInDir(ctx context.Context, dir string, sha string) (bool, error) {
+	c := NewClientWithDir(dir)
 	cmd, err := c.Command(ctx, "log", "--all", "--find-object="+sha, "--format=%H", "-1")
 	if err != nil {
 		return false, err

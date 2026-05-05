@@ -17,3 +17,8 @@ func NewClient() *git.Client {
 	})
 	return client
 }
+
+// NewClientWithDir creates a new git client operating in the specified directory.
+func NewClientWithDir(dir string) *git.Client {
+	return &git.Client{RepoDir: dir}
+}
