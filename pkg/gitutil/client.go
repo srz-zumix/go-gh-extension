@@ -22,3 +22,12 @@ func NewClient() *git.Client {
 func NewClientWithDir(dir string) *git.Client {
 	return &git.Client{RepoDir: dir}
 }
+
+// ClientForDir returns NewClientWithDir(dir) when dir is non-empty, otherwise NewClient.
+// Use this when a caller optionally overrides the git working directory.
+func ClientForDir(dir string) *git.Client {
+	if dir == "" {
+		return NewClient()
+	}
+	return NewClientWithDir(dir)
+}
