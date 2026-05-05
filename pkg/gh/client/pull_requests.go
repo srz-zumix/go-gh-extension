@@ -70,7 +70,7 @@ func (g *GitHubClient) ListPullRequestHeadRefForcePushEvents(ctx context.Context
 
 	var query struct {
 		Repository struct {
-			PullRequest struct {
+			PullRequest *struct {
 				TimelineItems struct {
 					Nodes []struct {
 						AsHeadRefForcePushedEvent struct {
@@ -102,6 +102,9 @@ func (g *GitHubClient) ListPullRequestHeadRefForcePushEvents(ctx context.Context
 	for {
 		if err := graphql.Query(ctx, &query, vars); err != nil {
 			return nil, err
+		}
+		if query.Repository.PullRequest == nil {
+			return nil, fmt.Errorf("pull request #%d not found", number)
 		}
 
 		for _, n := range query.Repository.PullRequest.TimelineItems.Nodes {

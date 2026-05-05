@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/cli/cli/v2/git"
@@ -73,7 +74,7 @@ func ListUnreachableCommits(ctx context.Context, noReflogs bool) ([]string, erro
 }
 
 // remoteURLMatchesRepo checks whether a single remote URL matches the target repository.
-func remoteURLMatchesRepo(repo repository.Repository, url fmt.Stringer) bool {
+func remoteURLMatchesRepo(repo repository.Repository, url *url.URL) bool {
 	if url == nil {
 		return false
 	}
