@@ -29,9 +29,10 @@ func IsCommitObjectExists(ctx context.Context, c *git.Client, sha string) (bool,
 		return false, err
 	}
 	if err := cmd.Run(); err != nil {
-		if _, ok := errors.AsType[*git.GitError](err); ok {
-			// git cat-file -e exits non-zero (1 or 128) whenever the object is
-			// absent; any *git.GitError here means "not found".
+		// git cat-file -e exits with exactly 1 when the object is absent.
+		// Any other non-zero exit (e.g. 128 for "not a git repository" or a
+		// malformed SHA) is a real error and must be surfaced to the caller.
+		if ge, ok := errors.AsType[*git.GitError](err); ok && ge.ExitCode == 1 {
 			return false, nil
 		}
 		return false, err
