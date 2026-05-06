@@ -87,6 +87,38 @@ func (g *GitHubClient) GetCommitMeta(ctx context.Context, owner, repo, sha strin
 	return commit, nil
 }
 
+// ListCommitsForPath returns commits that touched path on ref, up to maxCount commits.
+// If maxCount <= 0, all matching commits are returned.
+func (g *GitHubClient) ListCommitsForPath(ctx context.Context, owner, repo, path, ref string, maxCount int) ([]*github.RepositoryCommit, error) {
+	opt := &github.CommitsListOptions{
+		Path:        path,
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
+	}
+	if ref != "" {
+		opt.SHA = ref
+	}
+	if maxCount > 0 && maxCount < defaultPerPage {
+		opt.PerPage = maxCount
+	}
+
+	var allCommits []*github.RepositoryCommit
+	for {
+		commits, resp, err := g.client.Repositories.ListCommits(ctx, owner, repo, opt)
+		if err != nil {
+			return nil, err
+		}
+		allCommits = append(allCommits, commits...)
+		if maxCount > 0 && len(allCommits) >= maxCount {
+			return allCommits[:maxCount], nil
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return allCommits, nil
+}
+
 func (g *GitHubClient) GetCommitSHA1(ctx context.Context, owner, repo, ref string, lastSHA string) (string, error) {
 	commit, _, err := g.client.Repositories.GetCommitSHA1(ctx, owner, repo, ref, lastSHA)
 	if err != nil {

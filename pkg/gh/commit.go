@@ -113,6 +113,12 @@ func CompareCommits(ctx context.Context, g *GitHubClient, repo repository.Reposi
 	return g.CompareCommits(ctx, repo.Owner, repo.Name, base, head)
 }
 
+// ListCommitsForPath returns commits that touched path on ref, up to maxCount commits.
+// If maxCount <= 0, all matching commits are returned.
+func ListCommitsForPath(ctx context.Context, g *GitHubClient, repo repository.Repository, path, ref string, maxCount int) ([]*github.RepositoryCommit, error) {
+	return g.ListCommitsForPath(ctx, repo.Owner, repo.Name, path, ref, maxCount)
+}
+
 // ComputeCommitTotalBlobSize sums blob sizes for a commit by traversing its tree recursively.
 // Returns nil and an error when the size cannot be determined, allowing callers to distinguish
 // an unknown size from an actual empty tree.
