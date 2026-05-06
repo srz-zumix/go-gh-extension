@@ -16,6 +16,66 @@ var SecretScanningPushProtectionSettings = []string{
 	"not_set",
 }
 
+// SecretScanningAlertStates is the list of valid state values for filtering secret scanning alerts.
+var SecretScanningAlertStates = []string{
+	"open",
+	"resolved",
+}
+
+// SecretScanningAlertResolutions is the list of valid resolution values for secret scanning alerts.
+var SecretScanningAlertResolutions = []string{
+	"false_positive",
+	"wont_fix",
+	"revoked",
+	"used_in_tests",
+	"pattern_edited",
+	"pattern_deleted",
+}
+
+// SecretScanningAlertUpdateStates is the list of valid state values for updating a secret scanning alert.
+var SecretScanningAlertUpdateStates = []string{
+	"open",
+	"resolved",
+}
+
+// SecretScanningAlertUpdateResolutions is the list of valid resolution values when updating.
+var SecretScanningAlertUpdateResolutions = []string{
+	"false_positive",
+	"wont_fix",
+	"revoked",
+	"used_in_tests",
+}
+
+// SecretScanningAlertValidities is the list of valid validity values.
+var SecretScanningAlertValidities = []string{
+	"active",
+	"inactive",
+	"unknown",
+}
+
+// SecretScanningAlertSortOptions is the list of valid sort values for secret scanning alerts.
+var SecretScanningAlertSortOptions = []string{
+	"created",
+	"updated",
+}
+
+// ListSecretScanningAlertsOptions holds filter/sort options for listing secret scanning alerts.
+type ListSecretScanningAlertsOptions struct {
+	State      string
+	SecretType string
+	Resolution string
+	Validity   string
+	Sort       string
+	Direction  string
+}
+
+// UpdateSecretScanningAlertOptions holds options for updating a secret scanning alert.
+type UpdateSecretScanningAlertOptions struct {
+	State             string
+	Resolution        string
+	ResolutionComment string
+}
+
 // SecretScanningProviderPatternSetting holds a push protection setting for a provider pattern.
 type SecretScanningProviderPatternSetting struct {
 	TokenType             string
@@ -122,3 +182,90 @@ func ListSecretScanningPatternConfigs(ctx context.Context, g *GitHubClient, repo
 func UpdateSecretScanningPatternConfigs(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *SecretScanningPatternConfigsUpdateOptions) (*github.SecretScanningPatternConfigsUpdate, error) {
 	return g.UpdateOrgSecretScanningPatternConfigs(ctx, repo.Owner, toGitHubSecretScanningPatternConfigsUpdateOptions(opts))
 }
+
+// toGitHubSecretScanningAlertListOptions converts ListSecretScanningAlertsOptions to github.SecretScanningAlertListOptions.
+func toGitHubSecretScanningAlertListOptions(opts *ListSecretScanningAlertsOptions) *github.SecretScanningAlertListOptions {
+	if opts == nil {
+		return nil
+	}
+	o := &github.SecretScanningAlertListOptions{}
+	o.State = opts.State
+	o.SecretType = opts.SecretType
+	o.Resolution = opts.Resolution
+	o.Validity = opts.Validity
+	o.Sort = opts.Sort
+	o.Direction = opts.Direction
+	return o
+}
+
+// toGitHubSecretScanningAlertUpdateOptions converts UpdateSecretScanningAlertOptions to github.SecretScanningAlertUpdateOptions.
+func toGitHubSecretScanningAlertUpdateOptions(opts *UpdateSecretScanningAlertOptions) *github.SecretScanningAlertUpdateOptions {
+	if opts == nil {
+		return nil
+	}
+	o := &github.SecretScanningAlertUpdateOptions{
+		State: opts.State,
+	}
+	if opts.Resolution != "" {
+		o.Resolution = &opts.Resolution
+	}
+	if opts.ResolutionComment != "" {
+		o.ResolutionComment = &opts.ResolutionComment
+	}
+	return o
+}
+
+// ListSecretScanningOrgAlerts lists secret scanning alerts for an organization.
+func ListSecretScanningOrgAlerts(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ListSecretScanningAlertsOptions) ([]*github.SecretScanningAlert, error) {
+	alerts, err := g.ListOrgSecretScanningAlerts(ctx, repo.Owner, toGitHubSecretScanningAlertListOptions(opts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list secret scanning alerts for org %s: %w", repo.Owner, err)
+	}
+	return alerts, nil
+}
+
+// ListSecretScanningAlerts lists secret scanning alerts for a repository.
+func ListSecretScanningAlerts(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ListSecretScanningAlertsOptions) ([]*github.SecretScanningAlert, error) {
+	alerts, err := g.ListRepoSecretScanningAlerts(ctx, repo.Owner, repo.Name, toGitHubSecretScanningAlertListOptions(opts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list secret scanning alerts for %s/%s: %w", repo.Owner, repo.Name, err)
+	}
+	return alerts, nil
+}
+
+// GetSecretScanningAlert gets a single secret scanning alert for a repository.
+func GetSecretScanningAlert(ctx context.Context, g *GitHubClient, repo repository.Repository, number int64) (*github.SecretScanningAlert, error) {
+	alert, err := g.GetSecretScanningAlert(ctx, repo.Owner, repo.Name, number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret scanning alert #%d for %s/%s: %w", number, repo.Owner, repo.Name, err)
+	}
+	return alert, nil
+}
+
+// UpdateSecretScanningAlert updates a secret scanning alert for a repository.
+func UpdateSecretScanningAlert(ctx context.Context, g *GitHubClient, repo repository.Repository, number int64, opts *UpdateSecretScanningAlertOptions) (*github.SecretScanningAlert, error) {
+	alert, err := g.UpdateSecretScanningAlert(ctx, repo.Owner, repo.Name, number, toGitHubSecretScanningAlertUpdateOptions(opts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to update secret scanning alert #%d for %s/%s: %w", number, repo.Owner, repo.Name, err)
+	}
+	return alert, nil
+}
+
+// ListSecretScanningAlertLocations lists all locations for a secret scanning alert.
+func ListSecretScanningAlertLocations(ctx context.Context, g *GitHubClient, repo repository.Repository, number int64) ([]*github.SecretScanningAlertLocation, error) {
+	locations, err := g.ListSecretScanningAlertLocations(ctx, repo.Owner, repo.Name, number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list locations for secret scanning alert #%d in %s/%s: %w", number, repo.Owner, repo.Name, err)
+	}
+	return locations, nil
+}
+
+// GetSecretScanningScanHistory gets the secret scanning scan history for a repository.
+func GetSecretScanningScanHistory(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.SecretScanningScanHistory, error) {
+	history, err := g.GetSecretScanningScanHistory(ctx, repo.Owner, repo.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret scanning scan history for %s/%s: %w", repo.Owner, repo.Name, err)
+	}
+	return history, nil
+}
+
