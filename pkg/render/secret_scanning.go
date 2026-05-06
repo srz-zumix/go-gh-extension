@@ -112,6 +112,10 @@ func (r *Renderer) RenderSecretScanningAlertLocations(locations []*github.Secret
 	if r.exporter != nil {
 		return r.RenderExportedData(locations)
 	}
+	if len(locations) == 0 {
+		r.writeLine("No secret scanning alert locations")
+		return nil
+	}
 	headers := []string{"Type", "Path", "Start Line", "End Line", "Commit SHA"}
 	table := r.newTableWriter(headers)
 	for _, l := range locations {
