@@ -69,6 +69,10 @@ func (r *Renderer) RenderSecretScanningAlerts(alerts []*github.SecretScanningAle
 	if r.exporter != nil {
 		return r.RenderExportedData(alerts)
 	}
+	if len(alerts) == 0 {
+		fmt.Println("No secret scanning alerts")
+		return nil
+	}
 	headers := []string{"Number", "State", "Secret Type", "Validity", "Created At", "URL"}
 	table := r.newTableWriter(headers)
 	for _, a := range alerts {
