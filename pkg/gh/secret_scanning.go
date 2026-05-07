@@ -224,13 +224,22 @@ func ListSecretScanningOrgAlerts(ctx context.Context, g *GitHubClient, repo repo
 	return alerts, nil
 }
 
-// ListSecretScanningAlerts lists secret scanning alerts for a repository.
-func ListSecretScanningAlerts(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ListSecretScanningAlertsOptions) ([]*github.SecretScanningAlert, error) {
+// ListSecretScanningRepoAlerts lists secret scanning alerts for a repository.
+func ListSecretScanningRepoAlerts(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ListSecretScanningAlertsOptions) ([]*github.SecretScanningAlert, error) {
 	alerts, err := g.ListRepoSecretScanningAlerts(ctx, repo.Owner, repo.Name, toGitHubSecretScanningAlertListOptions(opts))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list secret scanning alerts for %s/%s: %w", repo.Owner, repo.Name, err)
 	}
 	return alerts, nil
+}
+
+// ListSecretScanningAlerts lists secret scanning alerts for an organization or repository.
+// When repo.Name is empty, alerts are listed for the entire organization; otherwise for the specific repository.
+func ListSecretScanningAlerts(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ListSecretScanningAlertsOptions) ([]*github.SecretScanningAlert, error) {
+	if repo.Name == "" {
+		return ListSecretScanningOrgAlerts(ctx, g, repo, opts)
+	}
+	return ListSecretScanningRepoAlerts(ctx, g, repo, opts)
 }
 
 // GetSecretScanningAlert gets a single secret scanning alert for a repository.
@@ -268,4 +277,3 @@ func GetSecretScanningScanHistory(ctx context.Context, g *GitHubClient, repo rep
 	}
 	return history, nil
 }
-
