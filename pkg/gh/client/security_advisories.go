@@ -23,7 +23,7 @@ func (g *GitHubClient) ListOrgRepositorySecurityAdvisories(ctx context.Context, 
 		if resp.Cursor == "" {
 			break
 		}
-		opts.ListCursorOptions.Cursor = resp.Cursor
+		opts.Cursor = resp.Cursor
 	}
 	return all, nil
 }
@@ -44,7 +44,7 @@ func (g *GitHubClient) ListRepoSecurityAdvisories(ctx context.Context, owner, re
 		if resp.Cursor == "" {
 			break
 		}
-		opts.ListCursorOptions.Cursor = resp.Cursor
+		opts.Cursor = resp.Cursor
 	}
 	return all, nil
 }
