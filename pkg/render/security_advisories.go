@@ -40,18 +40,20 @@ func (r *Renderer) RenderRepositorySecurityAdvisory(advisory *github.SecurityAdv
 		return nil
 	}
 
-	r.writeLine(fmt.Sprintf("GHSA ID:      %s", ToString(advisory.GHSAID)))
-	r.writeLine(fmt.Sprintf("CVE ID:       %s", ToString(advisory.CVEID)))
-	r.writeLine(fmt.Sprintf("State:        %s", ToString(advisory.State)))
-	r.writeLine(fmt.Sprintf("Severity:     %s", ToString(advisory.Severity)))
-	r.writeLine(fmt.Sprintf("Summary:      %s", ToString(advisory.Summary)))
-	r.writeLine(fmt.Sprintf("Published At: %s", ToString(advisory.PublishedAt)))
-	r.writeLine(fmt.Sprintf("Created At:   %s", ToString(advisory.CreatedAt)))
-	r.writeLine(fmt.Sprintf("Updated At:   %s", ToString(advisory.UpdatedAt)))
-	r.writeLine(fmt.Sprintf("URL:          %s", ToString(advisory.HTMLURL)))
+	labelFmt := "%-13s %s"
+
+	r.writeLine(fmt.Sprintf(labelFmt, "GHSA ID:", ToString(advisory.GHSAID)))
+	r.writeLine(fmt.Sprintf(labelFmt, "CVE ID:", ToString(advisory.CVEID)))
+	r.writeLine(fmt.Sprintf(labelFmt, "State:", ToString(advisory.State)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Severity:", ToString(advisory.Severity)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Summary:", ToString(advisory.Summary)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Published At:", ToString(advisory.PublishedAt)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Created At:", ToString(advisory.CreatedAt)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Updated At:", ToString(advisory.UpdatedAt)))
+	r.writeLine(fmt.Sprintf(labelFmt, "URL:", ToString(advisory.HTMLURL)))
 
 	if len(advisory.CWEIDs) > 0 {
-		r.writeLine(fmt.Sprintf("CWEs:         %s", strings.Join(advisory.CWEIDs, ", ")))
+		r.writeLine(fmt.Sprintf(labelFmt, "CWEs:", strings.Join(advisory.CWEIDs, ", ")))
 	}
 
 	if len(advisory.Vulnerabilities) > 0 {
