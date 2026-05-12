@@ -13,7 +13,7 @@ func (r *Renderer) RenderRepositorySecurityAdvisories(advisories []*github.Secur
 		return r.RenderExportedData(advisories)
 	}
 	if len(advisories) == 0 {
-		fmt.Println("No repository security advisories")
+		r.writeLine("No repository security advisories")
 		return nil
 	}
 	headers := []string{"GHSA ID", "CVE ID", "State", "Severity", "Summary", "Published At"}
