@@ -51,12 +51,8 @@ func ExtractFilenameHints(text string) map[string]string {
 	}
 
 	// 3. <img src="url" alt="name">
-	for _, imgTag := range imgSrcRe.FindAllString(text, -1) {
-		srcM := imgSrcRe.FindStringSubmatch(imgTag)
-		if srcM == nil {
-			continue
-		}
-		u := srcM[1]
+	for _, m := range imgSrcRe.FindAllStringSubmatch(text, -1) {
+		imgTag, u := m[0], m[1]
 		if _, exists := hints[u]; exists {
 			continue
 		}
