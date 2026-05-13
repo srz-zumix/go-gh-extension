@@ -37,7 +37,7 @@ func ExtractFilenameHints(text string) map[string]string {
 	// 1. ![alt](url)
 	for _, m := range imageRe.FindAllStringSubmatch(text, -1) {
 		alt, u := strings.TrimSpace(m[1]), m[2]
-		if alt != "" {
+		if _, exists := hints[u]; !exists && alt != "" {
 			hints[u] = alt
 		}
 	}
