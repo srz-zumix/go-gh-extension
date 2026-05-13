@@ -293,3 +293,37 @@ func FilenameFromContentDisposition(header string) string {
 	}
 	return ""
 }
+
+// hostSwitchTransport is an http.RoundTripper that uses base for requests to
+// ghHost and http.DefaultTransport for all other hosts.
+// This prevents GitHub API-specific headers from reaching CDN / storage backends
+// (e.g. Azure Blob Storage on GHES) during redirects.
+type hostSwitchTransport struct {
+	base   http.RoundTripper
+	ghHost string
+}
+
+func (t *hostSwitchTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.ghHost != "" && req.URL.Hostname() != t.ghHost {
+		return http.DefaultTransport.RoundTrip(req)
+	}
+	return t.base.RoundTrip(req)
+}
+
+// NewHostAwareClient returns an *http.Client that uses the authenticated transport
+// for requests to ghHost and http.DefaultTransport for all other hosts (e.g. CDN,
+// Azure Blob Storage on GHES). Use this when following redirects that may cross
+// host boundaries so that GitHub API-specific headers are not sent to third-party
+// storage backends.
+func NewHostAwareClient(client *http.Client, ghHost string) *http.Client {
+	base := client.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return &http.Client{
+		Transport:     &hostSwitchTransport{base: base, ghHost: ghHost},
+		CheckRedirect: client.CheckRedirect,
+		Jar:           client.Jar,
+		Timeout:       client.Timeout,
+	}
+}
