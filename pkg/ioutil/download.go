@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
@@ -22,11 +23,19 @@ func GetFilename(rawURL string) string {
 	return path.Base(u.Path)
 }
 
-// SafeFilename returns a filesystem-safe name for a URL-keyed asset by prepending
-// a FNV-1a hash of the URL to avoid collisions when multiple assets share the
-// same base filename.
+// SafeFilename returns a filesystem-safe flat filename for a URL-keyed asset by
+// prepending a FNV-1a hash of the URL to avoid collisions when multiple assets
+// share the same base filename.
+// The provided filename is sanitized with path.Base to strip any path separators
+// or ".." components that may appear in header-sourced values.
 func SafeFilename(rawURL, filename string) string {
-	return fmt.Sprintf("%x_%s", fnv32(rawURL), filename)
+	safe := path.Base(filename)
+	// path.Base returns "." for empty or separator-only input; fall back to the
+	// URL-derived name in that case.
+	if safe == "." || safe == "" {
+		safe = GetFilename(rawURL)
+	}
+	return fmt.Sprintf("%x_%s", fnv32(rawURL), safe)
 }
 
 // fnv32 computes a FNV-1a 32-bit hash of a string for filename deduplication.
@@ -43,7 +52,10 @@ func fnv32(s string) uint32 {
 	return h
 }
 
-// DownloadFile performs an HTTP GET using client and saves the response body to destPath.
+// DownloadFile performs an HTTP GET using client and saves the response body to
+// destPath. It writes to a sibling temp file first and renames to destPath only
+// on success, so a failed download never leaves a partial or corrupted file at
+// the destination. The temp file is removed on any failure.
 func DownloadFile(ctx context.Context, client *http.Client, rawURL, destPath string) error {
 	logger.Debug("downloading file", "url", rawURL, "dest", destPath)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
@@ -55,21 +67,41 @@ func DownloadFile(ctx context.Context, client *http.Client, rawURL, destPath str
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close() //nolint:errcheck
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logger.Debug("failed to close response body", "url", rawURL, "error", closeErr)
+		}
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("HTTP %d for %s", resp.StatusCode, rawURL)
 	}
 
-	out, err := os.Create(destPath) //nolint:gosec
+	// Write to a temp file in the same directory so the final rename is atomic
+	// (same filesystem) and destPath is never left in a partial state.
+	tmp, err := os.CreateTemp(filepath.Dir(destPath), ".dl-*")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create temp file: %w", err)
 	}
-	defer out.Close() //nolint:errcheck
+	tmpName := tmp.Name()
 
-	n, err := io.Copy(out, resp.Body)
-	if err == nil {
-		logger.Debug("file saved", "dest", destPath, "bytes", n)
+	n, copyErr := io.Copy(tmp, resp.Body)
+	closeErr := tmp.Close()
+
+	if copyErr != nil {
+		os.Remove(tmpName) //nolint:errcheck
+		return fmt.Errorf("failed to write download: %w", copyErr)
 	}
-	return err
+	if closeErr != nil {
+		os.Remove(tmpName) //nolint:errcheck
+		return fmt.Errorf("failed to close temp file: %w", closeErr)
+	}
+
+	if err := os.Rename(tmpName, destPath); err != nil {
+		os.Remove(tmpName) //nolint:errcheck
+		return fmt.Errorf("failed to move download to destination: %w", err)
+	}
+
+	logger.Debug("file saved", "dest", destPath, "bytes", n)
+	return nil
 }

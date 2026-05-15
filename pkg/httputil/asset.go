@@ -14,6 +14,46 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
+// githubHeaderPrefixes lists the HTTP request header prefixes that are specific
+// to the GitHub API and must not be forwarded to third-party storage backends
+// (e.g. Azure Blob Storage on GHES, AWS S3 on github.com) during redirects.
+var githubHeaderPrefixes = []string{
+	"Authorization",
+	"X-Github-",
+	"X-Hub-",
+}
+
+// headerStrippingTransport wraps a base RoundTripper and removes GitHub
+// API-specific headers before forwarding the request. This preserves the
+// connection settings (proxy, TLS config, timeouts, custom dialer) of the
+// base transport while preventing credential leakage to third-party hosts.
+type headerStrippingTransport struct {
+	base http.RoundTripper
+}
+
+func (t *headerStrippingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	r2 := req.Clone(req.Context())
+	for _, prefix := range githubHeaderPrefixes {
+		for key := range r2.Header {
+			if strings.EqualFold(key, prefix) || strings.HasPrefix(strings.ToLower(key), strings.ToLower(prefix)) {
+				delete(r2.Header, key)
+			}
+		}
+	}
+	return t.base.RoundTrip(r2)
+}
+
+// crossHostTransport returns a RoundTripper that strips GitHub-specific request
+// headers from base while keeping all connection settings intact (proxy, TLS,
+// timeouts, custom dialer). Use this instead of http.DefaultTransport when
+// forwarding redirected requests to non-GitHub hosts.
+func crossHostTransport(base http.RoundTripper) http.RoundTripper {
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return &headerStrippingTransport{base: base}
+}
+
 // AssetMeta holds HTTP metadata for a single asset URL.
 type AssetMeta struct {
 	// Size is the content length in bytes, or -1 when unknown.
@@ -53,12 +93,12 @@ var cdParamNames = []string{
 }
 
 func (c *cdCapture) RoundTrip(req *http.Request) (*http.Response, error) {
-	// For cross-host requests (e.g. media CDN), avoid sending GitHub API-specific
-	// headers (such as Accept: application/vnd.github+json) by using the default
-	// transport rather than the authenticated go-gh transport.
+	// For cross-host requests (e.g. media CDN or Azure Blob Storage on GHES),
+	// strip GitHub API-specific headers while preserving the base transport's
+	// connection settings (proxy, TLS config, timeouts, custom dialer).
 	transport := c.base
 	if c.ghHost != "" && req.URL.Hostname() != c.ghHost {
-		transport = http.DefaultTransport
+		transport = crossHostTransport(c.base)
 	}
 	resp, err := transport.RoundTrip(req)
 	if err != nil {
@@ -172,10 +212,16 @@ func fetchAssetMetaWithMethod(ctx context.Context, client *http.Client, transpor
 		logger.Debug("request failed", "method", method, "url", assetURL, "error", err)
 		return AssetMeta{Size: -1}
 	}
-	defer resp.Body.Close() //nolint:errcheck
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logger.Debug("failed to close response body", "url", assetURL, "error", closeErr)
+		}
+	}()
 	// For Range GET drain a small portion so the connection can be reused.
 	if method == http.MethodGet && withRange {
-		io.CopyN(io.Discard, resp.Body, 512) //nolint:errcheck
+		if _, drainErr := io.CopyN(io.Discard, resp.Body, 512); drainErr != nil && drainErr != io.EOF {
+			logger.Debug("failed to drain response body", "url", assetURL, "error", drainErr)
+		}
 	}
 
 	logger.Debug("response",
@@ -295,8 +341,9 @@ func FilenameFromContentDisposition(header string) string {
 }
 
 // hostSwitchTransport is an http.RoundTripper that uses base for requests to
-// ghHost and http.DefaultTransport for all other hosts.
-// This prevents GitHub API-specific headers from reaching CDN / storage backends
+// ghHost and strips GitHub-specific headers for all other hosts while preserving
+// the base transport's connection settings (proxy, TLS config, timeouts, custom
+// dialer). This prevents credential leakage to CDN / storage backends
 // (e.g. Azure Blob Storage on GHES) during redirects.
 type hostSwitchTransport struct {
 	base   http.RoundTripper
@@ -305,7 +352,7 @@ type hostSwitchTransport struct {
 
 func (t *hostSwitchTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.ghHost != "" && req.URL.Hostname() != t.ghHost {
-		return http.DefaultTransport.RoundTrip(req)
+		return crossHostTransport(t.base).RoundTrip(req)
 	}
 	return t.base.RoundTrip(req)
 }

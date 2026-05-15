@@ -338,6 +338,100 @@ func RemoveRepositoryCollaborator(ctx context.Context, g *GitHubClient, repo rep
 	return g.RemoveRepositoryCollaborator(ctx, repo.Owner, repo.Name, username)
 }
 
+// CopyRepoUserPermissions copies direct user collaborator permissions from the source repository to the destination repository.
+func CopyRepoUserPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository, force bool) error {
+	srcCollaborators, err := srcClient.ListRepositoryCollaborators(ctx, src.Owner, src.Name, "direct")
+	if err != nil {
+		return fmt.Errorf("failed to fetch collaborators from source repository: %w", err)
+	}
+
+	var dstCollaboratorMap map[string]string
+	if !force {
+		dstCollaborators, err := dstClient.ListRepositoryCollaborators(ctx, dst.Owner, dst.Name, "direct")
+		if err != nil {
+			return fmt.Errorf("failed to fetch collaborators from destination repository: %w", err)
+		}
+		dstCollaboratorMap = make(map[string]string)
+		for _, u := range dstCollaborators {
+			dstCollaboratorMap[u.GetLogin()] = GetPermissionName(u.Permissions)
+		}
+	}
+
+	for _, u := range srcCollaborators {
+		permission := GetPermissionName(u.Permissions)
+		if permission == "none" {
+			continue
+		}
+
+		if !force {
+			if existingPermission, exists := dstCollaboratorMap[u.GetLogin()]; exists {
+				if existingPermission == permission {
+					continue
+				}
+				return fmt.Errorf("user %s already has %s permissions on the destination repository", u.GetLogin(), existingPermission)
+			}
+		}
+
+		if _, err := dstClient.AddRepositoryCollaborator(ctx, dst.Owner, dst.Name, u.GetLogin(), permission); err != nil {
+			return fmt.Errorf("failed to add user %s to destination repository: %w", u.GetLogin(), err)
+		}
+	}
+
+	return nil
+}
+
+// SyncRepoUserPermissions syncs direct user collaborator permissions from the source repository to the destination repository.
+func SyncRepoUserPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository) error {
+	srcCollaborators, err := srcClient.ListRepositoryCollaborators(ctx, src.Owner, src.Name, "direct")
+	if err != nil {
+		return fmt.Errorf("failed to fetch collaborators from source repository: %w", err)
+	}
+
+	dstCollaborators, err := dstClient.ListRepositoryCollaborators(ctx, dst.Owner, dst.Name, "direct")
+	if err != nil {
+		return fmt.Errorf("failed to fetch collaborators from destination repository: %w", err)
+	}
+
+	dstCollaboratorMap := make(map[string]string)
+	for _, u := range dstCollaborators {
+		dstCollaboratorMap[u.GetLogin()] = GetPermissionName(u.Permissions)
+	}
+
+	srcCollaboratorMap := make(map[string]string)
+	for _, u := range srcCollaborators {
+		srcCollaboratorMap[u.GetLogin()] = GetPermissionName(u.Permissions)
+	}
+
+	// Add or update collaborators in the destination to match the source
+	for _, u := range srcCollaborators {
+		permission := GetPermissionName(u.Permissions)
+		if permission == "none" {
+			continue
+		}
+
+		if existingPermission, exists := dstCollaboratorMap[u.GetLogin()]; exists {
+			if existingPermission == permission {
+				continue
+			}
+		}
+
+		if _, err := dstClient.AddRepositoryCollaborator(ctx, dst.Owner, dst.Name, u.GetLogin(), permission); err != nil {
+			return fmt.Errorf("failed to sync user %s to destination repository: %w", u.GetLogin(), err)
+		}
+	}
+
+	// Remove collaborators from the destination that are not in the source
+	for _, u := range dstCollaborators {
+		if _, exists := srcCollaboratorMap[u.GetLogin()]; !exists {
+			if err := dstClient.RemoveRepositoryCollaborator(ctx, dst.Owner, dst.Name, u.GetLogin()); err != nil {
+				return fmt.Errorf("failed to remove user %s from destination repository: %w", u.GetLogin(), err)
+			}
+		}
+	}
+
+	return nil
+}
+
 type RepositoryPermissionLevel struct {
 	PermissionLevel *github.RepositoryPermissionLevel
 	Repository      repository.Repository

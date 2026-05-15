@@ -7,6 +7,24 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// GetRepositoryFileContent retrieves the decoded content of a file in a repository at the given ref.
+// Pass an empty string for ref to use the default branch.
+func (g *GitHubClient) GetRepositoryFileContent(ctx context.Context, owner string, repo string, path string, ref string) (string, error) {
+	opts := &github.RepositoryContentGetOptions{}
+	if ref != "" {
+		opts.Ref = ref
+	}
+	fileContent, _, _, err := g.client.Repositories.GetContents(ctx, owner, repo, path, opts)
+	if err != nil {
+		return "", err
+	}
+	content, err := fileContent.GetContent()
+	if err != nil {
+		return "", err
+	}
+	return content, nil
+}
+
 func (g *GitHubClient) GetRepository(ctx context.Context, owner string, repo string) (*github.Repository, error) {
 	repository, _, err := g.client.Repositories.Get(ctx, owner, repo)
 	if err != nil {
