@@ -79,7 +79,7 @@ type AssetMeta struct {
 //     - Azure Blob Storage (GHES): "rscd"
 type cdCapture struct {
 	base        http.RoundTripper
-	ghHost      string // only use base transport for this host; other hosts use http.DefaultTransport
+	ghHost      string // use base transport for this host; other hosts use crossHostTransport(base) to strip GitHub-specific headers while preserving base transport settings
 	Filename    string
 	ExtHint     string // file extension extracted from redirect URL path (e.g. ".mov")
 	ContentType string // captured from the final response
