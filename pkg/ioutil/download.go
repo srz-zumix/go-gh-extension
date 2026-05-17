@@ -74,7 +74,7 @@ func DownloadFile(ctx context.Context, client *http.Client, rawURL, destPath str
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("HTTP %d for %s", resp.StatusCode, rawURL)
+		return fmt.Errorf("unexpected http status %s for %s", resp.Status, rawURL)
 	}
 
 	// Write to a temp file in the same directory so the final rename is atomic

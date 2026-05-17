@@ -3,11 +3,11 @@ package gh
 import (
 	"bufio"
 	"context"
-	"path"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v84/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gitglob"
 )
 
 // isLinguistGeneratedPattern reports whether a gitattributes attribute token
@@ -18,48 +18,26 @@ func isLinguistGeneratedPattern(attr string) bool {
 	return attr == "linguist-generated" || strings.EqualFold(attr, "linguist-generated=true")
 }
 
-// matchGitattributesPattern reports whether filePath matches a gitattributes glob pattern.
-// Patterns without a '/' are matched against the file's base name only.
-// Patterns with '/' are matched against the full path using path.Match.
-// '**' is handled by splitting the pattern around '**' and checking prefix/suffix.
-func matchGitattributesPattern(pattern, filePath string) bool {
-	if !strings.Contains(pattern, "/") {
-		// Match against base name only
-		base := path.Base(filePath)
-		matched, err := path.Match(pattern, base)
-		return err == nil && matched
-	}
-	// Handle ** by splitting; e.g. "vendor/**" → prefix "vendor/"
-	if strings.Contains(pattern, "**") {
-		parts := strings.SplitN(pattern, "**", 2)
-		prefix := parts[0]
-		suffix := parts[1]
-		if !strings.HasPrefix(filePath, prefix) {
-			return false
-		}
-		remainder := strings.TrimPrefix(filePath, prefix)
-		if suffix == "" || suffix == "/" {
-			return true
-		}
-		matched, err := path.Match(strings.TrimPrefix(suffix, "/"), remainder)
-		return err == nil && matched
-	}
-	matched, err := path.Match(pattern, filePath)
-	return err == nil && matched
-}
-
 // GetLinguistGenerated returns the subset of files that are marked as
 // linguist-generated in the repository's .gitattributes file at the specified ref.
 func GetLinguistGenerated(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, prFiles []*github.CommitFile) ([]*github.CommitFile, error) {
-	content, err := g.GetRepositoryFileContent(ctx, repo.Owner, repo.Name, ".gitattributes", ref)
+	content, err := GetRepositoryFileContent(ctx, g, repo, ".gitattributes", &ref)
 	if err != nil {
-		// .gitattributes not found → no linguist-generated files
-		return nil, nil //nolint:nilerr
+		if IsHTTPNotFound(err) {
+			// .gitattributes not found → no linguist-generated files
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	body, err := content.GetContent()
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse gitattributes for linguist-generated patterns
 	var generatedPatterns []string
-	scanner := bufio.NewScanner(strings.NewReader(content))
+	scanner := bufio.NewScanner(strings.NewReader(body))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -86,7 +64,7 @@ func GetLinguistGenerated(ctx context.Context, g *GitHubClient, repo repository.
 	for _, f := range prFiles {
 		filePath := f.GetFilename()
 		for _, pattern := range generatedPatterns {
-			if matchGitattributesPattern(pattern, filePath) {
+			if gitglob.MatchPattern(pattern, filePath) {
 				result = append(result, f)
 				break
 			}
