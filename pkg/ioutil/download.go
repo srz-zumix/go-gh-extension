@@ -97,7 +97,7 @@ func DownloadFile(ctx context.Context, client *http.Client, rawURL, destPath str
 		return fmt.Errorf("failed to close temp file: %w", closeErr)
 	}
 
-	if err := os.Rename(tmpName, destPath); err != nil {
+	if err := ReplaceFile(tmpName, destPath); err != nil {
 		os.Remove(tmpName) //nolint:errcheck
 		return fmt.Errorf("failed to move download to destination: %w", err)
 	}
