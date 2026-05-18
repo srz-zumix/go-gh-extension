@@ -168,7 +168,9 @@ func (c *cdCapture) RoundTrip(req *http.Request) (*http.Response, error) {
 // Size is set to -1 when Content-Length is absent or the request fails.
 // Filename is empty when Content-Disposition is absent in all hops.
 // ghHost is used to select the correct transport per hop: authenticated for the
-// GitHub host, http.DefaultTransport for CDN/other hosts.
+// GitHub host, and a transport derived from the same base transport for
+// CDN/other hosts so proxy, TLS, and dialer settings are preserved while
+// GitHub-specific headers are stripped.
 func FetchAssetMeta(ctx context.Context, client *http.Client, assetURL, ghHost string) AssetMeta {
 	transport := client.Transport
 	if transport == nil {
