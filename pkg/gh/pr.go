@@ -504,3 +504,13 @@ func OpenPullRequest(ctx context.Context, g *GitHubClient, repo repository.Repos
 		State: &state,
 	})
 }
+
+// MarkPullRequestFileAsViewed marks a file in a pull request as viewed.
+// pr must be a *github.PullRequest with a valid NodeID.
+func MarkPullRequestFileAsViewed(ctx context.Context, g *GitHubClient, pr *github.PullRequest, filePath string) error {
+	nodeID := pr.GetNodeID()
+	if nodeID == "" {
+		return fmt.Errorf("pull request node ID is empty")
+	}
+	return g.MarkFileAsViewed(ctx, nodeID, filePath)
+}

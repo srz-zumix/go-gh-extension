@@ -282,6 +282,32 @@ func (g *GitHubClient) UnresolveReviewThread(ctx context.Context, owner string, 
 	return graphql.Mutate(ctx, &m, input, nil)
 }
 
+// markFileAsViewedInput is the input type for the markFileAsViewed mutation.
+type markFileAsViewedInput struct {
+	PullRequestID githubv4.ID     `json:"pullRequestId"`
+	Path          githubv4.String `json:"path"`
+}
+
+// MarkFileAsViewed marks a file in a pull request as viewed using the markFileAsViewed GraphQL mutation.
+func (g *GitHubClient) MarkFileAsViewed(ctx context.Context, pullRequestNodeID string, path string) error {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+	var m struct {
+		MarkFileAsViewed struct {
+			PullRequest struct {
+				ID githubv4.String
+			}
+		} `graphql:"markFileAsViewed(input: $input)"`
+	}
+	input := markFileAsViewedInput{
+		PullRequestID: githubv4.ID(pullRequestNodeID),
+		Path:          githubv4.String(path),
+	}
+	return graphql.Mutate(ctx, &m, input, nil)
+}
+
 func (g *GitHubClient) GetPullRequestCommentThreadID(ctx context.Context, owner string, repo string, number int, commentID int64) (string, error) {
 	graphql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
