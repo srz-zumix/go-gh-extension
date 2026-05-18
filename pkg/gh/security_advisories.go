@@ -83,8 +83,14 @@ func GetRepositorySecurityAdvisory(ctx context.Context, g *GitHubClient, repo re
 
 // RepositorySecurityAdvisoryUpdateOptions holds options for updating a repository security advisory.
 type RepositorySecurityAdvisoryUpdateOptions struct {
-	State    string
-	Severity string
+	Summary            string
+	Description        string
+	CVEID              string
+	Severity           string
+	CVSSVectorString   string
+	State              string
+	CollaboratingUsers []string
+	CollaboratingTeams []string
 }
 
 // toClientRepositorySecurityAdvisoryUpdateOptions converts RepositorySecurityAdvisoryUpdateOptions to client.RepositorySecurityAdvisoryUpdateOptions.
@@ -93,11 +99,29 @@ func toClientRepositorySecurityAdvisoryUpdateOptions(opts *RepositorySecurityAdv
 		return nil
 	}
 	o := &client.RepositorySecurityAdvisoryUpdateOptions{}
-	if opts.State != "" {
-		o.State = &opts.State
+	if opts.Summary != "" {
+		o.Summary = &opts.Summary
+	}
+	if opts.Description != "" {
+		o.Description = &opts.Description
+	}
+	if opts.CVEID != "" {
+		o.CVEID = &opts.CVEID
 	}
 	if opts.Severity != "" {
 		o.Severity = &opts.Severity
+	}
+	if opts.CVSSVectorString != "" {
+		o.CVSSVectorString = &opts.CVSSVectorString
+	}
+	if opts.State != "" {
+		o.State = &opts.State
+	}
+	if len(opts.CollaboratingUsers) > 0 {
+		o.CollaboratingUsers = opts.CollaboratingUsers
+	}
+	if len(opts.CollaboratingTeams) > 0 {
+		o.CollaboratingTeams = opts.CollaboratingTeams
 	}
 	return o
 }
