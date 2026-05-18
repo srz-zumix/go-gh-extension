@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
@@ -26,15 +27,31 @@ func GetFilename(rawURL string) string {
 // SafeFilename returns a filesystem-safe flat filename for a URL-keyed asset by
 // prepending a FNV-1a hash of the URL to avoid collisions when multiple assets
 // share the same base filename.
-// The provided filename is sanitized with path.Base to strip any path separators
-// or ".." components that may appear in header-sourced values.
+// The provided filename is sanitized to strip path separators (both '/' and '\'),
+// ".." components, and characters reserved on Windows (: * ? " < > |) so the
+// result is a safe, flat filename across platforms.
 func SafeFilename(rawURL, filename string) string {
-	safe := path.Base(filename)
+	// Normalize backslashes to forward slashes so filepath.Base and path.Base
+	// both treat them as separators, then take the base component.
+	normalized := strings.ReplaceAll(filename, `\`, "/")
+	safe := path.Base(filepath.Base(normalized))
 	// path.Base returns "." for empty or separator-only input; fall back to the
 	// URL-derived name in that case.
 	if safe == "." || safe == "" {
 		safe = GetFilename(rawURL)
 	}
+	// Remove characters that are reserved or problematic on Windows and common
+	// filesystems (: * ? " < > | and control characters).
+	safe = strings.Map(func(r rune) rune {
+		switch r {
+		case ':', '*', '?', '"', '<', '>', '|':
+			return '_'
+		}
+		if r < 0x20 {
+			return '_'
+		}
+		return r
+	}, safe)
 	return fmt.Sprintf("%x_%s", fnv32(rawURL), safe)
 }
 
