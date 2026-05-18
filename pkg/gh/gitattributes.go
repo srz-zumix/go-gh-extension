@@ -20,8 +20,8 @@ func isLinguistGeneratedPattern(attr string) bool {
 
 // GetLinguistGenerated returns the subset of files that are marked as
 // linguist-generated in the repository's .gitattributes file at the specified ref.
-func GetLinguistGenerated(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, prFiles []*github.CommitFile) ([]*github.CommitFile, error) {
-	content, err := GetRepositoryFileContent(ctx, g, repo, ".gitattributes", &ref)
+func GetLinguistGenerated(ctx context.Context, g *GitHubClient, repo repository.Repository, ref *string, prFiles []*github.CommitFile) ([]*github.CommitFile, error) {
+	content, err := GetRepositoryFileContent(ctx, g, repo, ".gitattributes", ref)
 	if err != nil {
 		if IsHTTPNotFound(err) {
 			// .gitattributes not found → no linguist-generated files
@@ -54,6 +54,9 @@ func GetLinguistGenerated(ctx context.Context, g *GitHubClient, repo repository.
 				break
 			}
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
 	}
 
 	if len(generatedPatterns) == 0 {

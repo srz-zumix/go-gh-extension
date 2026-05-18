@@ -1,5 +1,4 @@
 package gitglob
-package gitglob
 
 import (
 	"testing"
