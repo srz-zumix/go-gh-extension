@@ -360,10 +360,11 @@ func (t *hostSwitchTransport) RoundTrip(req *http.Request) (*http.Response, erro
 }
 
 // NewHostAwareClient returns an *http.Client that uses the authenticated transport
-// for requests to ghHost and http.DefaultTransport for all other hosts (e.g. CDN,
-// Azure Blob Storage on GHES). Use this when following redirects that may cross
-// host boundaries so that GitHub API-specific headers are not sent to third-party
-// storage backends.
+// for requests to ghHost and, for all other hosts (e.g. CDN, Azure Blob Storage
+// on GHES), derives a transport from the client's base transport while stripping
+// GitHub-specific headers. This preserves the base transport's connection
+// settings, such as proxy, TLS config, and custom dialer, when following
+// redirects across host boundaries to third-party storage backends.
 func NewHostAwareClient(client *http.Client, ghHost string) *http.Client {
 	base := client.Transport
 	if base == nil {
