@@ -81,9 +81,54 @@ func GetRepositorySecurityAdvisory(ctx context.Context, g *GitHubClient, repo re
 	return advisory, nil
 }
 
+// RepositorySecurityAdvisoryUpdateOptions holds options for updating a repository security advisory.
+type RepositorySecurityAdvisoryUpdateOptions struct {
+	Summary            string
+	Description        string
+	CVEID              string
+	Severity           string
+	CVSSVectorString   string
+	State              string
+	CollaboratingUsers []string
+	CollaboratingTeams []string
+}
+
+// toClientRepositorySecurityAdvisoryUpdateOptions converts RepositorySecurityAdvisoryUpdateOptions to client.RepositorySecurityAdvisoryUpdateOptions.
+func toClientRepositorySecurityAdvisoryUpdateOptions(opts *RepositorySecurityAdvisoryUpdateOptions) *client.RepositorySecurityAdvisoryUpdateOptions {
+	if opts == nil {
+		return nil
+	}
+	o := &client.RepositorySecurityAdvisoryUpdateOptions{}
+	if opts.Summary != "" {
+		o.Summary = &opts.Summary
+	}
+	if opts.Description != "" {
+		o.Description = &opts.Description
+	}
+	if opts.CVEID != "" {
+		o.CVEID = &opts.CVEID
+	}
+	if opts.Severity != "" {
+		o.Severity = &opts.Severity
+	}
+	if opts.CVSSVectorString != "" {
+		o.CVSSVectorString = &opts.CVSSVectorString
+	}
+	if opts.State != "" {
+		o.State = &opts.State
+	}
+	if len(opts.CollaboratingUsers) > 0 {
+		o.CollaboratingUsers = opts.CollaboratingUsers
+	}
+	if len(opts.CollaboratingTeams) > 0 {
+		o.CollaboratingTeams = opts.CollaboratingTeams
+	}
+	return o
+}
+
 // UpdateRepositorySecurityAdvisory updates a repository security advisory by GHSA ID.
-func UpdateRepositorySecurityAdvisory(ctx context.Context, g *GitHubClient, repo repository.Repository, ghsaID string, opts *client.RepositorySecurityAdvisoryUpdateOptions) (*github.SecurityAdvisory, error) {
-	advisory, err := g.UpdateRepositorySecurityAdvisory(ctx, repo.Owner, repo.Name, ghsaID, opts)
+func UpdateRepositorySecurityAdvisory(ctx context.Context, g *GitHubClient, repo repository.Repository, ghsaID string, opts *RepositorySecurityAdvisoryUpdateOptions) (*github.SecurityAdvisory, error) {
+	advisory, err := g.UpdateRepositorySecurityAdvisory(ctx, repo.Owner, repo.Name, ghsaID, toClientRepositorySecurityAdvisoryUpdateOptions(opts))
 	if err != nil {
 		return nil, fmt.Errorf("failed to update repository security advisory %s: %w", ghsaID, err)
 	}
