@@ -96,6 +96,10 @@ func DownloadFile(ctx context.Context, client *http.Client, rawURL, destPath str
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// Drain a bounded amount of the response body so the HTTP transport
+		// can reuse the connection when possible.
+		const maxErrorBodyDrain int64 = 4 << 10
+		_, _ = io.CopyN(io.Discard, resp.Body, maxErrorBodyDrain)
 		return fmt.Errorf("unexpected http status %s for %s", resp.Status, rawURL)
 	}
 
