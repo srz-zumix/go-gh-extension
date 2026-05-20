@@ -52,6 +52,11 @@ func SafeFilename(rawURL, filename string) string {
 		}
 		return r
 	}, safe)
+	// Windows does not allow filenames that end with a dot or space.
+	safe = strings.TrimRight(safe, ". ")
+	if safe == "" {
+		safe = "_"
+	}
 	return fmt.Sprintf("%x_%s", fnv32(rawURL), safe)
 }
 
