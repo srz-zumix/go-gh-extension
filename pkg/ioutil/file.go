@@ -64,14 +64,14 @@ func atomicWriteFile(dstPath string, defaultPerm os.FileMode, fn func(*os.File) 
 	closeErr := tmp.Close()
 
 	if fnErr != nil {
-		return 0, fnErr
+		return n, fnErr
 	}
 	if closeErr != nil {
-		return 0, closeErr
+		return n, closeErr
 	}
 
 	if err := ReplaceFile(tmpPath, dstPath); err != nil {
-		return 0, err
+		return n, err
 	}
 
 	return n, nil

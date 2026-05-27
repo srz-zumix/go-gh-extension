@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/srz-zumix/go-gh-extension/pkg/httputil"
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
@@ -27,8 +28,9 @@ func GetFilename(rawURL string) string {
 // prepending a FNV-1a 32-bit hash of the URL to reduce (not eliminate) the
 // chance of name collisions when multiple assets share the same base filename.
 // The provided filename is sanitized to strip path separators (both '/' and '\'),
-// ".." components, and characters reserved on Windows (: * ? " < > |) so the
-// result is a safe, flat filename across platforms.
+// ".." components, characters reserved on Windows (: * ? " < > |), and Windows
+// reserved device names (CON, PRN, AUX, NUL, COM1..9, LPT1..9) so the result is
+// a safe, flat filename across platforms.
 func SafeFilename(rawURL, filename string) string {
 	// Normalize backslashes to forward slashes so filepath.Base and path.Base
 	// both treat them as separators, then take the base component.
@@ -56,7 +58,22 @@ func SafeFilename(rawURL, filename string) string {
 	if safe == "" {
 		safe = "_"
 	}
+	// Escape Windows reserved device names even when an extension is present.
+	safe = escapeWindowsDeviceName(safe)
 	return fmt.Sprintf("%x_%s", fnv32(rawURL), safe)
+}
+
+func escapeWindowsDeviceName(name string) string {
+	base := name
+	if i := strings.IndexRune(base, '.'); i >= 0 {
+		base = base[:i]
+	}
+	switch strings.ToUpper(base) {
+	case "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9":
+		return "_" + name
+	default:
+		return name
+	}
 }
 
 // fnv32 computes a FNV-1a 32-bit hash of a string for filename deduplication.
@@ -78,7 +95,24 @@ func fnv32(s string) uint32 {
 // on success, so a failed download never leaves a partial or corrupted file at
 // the destination. If destPath already exists its permissions are preserved;
 // otherwise 0644 is used.
+//
+// The request host is inferred from rawURL and used to build a host-aware
+// client so redirects to other hosts strip GitHub-specific auth headers.
 func DownloadFile(ctx context.Context, client *http.Client, rawURL, destPath string) error {
+	ghHost := ""
+	if ghHost == "" {
+		u, err := url.Parse(rawURL)
+		if err == nil {
+			ghHost = u.Hostname()
+		}
+	}
+	if ghHost == "" {
+		return downloadFile(ctx, client, rawURL, destPath)
+	}
+	return downloadFile(ctx, httputil.NewHostAwareClient(client, ghHost), rawURL, destPath)
+}
+
+func downloadFile(ctx context.Context, client *http.Client, rawURL, destPath string) error {
 	logger.Debug("downloading file", "url", rawURL, "dest", destPath)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {

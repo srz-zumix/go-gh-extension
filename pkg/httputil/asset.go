@@ -31,6 +31,43 @@ type headerStrippingTransport struct {
 	base http.RoundTripper
 }
 
+type transportUnwrapper interface {
+	Unwrap() http.RoundTripper
+}
+
+type rawTransportGetter interface {
+	RawTransport() http.RoundTripper
+}
+
+func unwrapTransport(tr http.RoundTripper) http.RoundTripper {
+	for {
+		u, ok := tr.(transportUnwrapper)
+		if !ok {
+			return tr
+		}
+		next := u.Unwrap()
+		if next == nil || next == tr {
+			return tr
+		}
+		tr = next
+	}
+}
+
+func crossHostBaseTransport(base http.RoundTripper) http.RoundTripper {
+	if base == nil {
+		return http.DefaultTransport
+	}
+
+	inner := unwrapTransport(base)
+	if rtg, ok := inner.(rawTransportGetter); ok {
+		if raw := rtg.RawTransport(); raw != nil {
+			return raw
+		}
+	}
+
+	return inner
+}
+
 func (t *headerStrippingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	r2 := req.Clone(req.Context())
 	for _, prefix := range githubHeaderPrefixes {
@@ -48,10 +85,7 @@ func (t *headerStrippingTransport) RoundTrip(req *http.Request) (*http.Response,
 // timeouts, custom dialer). Use this instead of http.DefaultTransport when
 // forwarding redirected requests to non-GitHub hosts.
 func crossHostTransport(base http.RoundTripper) http.RoundTripper {
-	if base == nil {
-		base = http.DefaultTransport
-	}
-	return &headerStrippingTransport{base: base}
+	return &headerStrippingTransport{base: crossHostBaseTransport(base)}
 }
 
 // AssetMeta holds HTTP metadata for a single asset URL.
@@ -326,7 +360,7 @@ func ParseTotalFromContentRange(cr string) int64 {
 
 // FilenameFromContentDisposition parses the filename from a Content-Disposition header value.
 // It handles both the plain ASCII form (filename="foo.png") and the RFC 5987 extended
-// form (filename*=UTF-8''foo%20bar.png).
+// form (filename*=UTF-8”foo%20bar.png).
 func FilenameFromContentDisposition(header string) string {
 	if header == "" {
 		return ""
