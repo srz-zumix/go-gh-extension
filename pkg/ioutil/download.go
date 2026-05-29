@@ -122,6 +122,7 @@ func redactURL(rawURL string) string {
 		}
 		return rawURL
 	}
+	u.User = nil
 	u.RawQuery = ""
 	u.Fragment = ""
 	return u.String()
