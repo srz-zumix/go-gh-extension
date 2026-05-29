@@ -64,6 +64,46 @@ func TestSafeFilename_UnsafeInputFallsBackToURL(t *testing.T) {
 	}
 }
 
+func TestSafeFilename_AlwaysFlatFilename(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		rawURL   string
+		filename string
+	}{
+		{
+			name:     "backslash in filename",
+			rawURL:   "https://example.com/image.png",
+			filename: `sub\file.png`,
+		},
+		{
+			name:     "slash in URL-derived fallback",
+			rawURL:   "https://example.com/sub/image.png",
+			filename: "/",
+		},
+		{
+			name:     "backslash in malformed URL used as fallback",
+			rawURL:   "https://example.com/a\\b\\file.png",
+			filename: "..",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got := SafeFilename(tt.rawURL, tt.filename)
+			// Strip the leading hash prefix (e.g. "abc123_") before checking.
+			if i := strings.IndexByte(got, '_'); i >= 0 {
+				got = got[i+1:]
+			}
+			if strings.ContainsAny(got, "/\\") {
+				t.Fatalf("SafeFilename() = %q contains a path separator", got)
+			}
+		})
+	}
+}
+
 func TestGetFilename_StripsQueryAndFragment(t *testing.T) {
 	t.Parallel()
 

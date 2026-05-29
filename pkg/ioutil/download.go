@@ -61,9 +61,13 @@ func SafeFilename(rawURL, filename string) string {
 		safe = GetFilename(rawURL)
 	}
 	// Remove characters that are reserved or problematic on Windows and common
-	// filesystems (: * ? " < > | and control characters).
+	// filesystems (: * ? " < > | and control characters). Also strip path
+	// separators ('/' and '\') so the result is always a flat filename even when
+	// the fallback value from GetFilename contains them.
 	safe = strings.Map(func(r rune) rune {
 		switch r {
+		case '/', '\\':
+			return -1
 		case ':', '*', '?', '"', '<', '>', '|':
 			return '_'
 		}
