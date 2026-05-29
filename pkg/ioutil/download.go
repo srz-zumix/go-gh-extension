@@ -97,11 +97,15 @@ func fnv32(s string) uint32 {
 
 // redactURL returns a URL with query parameters and fragment removed to avoid
 // leaking sensitive credentials (e.g. JWT tokens) to logs.
+// If url.Parse fails, query-string and fragment are stripped manually so that
+// credentials are never exposed even for malformed URLs.
 func redactURL(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		// If parse fails, return the original to avoid breaking callers;
-		// the actual request will fail with more detail.
+		// Strip query/fragment manually to avoid leaking credentials.
+		if i := strings.IndexAny(rawURL, "?#"); i >= 0 {
+			return rawURL[:i]
+		}
 		return rawURL
 	}
 	u.RawQuery = ""
