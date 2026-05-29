@@ -231,6 +231,9 @@ func (c *cdCapture) RoundTrip(req *http.Request) (*http.Response, error) {
 // CDN/other hosts so proxy, TLS, and dialer settings are preserved while
 // GitHub-specific headers are stripped.
 func FetchAssetMeta(ctx context.Context, client *http.Client, assetURL, ghHost string) AssetMeta {
+	if client == nil {
+		client = http.DefaultClient
+	}
 	transport := client.Transport
 	if transport == nil {
 		transport = http.DefaultTransport
