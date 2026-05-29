@@ -16,6 +16,8 @@ import (
 
 // GetFilename extracts the file name from a URL.
 // It strips query-string parameters and fragments (e.g. JWT tokens on private images).
+// Returns an empty string when the URL has no meaningful filename component
+// (e.g. trailing slash or bare host), so callers can fall back to a safe default.
 func GetFilename(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -24,9 +26,19 @@ func GetFilename(rawURL string) string {
 		if i := strings.IndexAny(rawURL, "?#"); i >= 0 {
 			rawURL = rawURL[:i]
 		}
-		return path.Base(rawURL)
+		return normalizeName(path.Base(rawURL))
 	}
-	return path.Base(u.Path)
+	return normalizeName(path.Base(u.Path))
+}
+
+// normalizeName returns name unless it is "/" or ".", in which case it returns
+// an empty string. path.Base returns these sentinel values when the path is
+// empty, root, or consists solely of slashes, and neither is a valid flat filename.
+func normalizeName(name string) string {
+	if name == "/" || name == "." {
+		return ""
+	}
+	return name
 }
 
 // SafeFilename returns a filesystem-safe flat filename for a URL-keyed asset by
@@ -41,9 +53,11 @@ func SafeFilename(rawURL, filename string) string {
 	// both treat them as separators, then take the base component.
 	normalized := strings.ReplaceAll(filename, `\`, "/")
 	safe := path.Base(filepath.Base(normalized))
-	// path.Base returns "." for empty or separator-only input; fall back to the
-	// URL-derived name in that case.
-	if safe == "." || safe == "" {
+	// Treat values that are not valid flat filenames as absent: path.Base returns
+	// "." for empty/separator-only input, "/" for a root path, and ".." when the
+	// input is a bare parent-traversal component. Fall back to the URL-derived
+	// name for all of these cases.
+	if safe == "." || safe == ".." || safe == "/" || safe == "" {
 		safe = GetFilename(rawURL)
 	}
 	// Remove characters that are reserved or problematic on Windows and common

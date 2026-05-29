@@ -38,6 +38,32 @@ func TestSafeFilename_EscapeWindowsReservedDeviceNames(t *testing.T) {
 	}
 }
 
+func TestSafeFilename_UnsafeInputFallsBackToURL(t *testing.T) {
+	t.Parallel()
+
+	rawURL := "https://example.com/path/image.png"
+	urlSuffix := "_image.png"
+
+	unsafeInputs := []struct {
+		name  string
+		input string
+	}{
+		{name: "root slash", input: "/"},
+		{name: "double dot", input: ".."},
+		{name: "backslash root", input: `\`},
+	}
+
+	for _, tt := range unsafeInputs {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got := SafeFilename(rawURL, tt.input)
+			if !strings.HasSuffix(got, urlSuffix) {
+				t.Fatalf("SafeFilename(%q) = %q, want suffix %q (should fall back to URL-derived name)", tt.input, got, urlSuffix)
+			}
+		})
+	}
+}
+
 func TestGetFilename_StripsQueryAndFragment(t *testing.T) {
 	t.Parallel()
 
@@ -51,6 +77,9 @@ func TestGetFilename_StripsQueryAndFragment(t *testing.T) {
 		{name: "with fragment", url: "https://example.com/image.png#section", want: "image.png"},
 		{name: "with both", url: "https://example.com/image.png?token=secret#section", want: "image.png"},
 		{name: "deep path with query", url: "https://example.com/path/to/file.txt?jwt=abc123", want: "file.txt"},
+		{name: "trailing slash", url: "https://example.com/", want: ""},
+		{name: "bare host", url: "https://example.com", want: ""},
+		{name: "trailing slash with query", url: "https://example.com/?token=secret", want: ""},
 	}
 
 	for _, tt := range tests {
