@@ -15,10 +15,15 @@ import (
 )
 
 // GetFilename extracts the file name from a URL.
-// It strips query-string parameters (e.g. JWT tokens on private images).
+// It strips query-string parameters and fragments (e.g. JWT tokens on private images).
 func GetFilename(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {
+		// Even if parse fails, strip query/fragment manually to avoid
+		// embedding secrets in filenames.
+		if i := strings.IndexAny(rawURL, "?#"); i >= 0 {
+			rawURL = rawURL[:i]
+		}
 		return path.Base(rawURL)
 	}
 	return path.Base(u.Path)
@@ -90,6 +95,20 @@ func fnv32(s string) uint32 {
 	return h
 }
 
+// redactURL returns a URL with query parameters and fragment removed to avoid
+// leaking sensitive credentials (e.g. JWT tokens) to logs.
+func redactURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		// If parse fails, return the original to avoid breaking callers;
+		// the actual request will fail with more detail.
+		return rawURL
+	}
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String()
+}
+
 // DownloadFile performs an HTTP GET using client and saves the response body to
 // destPath. It writes to a sibling temp file first and renames to destPath only
 // on success, so a failed download never leaves a partial or corrupted file at
@@ -99,21 +118,15 @@ func fnv32(s string) uint32 {
 // The request host is inferred from rawURL and used to build a host-aware
 // client so redirects to other hosts strip GitHub-specific auth headers.
 func DownloadFile(ctx context.Context, client *http.Client, rawURL, destPath string) error {
-	ghHost := ""
-	if ghHost == "" {
-		u, err := url.Parse(rawURL)
-		if err == nil {
-			ghHost = u.Hostname()
-		}
+	u, err := url.Parse(rawURL)
+	if err == nil && u.Hostname() != "" {
+		client = httputil.NewHostAwareClient(client, u.Hostname())
 	}
-	if ghHost == "" {
-		return downloadFile(ctx, client, rawURL, destPath)
-	}
-	return downloadFile(ctx, httputil.NewHostAwareClient(client, ghHost), rawURL, destPath)
+	return downloadFile(ctx, client, rawURL, destPath)
 }
 
 func downloadFile(ctx context.Context, client *http.Client, rawURL, destPath string) error {
-	logger.Debug("downloading file", "url", rawURL, "dest", destPath)
+	logger.Debug("downloading file", "url", redactURL(rawURL), "dest", destPath)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return err
@@ -125,7 +138,7 @@ func downloadFile(ctx context.Context, client *http.Client, rawURL, destPath str
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			logger.Debug("failed to close response body", "url", rawURL, "error", closeErr)
+			logger.Debug("failed to close response body", "url", redactURL(rawURL), "error", closeErr)
 		}
 	}()
 
@@ -134,7 +147,7 @@ func downloadFile(ctx context.Context, client *http.Client, rawURL, destPath str
 		// can reuse the connection when possible.
 		const maxErrorBodyDrain int64 = 4 << 10
 		_, _ = io.CopyN(io.Discard, resp.Body, maxErrorBodyDrain)
-		return fmt.Errorf("unexpected http status %s for %s", resp.Status, rawURL)
+		return fmt.Errorf("unexpected http status %s for %s", resp.Status, redactURL(rawURL))
 	}
 
 	n, err := WriteFileAtomicFrom(destPath, resp.Body, 0644)

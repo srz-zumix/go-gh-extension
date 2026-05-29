@@ -38,6 +38,32 @@ func TestSafeFilename_EscapeWindowsReservedDeviceNames(t *testing.T) {
 	}
 }
 
+func TestGetFilename_StripsQueryAndFragment(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{name: "simple path", url: "https://example.com/image.png", want: "image.png"},
+		{name: "with query", url: "https://example.com/image.png?token=secret", want: "image.png"},
+		{name: "with fragment", url: "https://example.com/image.png#section", want: "image.png"},
+		{name: "with both", url: "https://example.com/image.png?token=secret#section", want: "image.png"},
+		{name: "deep path with query", url: "https://example.com/path/to/file.txt?jwt=abc123", want: "file.txt"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetFilename(tt.url)
+			if got != tt.want {
+				t.Fatalf("GetFilename() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 type authInjectingTransport struct {
 	base  http.RoundTripper
 	token string
@@ -93,24 +119,13 @@ func TestDownloadFile_StripsAuthOnCrossHostRedirect(t *testing.T) {
 	}
 }
 
-func TestDownloadFile_InferHostFromRawURL(t *testing.T) {
+func TestDownloadFile_PreservesAuthOnSameHost(t *testing.T) {
 	t.Parallel()
 
-	var leakedAuthorization string
-	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		leakedAuthorization = r.Header.Get("Authorization")
-		_, _ = io.WriteString(w, "payload")
-	}))
-	defer target.Close()
-	targetURL, err := url.Parse(target.URL)
-	if err != nil {
-		t.Fatalf("failed to parse target URL: %v", err)
-	}
-	crossHostTargetURL := targetURL.String()
-	crossHostTargetURL = strings.Replace(crossHostTargetURL, "127.0.0.1", "localhost", 1)
-
+	var gotAuthorization string
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, crossHostTargetURL+"/file.bin", http.StatusFound)
+		gotAuthorization = r.Header.Get("Authorization")
+		_, _ = io.WriteString(w, "payload")
 	}))
 	defer origin.Close()
 
@@ -126,7 +141,7 @@ func TestDownloadFile_InferHostFromRawURL(t *testing.T) {
 		t.Fatalf("DownloadFile returned error: %v", err)
 	}
 
-	if leakedAuthorization != "" {
-		t.Fatalf("authorization header leaked to redirect target: %q", leakedAuthorization)
+	if gotAuthorization != "token secret" {
+		t.Fatalf("authorization header = %q, want %q", gotAuthorization, "token secret")
 	}
 }
