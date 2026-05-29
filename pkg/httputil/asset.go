@@ -14,11 +14,19 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
-// githubHeaderPrefixes lists the HTTP request header prefixes that are specific
-// to the GitHub API and must not be forwarded to third-party storage backends
-// (e.g. Azure Blob Storage on GHES, AWS S3 on github.com) during redirects.
-var githubHeaderPrefixes = []string{
+// githubExactHeaders lists the HTTP request headers that are specific to the
+// GitHub API and must be stripped by exact (case-insensitive) name match when
+// forwarding requests to third-party storage backends.
+var githubExactHeaders = []string{
 	"Authorization",
+}
+
+// githubHeaderPrefixes lists the HTTP request header name prefixes that are
+// specific to the GitHub API. Any header whose name starts with one of these
+// prefixes (case-insensitive) must not be forwarded to third-party storage
+// backends (e.g. Azure Blob Storage on GHES, AWS S3 on github.com) during
+// redirects.
+var githubHeaderPrefixes = []string{
 	"X-Github-",
 	"X-Hub-",
 }
@@ -70,14 +78,31 @@ func crossHostBaseTransport(base http.RoundTripper) http.RoundTripper {
 
 func (t *headerStrippingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	r2 := req.Clone(req.Context())
-	for _, prefix := range githubHeaderPrefixes {
-		for key := range r2.Header {
-			if strings.EqualFold(key, prefix) || strings.HasPrefix(strings.ToLower(key), strings.ToLower(prefix)) {
-				delete(r2.Header, key)
-			}
+	for key := range r2.Header {
+		if shouldStripHeader(key) {
+			delete(r2.Header, key)
 		}
 	}
 	return t.base.RoundTrip(r2)
+}
+
+// shouldStripHeader reports whether the header with the given name should be
+// removed before forwarding a request to a non-GitHub host. Headers in
+// githubExactHeaders are matched case-insensitively by full name; headers in
+// githubHeaderPrefixes are matched case-insensitively by prefix.
+func shouldStripHeader(key string) bool {
+	for _, exact := range githubExactHeaders {
+		if strings.EqualFold(key, exact) {
+			return true
+		}
+	}
+	keyLower := strings.ToLower(key)
+	for _, prefix := range githubHeaderPrefixes {
+		if strings.HasPrefix(keyLower, strings.ToLower(prefix)) {
+			return true
+		}
+	}
+	return false
 }
 
 // crossHostTransport returns a RoundTripper that strips GitHub-specific request
@@ -360,7 +385,7 @@ func ParseTotalFromContentRange(cr string) int64 {
 
 // FilenameFromContentDisposition parses the filename from a Content-Disposition header value.
 // It handles both the plain ASCII form (filename="foo.png") and the RFC 5987 extended
-// form (filename*=UTF-8''foo%20bar.png).
+// form (filename*=UTF-8”foo%20bar.png).
 func FilenameFromContentDisposition(header string) string {
 	if header == "" {
 		return ""

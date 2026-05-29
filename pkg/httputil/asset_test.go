@@ -8,12 +8,14 @@ import (
 )
 
 type captureRoundTripper struct {
-	lastAuthorization string
-	lastXGitHubFoo    string
+	lastAuthorization      string
+	lastAuthorizationExtra string
+	lastXGitHubFoo         string
 }
 
 func (c *captureRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	c.lastAuthorization = r.Header.Get("Authorization")
+	c.lastAuthorizationExtra = r.Header.Get("Authorization-Extra")
 	c.lastXGitHubFoo = r.Header.Get("X-GitHub-Foo")
 	return &http.Response{
 		StatusCode: http.StatusOK,
@@ -61,6 +63,7 @@ func TestCrossHostTransport_StripsGitHubHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Authorization", "token test")
+	req.Header.Set("Authorization-Extra", "should-remain")
 	req.Header.Set("X-GitHub-Foo", "bar")
 
 	if _, err := transport.RoundTrip(req); err != nil {
@@ -72,6 +75,9 @@ func TestCrossHostTransport_StripsGitHubHeaders(t *testing.T) {
 	}
 	if capture.lastXGitHubFoo != "" {
 		t.Fatalf("X-GitHub-* header leaked: %q", capture.lastXGitHubFoo)
+	}
+	if capture.lastAuthorizationExtra != "should-remain" {
+		t.Fatalf("Authorization-Extra header was incorrectly stripped: got %q", capture.lastAuthorizationExtra)
 	}
 }
 
