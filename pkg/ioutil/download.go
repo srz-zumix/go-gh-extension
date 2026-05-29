@@ -122,6 +122,9 @@ func redactURL(rawURL string) string {
 // The request host is inferred from rawURL and used to build a host-aware
 // client so redirects to other hosts strip GitHub-specific auth headers.
 func DownloadFile(ctx context.Context, client *http.Client, rawURL, destPath string) error {
+	if client == nil {
+		client = http.DefaultClient
+	}
 	u, err := url.Parse(rawURL)
 	if err == nil && u.Hostname() != "" {
 		client = httputil.NewHostAwareClient(client, u.Hostname())
