@@ -428,6 +428,9 @@ func (t *hostSwitchTransport) RoundTrip(req *http.Request) (*http.Response, erro
 // settings, such as proxy, TLS config, and custom dialer, when following
 // redirects across host boundaries to third-party storage backends.
 func NewHostAwareClient(client *http.Client, ghHost string) *http.Client {
+	if client == nil {
+		client = http.DefaultClient
+	}
 	base := client.Transport
 	if base == nil {
 		base = http.DefaultTransport
