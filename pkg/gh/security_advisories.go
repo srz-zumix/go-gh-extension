@@ -45,11 +45,32 @@ var RepositorySecurityAdvisorySeverities = []string{
 	"low",
 }
 
-// ListRepositorySecurityAdvisoriesOptions holds filter/sort options for listing repository security advisories.
+// ListRepositorySecurityAdvisoriesOptions holds filter/sort/pagination options for listing repository security advisories.
+// All fields correspond directly to the upstream github.ListRepositorySecurityAdvisoriesOptions and its embedded
+// github.ListCursorOptions, so every parameter supported by the GitHub API is available to callers.
 type ListRepositorySecurityAdvisoriesOptions struct {
-	State     string
-	Sort      string
+	// State filters advisories by state. Possible values: triage, draft, published, closed.
+	State string
+	// Sort specifies how to sort advisories. Possible values: created, updated, published. Default: created.
+	Sort string
+	// Direction specifies the sort direction. Possible values: asc, desc. Default: asc.
 	Direction string
+	// PerPage is the number of results per page (max 100).
+	PerPage int
+	// Before is a cursor for backward pagination (as given in the Link header).
+	Before string
+	// After is a cursor for forward pagination (as given in the Link header).
+	After string
+	// Page is a page cursor for pagination.
+	Page string
+	// First is the number of results per page starting from the first matching result.
+	// Must not be combined with Last.
+	First int
+	// Last is the number of results per page starting from the last matching result.
+	// Must not be combined with First.
+	Last int
+	// Cursor continues a search from a previous cursor value (as given in the Link header).
+	Cursor string
 }
 
 // toGitHubListRepositorySecurityAdvisoriesOptions converts ListRepositorySecurityAdvisoriesOptions to github.ListRepositorySecurityAdvisoriesOptions.
@@ -61,6 +82,15 @@ func toGitHubListRepositorySecurityAdvisoriesOptions(opts *ListRepositorySecurit
 		State:     opts.State,
 		Sort:      opts.Sort,
 		Direction: opts.Direction,
+		ListCursorOptions: github.ListCursorOptions{
+			PerPage: opts.PerPage,
+			Before:  opts.Before,
+			After:   opts.After,
+			Page:    opts.Page,
+			First:   opts.First,
+			Last:    opts.Last,
+			Cursor:  opts.Cursor,
+		},
 	}
 }
 
