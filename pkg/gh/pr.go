@@ -13,6 +13,17 @@ import (
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
+// PRStateAll, PRStateOpen, and PRStateClosed are the allowed values for
+// the --state flag used when filtering pull requests.
+const (
+	PRStateAll    = "all"
+	PRStateOpen   = "open"
+	PRStateClosed = "closed"
+)
+
+// PRStateValues lists all valid PR state values in display order.
+var PRStateValues = []string{PRStateAll, PRStateOpen, PRStateClosed}
+
 type ReviewersRequest struct {
 	Reviewers     []string
 	TeamReviewers []string
