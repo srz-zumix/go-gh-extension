@@ -175,7 +175,7 @@ func (c *cdCapture) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// Check Content-Disposition on this response first.
 	if name := FilenameFromContentDisposition(resp.Header.Get("Content-Disposition")); name != "" {
-		logger.Debug("filename from Content-Disposition header", "url", req.URL.String(), "filename", name)
+		logger.Debug("filename from Content-Disposition header", "url", req.URL.Host+req.URL.EscapedPath(), "filename", name)
 		c.Filename = name
 		return resp, nil
 	}
