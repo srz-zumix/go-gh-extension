@@ -161,3 +161,4 @@ func (g *GitHubClient) MinimizeComment(ctx context.Context, nodeID string, class
 
 	return graphql.Mutate(ctx, &mutation, input, nil)
 }
+
