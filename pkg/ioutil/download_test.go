@@ -163,8 +163,10 @@ func TestDownloadFile_StripsAuthOnCrossHostRedirect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse target URL: %v", err)
 	}
-	crossHostTargetURL := targetURL.String()
-	crossHostTargetURL = strings.Replace(crossHostTargetURL, "127.0.0.1", "localhost", 1)
+	// Use "localhost" with the port number to construct a cross-host URL that is
+	// distinct from the origin host. String replacement of "127.0.0.1" is
+	// fragile on IPv6-only environments where httptest may listen on "[::]".
+	crossHostTargetURL := "http://localhost:" + targetURL.Port()
 
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, crossHostTargetURL+"/file.bin", http.StatusFound)

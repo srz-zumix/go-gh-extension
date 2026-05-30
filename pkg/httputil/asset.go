@@ -113,6 +113,24 @@ func crossHostTransport(base http.RoundTripper) http.RoundTripper {
 	return &headerStrippingTransport{base: crossHostBaseTransport(base)}
 }
 
+// redactURL returns the URL with query parameters and fragment removed, to
+// avoid leaking pre-signed token parameters or credentials in logs.
+func redactURL(u *url.URL) string {
+	return u.Scheme + "://" + u.Host + u.EscapedPath()
+}
+
+// redactRawURL parses rawURL and returns it without query/fragment.
+// Falls back to stripping query/fragment manually when parsing fails.
+func redactRawURL(rawURL string) string {
+	if u, err := url.Parse(rawURL); err == nil {
+		return redactURL(u)
+	}
+	if i := strings.IndexAny(rawURL, "?#"); i >= 0 {
+		return rawURL[:i]
+	}
+	return rawURL
+}
+
 // AssetMeta holds HTTP metadata for a single asset URL.
 type AssetMeta struct {
 	// Size is the content length in bytes, or -1 when unknown.
@@ -175,7 +193,7 @@ func (c *cdCapture) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// Check Content-Disposition on this response first.
 	if name := FilenameFromContentDisposition(resp.Header.Get("Content-Disposition")); name != "" {
-		logger.Debug("filename from Content-Disposition header", "url", req.URL.Host+req.URL.EscapedPath(), "filename", name)
+		logger.Debug("filename from Content-Disposition header", "url", redactURL(req.URL), "filename", name)
 		c.Filename = name
 		return resp, nil
 	}
@@ -183,7 +201,7 @@ func (c *cdCapture) RoundTrip(req *http.Request) (*http.Response, error) {
 	// For redirect responses, parse the Location URL for content-disposition
 	// query parameters used by various cloud storage backends.
 	if loc := resp.Header.Get("Location"); loc != "" {
-		logger.Debug("redirect hop", "from", req.URL.Host+req.URL.EscapedPath(), "status", resp.StatusCode)
+		logger.Debug("redirect hop", "from", redactURL(req.URL), "status", resp.StatusCode)
 		if u, parseErr := url.Parse(loc); parseErr == nil {
 			q := u.Query()
 			for _, key := range cdParamNames {
@@ -244,13 +262,12 @@ func FetchAssetMeta(ctx context.Context, client *http.Client, assetURL, ghHost s
 	// Some servers (e.g. GHES media backends) return 404 for HEAD requests.
 	// Fall back to a range-GET first, then a full GET as last resort.
 	if meta.Size == -1 && meta.Filename == "" {
-		logger.Debug("HEAD returned no useful data, trying range GET")
+		logger.Debug("HEAD returned no useful data, trying range GET", "url", redactRawURL(assetURL))
 		meta = fetchAssetMetaWithMethod(ctx, client, transport, ghHost, http.MethodGet, true, assetURL)
 	}
 	if meta.Size == -1 && meta.Filename == "" {
-		logger.Debug("range GET returned no useful data, trying full GET")
+		logger.Debug("range GET returned no useful data, trying full GET", "url", redactRawURL(assetURL))
 		meta = fetchAssetMetaWithMethod(ctx, client, transport, ghHost, http.MethodGet, false, assetURL)
-	}
 	}
 
 	return meta
@@ -274,25 +291,24 @@ func fetchAssetMetaWithMethod(ctx context.Context, client *http.Client, transpor
 	}
 	resp, err := c.Do(req)
 	if err != nil {
-		logger.Debug("request failed", "method", method, "url", req.URL.Host+req.URL.EscapedPath(), "error", err)
+		logger.Debug("request failed", "method", method, "url", redactURL(req.URL), "error", err)
 		return AssetMeta{Size: -1}
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			logger.Debug("failed to close response body", "url", req.URL.Host+req.URL.EscapedPath(), "error", closeErr)
+			logger.Debug("failed to close response body", "url", redactURL(req.URL), "error", closeErr)
 		}
 	}()
 	// For Range GET drain a small portion so the connection can be reused.
 	if method == http.MethodGet && withRange {
 		if _, drainErr := io.CopyN(io.Discard, resp.Body, 512); drainErr != nil && drainErr != io.EOF {
-			logger.Debug("failed to drain response body", "url", req.URL.Host+req.URL.EscapedPath(), "error", drainErr)
+			logger.Debug("failed to drain response body", "url", redactURL(req.URL), "error", drainErr)
 		}
-	}
 	}
 
 	logger.Debug("response",
 		"method", method,
-		"url", req.URL.Host+req.URL.EscapedPath(),
+		"url", redactURL(req.URL),
 		"status", resp.StatusCode,
 		"content-length", resp.ContentLength,
 		"content-range", resp.Header.Get("Content-Range"),
@@ -390,7 +406,7 @@ func ParseTotalFromContentRange(cr string) int64 {
 
 // FilenameFromContentDisposition parses the filename from a Content-Disposition header value.
 // It handles both the plain ASCII form (filename="foo.png") and the RFC 5987 extended
-// form (filename*=UTF-8''foo%20bar.png).
+// form (filename*=UTF-8”foo%20bar.png).
 func FilenameFromContentDisposition(header string) string {
 	if header == "" {
 		return ""
