@@ -244,12 +244,13 @@ func FetchAssetMeta(ctx context.Context, client *http.Client, assetURL, ghHost s
 	// Some servers (e.g. GHES media backends) return 404 for HEAD requests.
 	// Fall back to a range-GET first, then a full GET as last resort.
 	if meta.Size == -1 && meta.Filename == "" {
-		logger.Debug("HEAD returned no useful data, trying range GET", "url", assetURL)
+		logger.Debug("HEAD returned no useful data, trying range GET")
 		meta = fetchAssetMetaWithMethod(ctx, client, transport, ghHost, http.MethodGet, true, assetURL)
 	}
 	if meta.Size == -1 && meta.Filename == "" {
-		logger.Debug("range GET returned no useful data, trying full GET", "url", assetURL)
+		logger.Debug("range GET returned no useful data, trying full GET")
 		meta = fetchAssetMetaWithMethod(ctx, client, transport, ghHost, http.MethodGet, false, assetURL)
+	}
 	}
 
 	return meta
