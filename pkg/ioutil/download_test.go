@@ -120,6 +120,8 @@ func TestGetFilename_StripsQueryAndFragment(t *testing.T) {
 		{name: "trailing slash", url: "https://example.com/", want: ""},
 		{name: "bare host", url: "https://example.com", want: ""},
 		{name: "trailing slash with query", url: "https://example.com/?token=secret", want: ""},
+		{name: "path ends with dotdot", url: "https://example.com/..", want: ""},
+		{name: "path ends with dotdot slash", url: "https://example.com/../", want: ""},
 	}
 
 	for _, tt := range tests {

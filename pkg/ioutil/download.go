@@ -31,11 +31,12 @@ func GetFilename(rawURL string) string {
 	return normalizeName(path.Base(u.Path))
 }
 
-// normalizeName returns name unless it is "/" or ".", in which case it returns
-// an empty string. path.Base returns these sentinel values when the path is
-// empty, root, or consists solely of slashes, and neither is a valid flat filename.
+// normalizeName returns name unless it is "/", ".", or "..", in which case it
+// returns an empty string. path.Base returns these sentinel values when the path
+// is empty, root, consists solely of slashes, or ends with a parent-traversal
+// component, and none of them is a valid flat filename.
 func normalizeName(name string) string {
-	if name == "/" || name == "." {
+	if name == "/" || name == "." || name == ".." {
 		return ""
 	}
 	return name
