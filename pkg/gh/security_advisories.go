@@ -45,9 +45,28 @@ var RepositorySecurityAdvisorySeverities = []string{
 	"low",
 }
 
+// ListRepositorySecurityAdvisoriesOptions holds filter/sort options for listing repository security advisories.
+type ListRepositorySecurityAdvisoriesOptions struct {
+	State     string
+	Sort      string
+	Direction string
+}
+
+// toGitHubListRepositorySecurityAdvisoriesOptions converts ListRepositorySecurityAdvisoriesOptions to github.ListRepositorySecurityAdvisoriesOptions.
+func toGitHubListRepositorySecurityAdvisoriesOptions(opts *ListRepositorySecurityAdvisoriesOptions) *github.ListRepositorySecurityAdvisoriesOptions {
+	if opts == nil {
+		return nil
+	}
+	return &github.ListRepositorySecurityAdvisoriesOptions{
+		State:     opts.State,
+		Sort:      opts.Sort,
+		Direction: opts.Direction,
+	}
+}
+
 // ListRepositorySecurityAdvisories lists repository security advisories.
 // If repo.Name is empty, lists org-level advisories; otherwise lists repo-level advisories.
-func ListRepositorySecurityAdvisories(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *github.ListRepositorySecurityAdvisoriesOptions) ([]*github.SecurityAdvisory, error) {
+func ListRepositorySecurityAdvisories(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ListRepositorySecurityAdvisoriesOptions) ([]*github.SecurityAdvisory, error) {
 	if repo.Name == "" {
 		return ListOrgRepositorySecurityAdvisories(ctx, g, repo, opts)
 	}
@@ -55,8 +74,8 @@ func ListRepositorySecurityAdvisories(ctx context.Context, g *GitHubClient, repo
 }
 
 // ListOrgRepositorySecurityAdvisories lists repository security advisories for an organization.
-func ListOrgRepositorySecurityAdvisories(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *github.ListRepositorySecurityAdvisoriesOptions) ([]*github.SecurityAdvisory, error) {
-	advisories, err := g.ListOrgRepositorySecurityAdvisories(ctx, repo.Owner, opts)
+func ListOrgRepositorySecurityAdvisories(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ListRepositorySecurityAdvisoriesOptions) ([]*github.SecurityAdvisory, error) {
+	advisories, err := g.ListOrgRepositorySecurityAdvisories(ctx, repo.Owner, toGitHubListRepositorySecurityAdvisoriesOptions(opts))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list org repository security advisories: %w", err)
 	}
@@ -64,8 +83,8 @@ func ListOrgRepositorySecurityAdvisories(ctx context.Context, g *GitHubClient, r
 }
 
 // ListRepoSecurityAdvisories lists repository security advisories for a repository.
-func ListRepoSecurityAdvisories(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *github.ListRepositorySecurityAdvisoriesOptions) ([]*github.SecurityAdvisory, error) {
-	advisories, err := g.ListRepoSecurityAdvisories(ctx, repo.Owner, repo.Name, opts)
+func ListRepoSecurityAdvisories(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ListRepositorySecurityAdvisoriesOptions) ([]*github.SecurityAdvisory, error) {
+	advisories, err := g.ListRepoSecurityAdvisories(ctx, repo.Owner, repo.Name, toGitHubListRepositorySecurityAdvisoriesOptions(opts))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list repository security advisories: %w", err)
 	}
