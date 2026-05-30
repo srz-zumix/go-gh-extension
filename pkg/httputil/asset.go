@@ -183,7 +183,7 @@ func (c *cdCapture) RoundTrip(req *http.Request) (*http.Response, error) {
 	// For redirect responses, parse the Location URL for content-disposition
 	// query parameters used by various cloud storage backends.
 	if loc := resp.Header.Get("Location"); loc != "" {
-		logger.Debug("redirect hop", "from", req.URL.String(), "location", loc, "status", resp.StatusCode)
+		logger.Debug("redirect hop", "from", req.URL.Host+req.URL.EscapedPath(), "status", resp.StatusCode)
 		if u, parseErr := url.Parse(loc); parseErr == nil {
 			q := u.Query()
 			for _, key := range cdParamNames {
