@@ -290,7 +290,7 @@ func fetchAssetMetaWithMethod(ctx context.Context, client *http.Client, transpor
 
 	logger.Debug("response",
 		"method", method,
-		"url", assetURL,
+		"url", req.URL.Host+req.URL.EscapedPath(),
 		"status", resp.StatusCode,
 		"content-length", resp.ContentLength,
 		"content-range", resp.Header.Get("Content-Range"),
