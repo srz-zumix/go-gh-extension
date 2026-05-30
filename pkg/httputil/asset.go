@@ -274,19 +274,20 @@ func fetchAssetMetaWithMethod(ctx context.Context, client *http.Client, transpor
 	}
 	resp, err := c.Do(req)
 	if err != nil {
-		logger.Debug("request failed", "method", method, "url", assetURL, "error", err)
+		logger.Debug("request failed", "method", method, "url", req.URL.Host+req.URL.EscapedPath(), "error", err)
 		return AssetMeta{Size: -1}
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			logger.Debug("failed to close response body", "url", assetURL, "error", closeErr)
+			logger.Debug("failed to close response body", "url", req.URL.Host+req.URL.EscapedPath(), "error", closeErr)
 		}
 	}()
 	// For Range GET drain a small portion so the connection can be reused.
 	if method == http.MethodGet && withRange {
 		if _, drainErr := io.CopyN(io.Discard, resp.Body, 512); drainErr != nil && drainErr != io.EOF {
-			logger.Debug("failed to drain response body", "url", assetURL, "error", drainErr)
+			logger.Debug("failed to drain response body", "url", req.URL.Host+req.URL.EscapedPath(), "error", drainErr)
 		}
+	}
 	}
 
 	logger.Debug("response",
