@@ -24,14 +24,14 @@ func ValidateBranchName(branch string) error {
 		return fmt.Errorf("branch name must not start or end with /")
 	}
 	if strings.HasSuffix(branch, ".") {
-		return fmt.Errorf("branch name must not end with .")
+		return fmt.Errorf("branch name must not end with a dot")
 	}
 	if strings.Contains(branch, "//") || strings.Contains(branch, "..") {
-		return fmt.Errorf("branch name must not contain empty path components or ..")
+		return fmt.Errorf("branch name must not contain empty path components or consecutive dots")
 	}
 	for _, part := range strings.Split(branch, "/") {
 		if strings.HasPrefix(part, ".") || strings.HasSuffix(part, ".lock") {
-			return fmt.Errorf("branch path component %q must not start with . or end with .lock", part)
+			return fmt.Errorf("branch path component %q is invalid: must not start with a dot or end with .lock", part)
 		}
 	}
 	for i, c := range branch {
@@ -41,7 +41,7 @@ func ValidateBranchName(branch string) error {
 		case c >= '0' && c <= '9':
 		case c == '-' || c == '_' || c == '.' || c == '/':
 		default:
-			return fmt.Errorf("branch name contains invalid character %q at position %d: only [a-zA-Z0-9._/-] are allowed", c, i)
+			return fmt.Errorf("branch name contains invalid character %q at position %d; only [a-zA-Z0-9._/-] are allowed", c, i)
 		}
 	}
 	return nil
