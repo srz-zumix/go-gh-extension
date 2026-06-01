@@ -212,6 +212,18 @@ func DeleteIssueComment(ctx context.Context, g *GitHubClient, repo repository.Re
 	return g.DeleteIssueComment(ctx, repo.Owner, repo.Name, commentID)
 }
 
+func GetIssueComment(ctx context.Context, g *GitHubClient, repo repository.Repository, comment any) (*github.IssueComment, error) {
+	commentID, err := GetCommentID(comment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse comment ID from '%v': %w", comment, err)
+	}
+	c, err := g.GetIssueComment(ctx, repo.Owner, repo.Name, commentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get issue comment %d in repository '%s/%s': %w", commentID, repo.Owner, repo.Name, err)
+	}
+	return c, nil
+}
+
 func EditIssueComment(ctx context.Context, g *GitHubClient, repo repository.Repository, comment any, body string) (*github.IssueComment, error) {
 	commentID, err := GetCommentID(comment)
 	if err != nil {

@@ -194,6 +194,14 @@ func (g *GitHubClient) GetPullRequestReviews(ctx context.Context, owner string, 
 	return allReviews, nil
 }
 
+func (g *GitHubClient) GetPullRequestComment(ctx context.Context, owner string, repo string, commentID int64) (*github.PullRequestComment, error) {
+	comment, _, err := g.client.PullRequests.GetComment(ctx, owner, repo, commentID)
+	if err != nil {
+		return nil, err
+	}
+	return comment, nil
+}
+
 func (g *GitHubClient) CreatePullRequestComment(ctx context.Context, owner string, repo string, number int, comment *github.PullRequestComment) (*github.PullRequestComment, error) {
 	comment, _, err := g.client.PullRequests.CreateComment(ctx, owner, repo, number, comment)
 	if err != nil {
