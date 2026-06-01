@@ -79,6 +79,14 @@ func (g *GitHubClient) DeleteIssueComment(ctx context.Context, owner string, rep
 	return nil
 }
 
+func (g *GitHubClient) GetIssueComment(ctx context.Context, owner string, repo string, commentID int64) (*github.IssueComment, error) {
+	comment, _, err := g.client.Issues.GetComment(ctx, owner, repo, commentID)
+	if err != nil {
+		return nil, err
+	}
+	return comment, nil
+}
+
 func (g *GitHubClient) EditIssueComment(ctx context.Context, owner string, repo string, commentID int64, body string) (*github.IssueComment, error) {
 	comment, _, err := g.client.Issues.EditComment(ctx, owner, repo, commentID, &github.IssueComment{Body: &body})
 	if err != nil {
