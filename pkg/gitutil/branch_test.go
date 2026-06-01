@@ -1,5 +1,4 @@
 package gitutil
-package gitutil
 
 import (
 	"testing"
