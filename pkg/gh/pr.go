@@ -392,7 +392,7 @@ func DeletePullRequestComment(ctx context.Context, g *GitHubClient, repo reposit
 func GetPullRequestComment(ctx context.Context, g *GitHubClient, repo repository.Repository, comment any) (*github.PullRequestComment, error) {
 	commentID, err := GetCommentID(comment)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse comment ID from '%s': %w", comment, err)
+		return nil, fmt.Errorf("failed to parse comment ID from '%v': %w", comment, err)
 	}
 	c, err := g.GetPullRequestComment(ctx, repo.Owner, repo.Name, commentID)
 	if err != nil {
