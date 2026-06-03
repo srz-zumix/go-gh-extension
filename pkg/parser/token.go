@@ -23,7 +23,7 @@ func ValidateTokenSecretName(name string) error {
 	name = strings.TrimSpace(name)
 	for _, prefix := range knownTokenPrefixes {
 		if strings.HasPrefix(name, prefix) {
-			return fmt.Errorf("expected a secret name (e.g. MY_SECRET), not a token value; got a value that looks like a %s token", prefix)
+			return fmt.Errorf("expected a secret name (e.g. MY_SECRET), not a token value; got a value that looks like a token with prefix %q", prefix)
 		}
 	}
 	return nil
