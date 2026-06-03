@@ -39,26 +39,15 @@ func GetCodeQualitySetup(ctx context.Context, g *GitHubClient, repo repository.R
 	return setup, nil
 }
 
-// UpdateCodeQualitySetupOptions holds the parameters for updating a code quality setup configuration.
-type UpdateCodeQualitySetupOptions struct {
-	State       string
-	RunnerType  string
-	RunnerLabel *string
-	Languages   []string
-}
+// UpdateCodeQualitySetupOptions is an alias for client.CodeQualitySetupUpdate.
+type UpdateCodeQualitySetupOptions = client.CodeQualitySetupUpdate
 
 // UpdateCodeQualitySetup updates the code quality setup configuration for a repository.
 func UpdateCodeQualitySetup(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *UpdateCodeQualitySetupOptions) error {
 	if opts == nil {
 		return fmt.Errorf("update code quality setup options must not be nil")
 	}
-	update := &client.CodeQualitySetupUpdate{
-		State:       opts.State,
-		RunnerType:  opts.RunnerType,
-		RunnerLabel: opts.RunnerLabel,
-		Languages:   opts.Languages,
-	}
-	err := g.UpdateCodeQualitySetup(ctx, repo.Owner, repo.Name, update)
+	err := g.UpdateCodeQualitySetup(ctx, repo.Owner, repo.Name, opts)
 	if err != nil {
 		return fmt.Errorf("failed to update code quality setup for %s/%s: %w", repo.Owner, repo.Name, err)
 	}
