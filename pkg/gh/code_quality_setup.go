@@ -49,6 +49,9 @@ type UpdateCodeQualitySetupOptions struct {
 
 // UpdateCodeQualitySetup updates the code quality setup configuration for a repository.
 func UpdateCodeQualitySetup(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *UpdateCodeQualitySetupOptions) error {
+	if opts == nil {
+		return fmt.Errorf("update code quality setup options must not be nil")
+	}
 	update := &client.CodeQualitySetupUpdate{
 		State:       opts.State,
 		RunnerType:  opts.RunnerType,
