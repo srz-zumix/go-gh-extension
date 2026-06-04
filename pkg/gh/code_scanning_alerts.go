@@ -111,8 +111,21 @@ func toGitHubCodeScanningAlertState(opts *UpdateCodeScanningAlertOptions) *githu
 	return s
 }
 
-// ListCodeScanningAlerts lists code scanning alerts for a repository.
+// ListOrgCodeScanningAlerts lists code scanning alerts for all repositories in an organization.
+func ListOrgCodeScanningAlerts(ctx context.Context, g *GitHubClient, owner string, opts *ListCodeScanningAlertsOptions) ([]*github.Alert, error) {
+	alerts, err := g.ListOrgCodeScanningAlerts(ctx, owner, toGitHubAlertListOptions(opts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list code scanning alerts for org %s: %w", owner, err)
+	}
+	return alerts, nil
+}
+
+// ListCodeScanningAlerts lists code scanning alerts for a repository or organization.
+// If repo.Name is empty, it lists alerts for the entire organization (repo.Owner).
 func ListCodeScanningAlerts(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ListCodeScanningAlertsOptions) ([]*github.Alert, error) {
+	if repo.Name == "" {
+		return ListOrgCodeScanningAlerts(ctx, g, repo.Owner, opts)
+	}
 	alerts, err := g.ListRepoCodeScanningAlerts(ctx, repo.Owner, repo.Name, toGitHubAlertListOptions(opts))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list code scanning alerts for %s/%s: %w", repo.Owner, repo.Name, err)

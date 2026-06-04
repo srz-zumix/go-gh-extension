@@ -126,8 +126,21 @@ func toGitHubDependabotAlertState(opts *UpdateDependabotAlertOptions) *github.De
 	return s
 }
 
-// ListDependabotAlerts lists Dependabot alerts for a repository.
+// ListOrgDependabotAlerts lists Dependabot alerts for all repositories in an organization.
+func ListOrgDependabotAlerts(ctx context.Context, g *GitHubClient, owner string, opts *ListDependabotAlertsOptions) ([]*github.DependabotAlert, error) {
+	alerts, err := g.ListOrgDependabotAlerts(ctx, owner, toGitHubListAlertsOptions(opts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list Dependabot alerts for org %s: %w", owner, err)
+	}
+	return alerts, nil
+}
+
+// ListDependabotAlerts lists Dependabot alerts for a repository or organization.
+// If repo.Name is empty, it lists alerts for the entire organization (repo.Owner).
 func ListDependabotAlerts(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ListDependabotAlertsOptions) ([]*github.DependabotAlert, error) {
+	if repo.Name == "" {
+		return ListOrgDependabotAlerts(ctx, g, repo.Owner, opts)
+	}
 	alerts, err := g.ListRepoDependabotAlerts(ctx, repo.Owner, repo.Name, toGitHubListAlertsOptions(opts))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Dependabot alerts for %s/%s: %w", repo.Owner, repo.Name, err)
