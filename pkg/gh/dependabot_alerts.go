@@ -127,10 +127,10 @@ func toGitHubDependabotAlertState(opts *UpdateDependabotAlertOptions) *github.De
 }
 
 // ListOrgDependabotAlerts lists Dependabot alerts for all repositories in an organization.
-func ListOrgDependabotAlerts(ctx context.Context, g *GitHubClient, owner string, opts *ListDependabotAlertsOptions) ([]*github.DependabotAlert, error) {
-	alerts, err := g.ListOrgDependabotAlerts(ctx, owner, toGitHubListAlertsOptions(opts))
+func ListOrgDependabotAlerts(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ListDependabotAlertsOptions) ([]*github.DependabotAlert, error) {
+	alerts, err := g.ListOrgDependabotAlerts(ctx, repo.Owner, toGitHubListAlertsOptions(opts))
 	if err != nil {
-		return nil, fmt.Errorf("failed to list Dependabot alerts for org %s: %w", owner, err)
+		return nil, fmt.Errorf("failed to list Dependabot alerts for org %s: %w", repo.Owner, err)
 	}
 	return alerts, nil
 }
@@ -139,7 +139,7 @@ func ListOrgDependabotAlerts(ctx context.Context, g *GitHubClient, owner string,
 // If repo.Name is empty, it lists alerts for the entire organization (repo.Owner).
 func ListDependabotAlerts(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ListDependabotAlertsOptions) ([]*github.DependabotAlert, error) {
 	if repo.Name == "" {
-		return ListOrgDependabotAlerts(ctx, g, repo.Owner, opts)
+		return ListOrgDependabotAlerts(ctx, g, repo, opts)
 	}
 	alerts, err := g.ListRepoDependabotAlerts(ctx, repo.Owner, repo.Name, toGitHubListAlertsOptions(opts))
 	if err != nil {
