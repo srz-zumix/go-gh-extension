@@ -19,13 +19,11 @@ func toClientCommitOptions(opts *CommitCodeScanningAutofixOptions) *client.CodeS
 	if opts == nil {
 		return nil
 	}
-	o := &client.CodeScanningAutofixCommitOptions{}
-	if opts.TargetRef != "" {
-		o.TargetRef = &opts.TargetRef
+	return &client.CodeScanningAutofixCommitOptions{
+		TargetRef: stringPtrIfSet(opts.TargetRef),
+		Message:   stringPtrIfSet(opts.Message),
 	}
-	if opts.Message != "" {
-		o.Message = &opts.Message
-	}
+}
 	return o
 }
 
