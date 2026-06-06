@@ -46,3 +46,26 @@ func (g *GitHubClient) UpdateRepoCodeScanningAlert(ctx context.Context, owner, r
 	}
 	return alert, nil
 }
+
+// ListOrgCodeScanningAlerts lists all code scanning alerts for an organization.
+func (g *GitHubClient) ListOrgCodeScanningAlerts(ctx context.Context, org string, opts *github.AlertListOptions) ([]*github.Alert, error) {
+	var allAlerts []*github.Alert
+	if opts == nil {
+		opts = &github.AlertListOptions{}
+	}
+	opts.ListOptions = github.ListOptions{PerPage: defaultPerPage}
+
+	for {
+		alerts, resp, err := g.client.CodeScanning.ListAlertsForOrg(ctx, org, opts)
+		if err != nil {
+			return nil, err
+		}
+		allAlerts = append(allAlerts, alerts...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.ListOptions.Page = resp.NextPage
+	}
+
+	return allAlerts, nil
+}
