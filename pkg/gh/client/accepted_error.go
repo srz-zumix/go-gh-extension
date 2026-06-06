@@ -24,8 +24,9 @@ func handleAcceptedError(err error, out any) error {
 
 	if out != nil && len(aerr.Raw) > 0 {
 		if jsonErr := json.Unmarshal(aerr.Raw, out); jsonErr != nil {
-			return fmt.Errorf("HTTP 202 accepted but failed to parse response body: %w", jsonErr)
+			return fmt.Errorf("accepted (http 202) but failed to parse response body: %w", jsonErr)
 		}
+	}
 	}
 
 	return nil
