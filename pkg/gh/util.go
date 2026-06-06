@@ -96,3 +96,11 @@ func IsHTTPUnprocessableEntity(err error) bool {
 	var errResp *github.ErrorResponse
 	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusUnprocessableEntity
 }
+
+// stringPtrIfSet returns a pointer to s if non-empty, otherwise nil.
+func stringPtrIfSet(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}

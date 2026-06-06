@@ -24,8 +24,6 @@ func toClientCommitOptions(opts *CommitCodeScanningAutofixOptions) *client.CodeS
 		Message:   stringPtrIfSet(opts.Message),
 	}
 }
-	return o
-}
 
 // GetCodeScanningAutofix gets the autofix status for a code scanning alert.
 func GetCodeScanningAutofix(ctx context.Context, g *GitHubClient, repo repository.Repository, alertNumber int64) (*client.CodeScanningAutofix, error) {

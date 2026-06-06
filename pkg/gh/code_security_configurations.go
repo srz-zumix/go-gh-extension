@@ -100,14 +100,6 @@ type CodeSecurityConfigurationOptions struct {
 	Enforcement                           string
 }
 
-// stringPtrIfSet returns a pointer to s if non-empty, otherwise nil.
-func stringPtrIfSet(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
-
 // toGitHubCodeSecurityConfiguration converts CodeSecurityConfigurationOptions to github.CodeSecurityConfiguration.
 func toGitHubCodeSecurityConfiguration(opts *CodeSecurityConfigurationOptions) github.CodeSecurityConfiguration {
 	if opts == nil {
