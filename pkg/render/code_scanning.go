@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v84/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
 // CodeScanningAlertFieldGetter defines a function to get a field value from a code scanning Alert.
@@ -314,6 +315,45 @@ func (r *Renderer) RenderSARIFID(sarifID *github.SarifID) error {
 
 	r.writeLine(fmt.Sprintf(labelFmt, "SARIF ID:", ToString(sarifID.ID)))
 	r.writeLine(fmt.Sprintf(labelFmt, "URL:", ToString(sarifID.URL)))
+
+	return nil
+}
+
+// RenderCodeScanningAutofix renders the status of a code scanning autofix.
+func (r *Renderer) RenderCodeScanningAutofix(autofix *client.CodeScanningAutofix) error {
+	if r.exporter != nil {
+		return r.RenderExportedData(autofix)
+	}
+	if autofix == nil {
+		return nil
+	}
+
+	const labelFmt = "%-12s %s"
+
+	r.writeLine(fmt.Sprintf(labelFmt, "Status:", autofix.Status))
+	if autofix.Description != nil {
+		r.writeLine(fmt.Sprintf(labelFmt, "Description:", *autofix.Description))
+	}
+	if autofix.StartedAt != nil {
+		r.writeLine(fmt.Sprintf(labelFmt, "Started At:", *autofix.StartedAt))
+	}
+
+	return nil
+}
+
+// RenderCodeScanningAutofixCommit renders the result of committing a code scanning autofix.
+func (r *Renderer) RenderCodeScanningAutofixCommit(commit *client.CodeScanningAutofixCommit) error {
+	if r.exporter != nil {
+		return r.RenderExportedData(commit)
+	}
+	if commit == nil {
+		return nil
+	}
+
+	const labelFmt = "%-12s %s"
+
+	r.writeLine(fmt.Sprintf(labelFmt, "Target Ref:", commit.TargetRef))
+	r.writeLine(fmt.Sprintf(labelFmt, "SHA:", commit.SHA))
 
 	return nil
 }
