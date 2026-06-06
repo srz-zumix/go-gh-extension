@@ -217,7 +217,6 @@ func handleAcceptedError(err error, out any) error {
 			return fmt.Errorf("http 202 accepted but failed to parse response body: %w", jsonErr)
 		}
 	}
-	}
 
 	return nil
 }
