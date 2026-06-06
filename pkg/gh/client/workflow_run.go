@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/google/go-github/v84/github"
@@ -189,16 +188,7 @@ func (g *GitHubClient) DeleteWorkflowRunLogs(ctx context.Context, owner string, 
 // handleWorkflowAcceptedError normalizes github.AcceptedError as a non-fatal success.
 // This helper keeps workflow cancellation behavior consistent across call sites.
 func handleWorkflowAcceptedError(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	var aerr *github.AcceptedError
-	if errors.As(err, &aerr) {
-		return nil
-	}
-
-	return err
+	return handleAcceptedError(err, nil)
 }
 
 // CancelWorkflowRunByID cancels a specific workflow run.

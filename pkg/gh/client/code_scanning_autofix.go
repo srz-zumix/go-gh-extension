@@ -40,7 +40,9 @@ func (g *GitHubClient) GetCodeScanningAutofix(ctx context.Context, owner, repo s
 }
 
 // CreateCodeScanningAutofix creates an autofix for a code scanning alert.
-// Returns the autofix status (200 if already exists, 202 if being generated).
+// HTTP 200 means an autofix already exists; HTTP 202 (github.AcceptedError) means
+// a new autofix is being generated. Both cases are treated as success and the
+// autofix status is returned. Callers can poll GetCodeScanningAutofix to track progress.
 func (g *GitHubClient) CreateCodeScanningAutofix(ctx context.Context, owner, repo string, alertNumber int64) (*CodeScanningAutofix, error) {
 	url := fmt.Sprintf("repos/%v/%v/code-scanning/alerts/%v/autofix", owner, repo, alertNumber)
 	req, err := g.client.NewRequest("POST", url, nil)
@@ -49,7 +51,9 @@ func (g *GitHubClient) CreateCodeScanningAutofix(ctx context.Context, owner, rep
 	}
 	autofix := new(CodeScanningAutofix)
 	_, err = g.client.Do(ctx, req, autofix)
-	if err != nil {
+	// HTTP 202: autofix is being generated asynchronously.
+	// go-github surfaces this as AcceptedError with the raw response body.
+	if err := handleAcceptedError(err, autofix); err != nil {
 		return nil, err
 	}
 	return autofix, nil
