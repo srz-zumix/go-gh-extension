@@ -11,7 +11,7 @@ var knownTokenPrefixes = []string{
 	"ghp_",        // classic personal access token
 	"github_pat_", // fine-grained personal access token
 	"gho_",        // OAuth app token
-	"ghs_",        // GitHub Actions token
+	"ghs_",        // GitHub Actions token and GitHub App installation token (stateless JWT format)
 	"ghr_",        // refresh token
 }
 
