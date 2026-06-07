@@ -92,9 +92,9 @@ func (r *Renderer) RenderDependencyGraphSnapshotResult(result *github.Dependency
 	if result.Result != nil {
 		res = *result.Result
 	}
-	fmt.Fprintf(r.IO.Out, "ID:         %d\n", result.ID)
-	fmt.Fprintf(r.IO.Out, "CreatedAt:  %s\n", createdAt)
-	fmt.Fprintf(r.IO.Out, "Result:     %s\n", res)
-	fmt.Fprintf(r.IO.Out, "Message:    %s\n", message)
+	r.WriteLine(fmt.Sprintf("ID:         %d", result.ID))
+	r.WriteLine(fmt.Sprintf("CreatedAt:  %s", createdAt))
+	r.WriteLine(fmt.Sprintf("Result:     %s", res))
+	r.WriteLine(fmt.Sprintf("Message:    %s", message))
 	return nil
 }
