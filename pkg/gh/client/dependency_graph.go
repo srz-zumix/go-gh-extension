@@ -40,8 +40,8 @@ type DependencyChange struct {
 
 // GetDependencyGraphDiff retrieves the dependency diff between two commits or branches using the dependency-graph/compare API.
 func (g *GitHubClient) GetDependencyGraphDiff(ctx context.Context, owner, repo, basehead string) ([]*DependencyChange, error) {
-	url := fmt.Sprintf("repos/%v/%v/dependency-graph/compare/%v", owner, repo, basehead)
-	req, err := g.client.NewRequest("GET", url, nil)
+	u := fmt.Sprintf("repos/%v/%v/dependency-graph/compare/%v", owner, repo, url.PathEscape(basehead))
+	req, err := g.client.NewRequest("GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
