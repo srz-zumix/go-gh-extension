@@ -8,6 +8,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v84/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
 // SBOMEcosystems is the list of valid SBOM package ecosystem prefixes
@@ -247,4 +248,22 @@ func ExcludeSBOMPackages(sbom *github.SBOM, ecosystems []string) *github.SBOM {
 		}
 	}
 	return copySBOMWithPackages(sbom, packages)
+}
+
+// GetRepositoryDependencyGraphDiff retrieves the dependency diff between two commits or branches.
+func GetRepositoryDependencyGraphDiff(ctx context.Context, g *GitHubClient, repo repository.Repository, basehead string) ([]*client.DependencyChange, error) {
+	changes, err := g.GetDependencyGraphDiff(ctx, repo.Owner, repo.Name, basehead)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get dependency diff for repository %s/%s: %w", repo.Owner, repo.Name, err)
+	}
+	return changes, nil
+}
+
+// CreateRepositoryDependencyGraphSnapshot creates a new snapshot of a repository's dependencies.
+func CreateRepositoryDependencyGraphSnapshot(ctx context.Context, g *GitHubClient, repo repository.Repository, snapshot *github.DependencyGraphSnapshot) (*github.DependencyGraphSnapshotCreationData, error) {
+	result, err := g.CreateDependencyGraphSnapshot(ctx, repo.Owner, repo.Name, snapshot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dependency snapshot for repository %s/%s: %w", repo.Owner, repo.Name, err)
+	}
+	return result, nil
 }
