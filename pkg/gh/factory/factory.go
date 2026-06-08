@@ -36,7 +36,7 @@ import (
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/cli/go-gh/v2/pkg/auth"
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
@@ -194,7 +194,6 @@ func NewGithubClient(opts ...Option) (*github.Client, error) {
 		c.HTTPClient = hc
 	}
 
-	v3c := github.NewClient(httpClient(c))
 	baseEndpoint, err := url.Parse(ep)
 	if err != nil {
 		return nil, err
@@ -202,14 +201,13 @@ func NewGithubClient(opts ...Option) (*github.Client, error) {
 	if !strings.HasSuffix(baseEndpoint.Path, "/") {
 		baseEndpoint.Path += "/"
 	}
-	v3c.BaseURL = baseEndpoint
+	baseURL := baseEndpoint.String()
 
+	var uploadURL *string
 	if c.Endpoint != "" {
 		if !strings.Contains(baseEndpoint.Host, defaultHost) {
-			v3c.UploadURL, err = url.Parse(fmt.Sprintf("https://%s/api/uploads/", baseEndpoint.Host))
-			if err != nil {
-				return nil, err
-			}
+			u := fmt.Sprintf("https://%s/api/uploads/", baseEndpoint.Host)
+			uploadURL = &u
 		}
 	} else {
 		uploadEndpoint, err := url.Parse(v3upload)
@@ -219,7 +217,13 @@ func NewGithubClient(opts ...Option) (*github.Client, error) {
 		if !strings.HasSuffix(uploadEndpoint.Path, "/") {
 			uploadEndpoint.Path += "/"
 		}
-		v3c.UploadURL = uploadEndpoint
+		u := uploadEndpoint.String()
+		uploadURL = &u
+	}
+
+	v3c, err := github.NewClient(github.WithHTTPClient(httpClient(c)), github.WithURLs(&baseURL, uploadURL))
+	if err != nil {
+		return nil, err
 	}
 
 	return v3c, nil
@@ -347,7 +351,6 @@ func detectInstallationID(c *Config, appID int64, privateKey []byte, ep string) 
 	}
 	atr.BaseURL = ep
 	hc := &http.Client{Transport: atr}
-	gc := github.NewClient(hc)
 	baseEndpoint, err := url.Parse(ep)
 	if err != nil {
 		return 0, err
@@ -355,10 +358,14 @@ func detectInstallationID(c *Config, appID int64, privateKey []byte, ep string) 
 	if !strings.HasSuffix(baseEndpoint.Path, "/") {
 		baseEndpoint.Path += "/"
 	}
-	gc.BaseURL = baseEndpoint
+	baseURL := baseEndpoint.String()
+	gc, err := github.NewClient(github.WithHTTPClient(hc), github.WithURLs(&baseURL, nil))
+	if err != nil {
+		return 0, err
+	}
 	ctx := context.Background()
 	if repo != "" {
-		i, _, err := gc.Apps.FindRepositoryInstallation(ctx, owner, repo)
+		i, _, err := gc.Apps.GetRepositoryInstallation(ctx, owner, repo)
 		if err != nil {
 			return 0, err
 		}

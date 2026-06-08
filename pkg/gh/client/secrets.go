@@ -6,7 +6,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // GetRepoPublicKey gets the public key for encrypting secrets in a repository.

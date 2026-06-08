@@ -8,7 +8,7 @@ import (
 
 	"slices"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // GitCmdEnv returns a git command environment that disables prompts and injects

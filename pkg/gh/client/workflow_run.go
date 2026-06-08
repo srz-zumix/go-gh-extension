@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // GetWorkflowByID retrieves a workflow definition by its numeric ID.
@@ -204,11 +204,11 @@ func (g *GitHubClient) CancelWorkflowRunByID(ctx context.Context, owner string, 
 // github.AcceptedError (HTTP 202) means the cancellation was accepted; treat as success.
 func (g *GitHubClient) ForceCancelWorkflowRunByID(ctx context.Context, owner string, repo string, runID int64) error {
 	u := fmt.Sprintf("repos/%v/%v/actions/runs/%v/force-cancel", owner, repo, runID)
-	req, err := g.client.NewRequest("POST", u, nil)
+	req, err := g.client.NewRequest(ctx, "POST", u, nil)
 	if err != nil {
 		return err
 	}
-	_, err = g.client.Do(ctx, req, nil)
+	_, err = g.client.Do(req, nil)
 	return handleWorkflowAcceptedError(err)
 }
 

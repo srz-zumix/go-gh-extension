@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // ListOrgRepositorySecurityAdvisories lists all repository security advisories for an organization.
@@ -52,12 +52,12 @@ func (g *GitHubClient) ListRepoSecurityAdvisories(ctx context.Context, owner, re
 // GetRepositorySecurityAdvisory gets a repository security advisory by GHSA ID.
 func (g *GitHubClient) GetRepositorySecurityAdvisory(ctx context.Context, owner, repo, ghsaID string) (*github.SecurityAdvisory, error) {
 	url := fmt.Sprintf("repos/%v/%v/security-advisories/%v", owner, repo, ghsaID)
-	req, err := g.client.NewRequest("GET", url, nil)
+	req, err := g.client.NewRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 	advisory := new(github.SecurityAdvisory)
-	_, err = g.client.Do(ctx, req, advisory)
+	_, err = g.client.Do(req, advisory)
 	if err != nil {
 		return nil, err
 	}
@@ -79,12 +79,12 @@ type RepositorySecurityAdvisoryUpdateOptions struct {
 // UpdateRepositorySecurityAdvisory updates a repository security advisory by GHSA ID.
 func (g *GitHubClient) UpdateRepositorySecurityAdvisory(ctx context.Context, owner, repo, ghsaID string, opts *RepositorySecurityAdvisoryUpdateOptions) (*github.SecurityAdvisory, error) {
 	url := fmt.Sprintf("repos/%v/%v/security-advisories/%v", owner, repo, ghsaID)
-	req, err := g.client.NewRequest("PATCH", url, opts)
+	req, err := g.client.NewRequest(ctx, "PATCH", url, opts)
 	if err != nil {
 		return nil, err
 	}
 	advisory := new(github.SecurityAdvisory)
-	_, err = g.client.Do(ctx, req, advisory)
+	_, err = g.client.Do(req, advisory)
 	if err != nil {
 		return nil, err
 	}

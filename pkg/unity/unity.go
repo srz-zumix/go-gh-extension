@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
@@ -26,6 +26,7 @@ type UnityManifest struct {
 //   - for standard dependencies, it is the version string from manifest.json
 //   - for URL dependencies with a fragment, it is the fragment part after '#'
 //   - for file: dependencies or URL dependencies without a fragment, it is empty
+//
 // Path is set to the local path when the manifest value starts with "file:".
 // URL is set when the manifest value is recognized as a URL; for values with a
 // fragment, URL stores the base URL without the fragment.

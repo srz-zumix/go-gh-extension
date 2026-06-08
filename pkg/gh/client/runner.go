@@ -1,12 +1,12 @@
 package client
 
 // GitHub Actions Runner API functions
-// See: https://pkg.go.dev/github.com/google/go-github/v84/github#ActionsService
+// See: https://pkg.go.dev/github.com/google/go-github/v88/github#ActionsService
 
 import (
 	"context"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // ListRunners lists all self-hosted runners for a repository

@@ -7,9 +7,11 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
+
+type DependencyGraphSnapshot = github.DependencyGraphSnapshot
 
 // SBOMEcosystems is the list of valid SBOM package ecosystem prefixes
 // as used by the GitHub Dependency Graph API (e.g. "npm:package-name").

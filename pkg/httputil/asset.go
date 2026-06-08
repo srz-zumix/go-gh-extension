@@ -406,7 +406,7 @@ func ParseTotalFromContentRange(cr string) int64 {
 
 // FilenameFromContentDisposition parses the filename from a Content-Disposition header value.
 // It handles both the plain ASCII form (filename="foo.png") and the RFC 5987 extended
-// form (filename*=UTF-8''foo%20bar.png).
+// form (filename*=UTF-8”foo%20bar.png).
 func FilenameFromContentDisposition(header string) string {
 	if header == "" {
 		return ""

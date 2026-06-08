@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,13 +43,17 @@ func (s *stubWrappingTransport) Unwrap() http.RoundTripper {
 // newTestClient builds a *GitHubClient with its REST BaseURL set to baseURL.
 func newTestClient(t *testing.T, baseURL string, transport http.RoundTripper) *GitHubClient {
 	t.Helper()
-	gc := github.NewClient(&http.Client{Transport: transport})
 	parsed, err := url.Parse(baseURL)
 	require.NoError(t, err)
 	if parsed.Path == "" || parsed.Path[len(parsed.Path)-1] != '/' {
 		parsed.Path += "/"
 	}
-	gc.BaseURL = parsed
+	base := parsed.String()
+	gc, err := github.NewClient(
+		github.WithHTTPClient(&http.Client{Transport: transport}),
+		github.WithURLs(&base, nil),
+	)
+	require.NoError(t, err)
 	g, err := NewClient(gc)
 	require.NoError(t, err)
 	return g
@@ -174,13 +178,15 @@ func TestBasicAuthHTTPClient_PreservesClientSettings(t *testing.T) {
 	const wantTimeout = 42 * time.Second
 
 	// Build a GitHubClient whose underlying http.Client has a custom Timeout.
-	gc := github.NewClient(&http.Client{
-		Transport: http.DefaultTransport,
-		Timeout:   wantTimeout,
-	})
-	parsed, err := url.Parse("https://api.github.com/")
+	base := "https://api.github.com/"
+	gc, err := github.NewClient(
+		github.WithHTTPClient(&http.Client{
+			Transport: http.DefaultTransport,
+			Timeout:   wantTimeout,
+		}),
+		github.WithURLs(&base, nil),
+	)
 	require.NoError(t, err)
-	gc.BaseURL = parsed
 	g, err := NewClient(gc)
 	require.NoError(t, err)
 

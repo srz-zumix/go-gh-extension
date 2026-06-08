@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // RuleSuite represents a rule suite evaluation
@@ -73,13 +73,13 @@ func (g *GitHubClient) ListRepositoryRuleSuites(ctx context.Context, owner strin
 			return nil, err
 		}
 
-		req, err := g.client.NewRequest("GET", u, nil)
+		req, err := g.client.NewRequest(ctx, "GET", u, nil)
 		if err != nil {
 			return nil, err
 		}
 
 		var ruleSuites []*RuleSuite
-		resp, err := g.client.Do(ctx, req, &ruleSuites)
+		resp, err := g.client.Do(req, &ruleSuites)
 		if err != nil {
 			return nil, err
 		}
@@ -99,13 +99,13 @@ func (g *GitHubClient) ListRepositoryRuleSuites(ctx context.Context, owner strin
 func (g *GitHubClient) GetRepositoryRuleSuite(ctx context.Context, owner string, repo string, ruleSuiteID int64) (*RuleSuite, error) {
 	u := fmt.Sprintf("repos/%s/%s/rulesets/rule-suites/%d", owner, repo, ruleSuiteID)
 
-	req, err := g.client.NewRequest("GET", u, nil)
+	req, err := g.client.NewRequest(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var ruleSuite *RuleSuite
-	_, err = g.client.Do(ctx, req, &ruleSuite)
+	_, err = g.client.Do(req, &ruleSuite)
 	if err != nil {
 		return nil, err
 	}
@@ -135,13 +135,13 @@ func (g *GitHubClient) ListOrgRuleSuites(ctx context.Context, org string, opts *
 			return nil, err
 		}
 
-		req, err := g.client.NewRequest("GET", u, nil)
+		req, err := g.client.NewRequest(ctx, "GET", u, nil)
 		if err != nil {
 			return nil, err
 		}
 
 		var ruleSuites []*RuleSuite
-		resp, err := g.client.Do(ctx, req, &ruleSuites)
+		resp, err := g.client.Do(req, &ruleSuites)
 		if err != nil {
 			return nil, err
 		}
@@ -161,13 +161,13 @@ func (g *GitHubClient) ListOrgRuleSuites(ctx context.Context, org string, opts *
 func (g *GitHubClient) GetOrgRuleSuite(ctx context.Context, org string, ruleSuiteID int64) (*RuleSuite, error) {
 	u := fmt.Sprintf("orgs/%s/rulesets/rule-suites/%d", org, ruleSuiteID)
 
-	req, err := g.client.NewRequest("GET", u, nil)
+	req, err := g.client.NewRequest(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var ruleSuite *RuleSuite
-	_, err = g.client.Do(ctx, req, &ruleSuite)
+	_, err = g.client.Do(req, &ruleSuite)
 	if err != nil {
 		return nil, err
 	}

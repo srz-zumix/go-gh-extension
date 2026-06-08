@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 func (g *GitHubClient) SearchIssues(ctx context.Context, query string) ([]*github.Issue, error) {

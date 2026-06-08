@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
-// CustomOrgRoles is an alias for github.CustomOrgRoles, exposed so callers do not need to import the upstream package directly.
-type CustomOrgRoles = github.CustomOrgRoles
+// CustomOrgRoles is an alias for github.CustomOrgRole, exposed so callers do not need to import the upstream package directly.
+type CustomOrgRoles = github.CustomOrgRole
 
 // ListOrgRoles retrieves all roles available in the specified organization.
 func ListOrgRoles(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*CustomOrgRoles, error) {
@@ -30,7 +30,7 @@ func ListOrgRolesBySource(ctx context.Context, g *GitHubClient, repo repository.
 	if len(sources) == 0 {
 		return all, nil
 	}
-	var filtered []*github.CustomOrgRoles
+	var filtered []*github.CustomOrgRole
 	for _, role := range all {
 		for _, s := range sources {
 			if role.GetSource() == s {
@@ -126,22 +126,26 @@ func CreateOrUpdateOrgRole(ctx context.Context, g *GitHubClient, repo repository
 	if err != nil {
 		return nil, fmt.Errorf("failed to list org roles in organization '%s': %w", repo.Owner, err)
 	}
-	opts := &github.CreateOrUpdateOrgRoleOptions{
-		Name:        github.Ptr(name),
-		Description: github.Ptr(description),
-		BaseRole:    github.Ptr(baseRole),
-		Permissions: permissions,
-	}
 	for _, r := range existing {
 		if r.ID != nil && r.GetName() == name {
-			updated, err := g.UpdateCustomOrgRole(ctx, repo.Owner, r.GetID(), opts)
+			updated, err := g.UpdateCustomOrgRole(ctx, repo.Owner, r.GetID(), github.UpdateCustomOrgRoleRequest{
+				Name:        github.Ptr(name),
+				Description: github.Ptr(description),
+				BaseRole:    github.Ptr(baseRole),
+				Permissions: permissions,
+			})
 			if err != nil {
 				return nil, fmt.Errorf("failed to update org role '%s' in organization '%s': %w", name, repo.Owner, err)
 			}
 			return updated, nil
 		}
 	}
-	created, err := g.CreateCustomOrgRole(ctx, repo.Owner, opts)
+	created, err := g.CreateCustomOrgRole(ctx, repo.Owner, github.CreateCustomOrgRoleRequest{
+		Name:        name,
+		Description: github.Ptr(description),
+		BaseRole:    github.Ptr(baseRole),
+		Permissions: permissions,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org role '%s' in organization '%s': %w", name, repo.Owner, err)
 	}

@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // DependabotRepositoryAccess represents the response from the Dependabot repository access endpoint.
@@ -26,13 +26,13 @@ type DependabotDefaultLevel struct {
 // ListOrgDependabotRepositoryAccess lists repositories that organization admins have allowed Dependabot to access.
 func (g *GitHubClient) ListOrgDependabotRepositoryAccess(ctx context.Context, org string) (*DependabotRepositoryAccess, error) {
 	u := "orgs/" + org + "/dependabot/repository-access"
-	req, err := g.client.NewRequest("GET", u, nil)
+	req, err := g.client.NewRequest(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	result := new(DependabotRepositoryAccess)
-	_, err = g.client.Do(ctx, req, result)
+	_, err = g.client.Do(req, result)
 	if err != nil {
 		return nil, err
 	}
@@ -43,12 +43,12 @@ func (g *GitHubClient) ListOrgDependabotRepositoryAccess(ctx context.Context, or
 // UpdateOrgDependabotRepositoryAccess updates the repository access list for Dependabot in an organization.
 func (g *GitHubClient) UpdateOrgDependabotRepositoryAccess(ctx context.Context, org string, update *DependabotRepositoryAccessUpdate) error {
 	u := "orgs/" + org + "/dependabot/repository-access"
-	req, err := g.client.NewRequest("PATCH", u, update)
+	req, err := g.client.NewRequest(ctx, "PATCH", u, update)
 	if err != nil {
 		return err
 	}
 
-	_, err = g.client.Do(ctx, req, nil)
+	_, err = g.client.Do(req, nil)
 	return err
 }
 
@@ -56,11 +56,11 @@ func (g *GitHubClient) UpdateOrgDependabotRepositoryAccess(ctx context.Context, 
 func (g *GitHubClient) SetOrgDependabotDefaultLevel(ctx context.Context, org string, level string) error {
 	u := "orgs/" + org + "/dependabot/repository-access/default-level"
 	body := &DependabotDefaultLevel{DefaultLevel: level}
-	req, err := g.client.NewRequest("PUT", u, body)
+	req, err := g.client.NewRequest(ctx, "PUT", u, body)
 	if err != nil {
 		return err
 	}
 
-	_, err = g.client.Do(ctx, req, nil)
+	_, err = g.client.Do(req, nil)
 	return err
 }

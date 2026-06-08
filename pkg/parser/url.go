@@ -285,7 +285,7 @@ func ParseTeamURL(input string) (*TeamURL, error) {
 
 // ProjectURL represents a parsed GitHub Project URL.
 type ProjectURL struct {
-	Url    *url.URL
+	Url *url.URL
 	// Repo holds the host, owner, and (for repository-scoped classic projects) repo name.
 	Repo   *repository.Repository
 	Number *int

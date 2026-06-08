@@ -10,7 +10,7 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 	"github.com/google/go-querystring/query"
 	"github.com/shurcooL/githubv4"
 )
@@ -143,10 +143,19 @@ func (g *GitHubClient) GitAuthEnvs(rawURL string) []string {
 	}
 }
 
+// baseURLHost returns the host of the client's REST API base URL.
+func (g *GitHubClient) baseURLHost() string {
+	u, err := url.Parse(g.client.BaseURL())
+	if err != nil {
+		return ""
+	}
+	return u.Host
+}
+
 // Host returns the GitHub hostname for this client.
 // For github.com, returns "github.com". For GitHub Enterprise Server, returns the GHES hostname.
 func (g *GitHubClient) Host() string {
-	host := g.client.BaseURL.Host
+	host := g.baseURLHost()
 	if host == "api.github.com" {
 		return "github.com"
 	}
@@ -157,7 +166,7 @@ func (g *GitHubClient) Host() string {
 // It uses GITHUB_GRAPHQL_URL env var when targeting github.com, and
 // derives the GHES endpoint from the REST API base URL otherwise.
 func (g *GitHubClient) v4EndpointURL() string {
-	host := g.client.BaseURL.Host
+	host := g.baseURLHost()
 	if host != "api.github.com" {
 		return fmt.Sprintf("https://%s/api/graphql", host)
 	}

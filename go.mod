@@ -9,7 +9,6 @@ require (
 	github.com/cli/shurcooL-graphql v0.0.4
 	github.com/ddddddO/gtree v1.13.6
 	github.com/fatih/color v1.19.0
-	github.com/google/go-github/v84 v84.0.0
 	github.com/google/go-querystring v1.2.0
 	github.com/olekukonko/tablewriter v1.1.4
 	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
@@ -50,6 +49,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
+	github.com/google/go-github/v84 v84.0.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/henvic/httpretty v0.1.4 // indirect
@@ -95,5 +95,6 @@ require (
 require (
 	github.com/cli/cli/v2 v2.93.0
 	github.com/cli/safeexec v1.0.1 // indirect
+	github.com/google/go-github/v88 v88.0.0
 	gopkg.in/yaml.v3 v3.0.1
 )

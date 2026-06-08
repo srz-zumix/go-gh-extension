@@ -3,7 +3,7 @@ package gh
 import (
 	"context"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 func GetMeta(ctx context.Context, g *GitHubClient) (*github.APIMeta, error) {
