@@ -2,9 +2,8 @@ package client
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 func (g *GitHubClient) GetOrg(ctx context.Context, org string) (*github.Organization, error) {
@@ -163,59 +162,35 @@ func (g *GitHubClient) RemoveOrgRoleFromUser(ctx context.Context, org string, us
 }
 
 // CreateCustomOrgRole creates a new custom organization role.
-func (g *GitHubClient) CreateCustomOrgRole(ctx context.Context, org string, opts *github.CreateOrUpdateOrgRoleOptions) (*github.CustomOrgRoles, error) {
-	role, _, err := g.client.Organizations.CreateCustomOrgRole(ctx, org, opts)
+func (g *GitHubClient) CreateCustomOrgRole(ctx context.Context, org string, request github.CreateCustomOrgRoleRequest) (*github.CustomOrgRole, error) {
+	role, _, err := g.client.Organizations.CreateCustomOrgRole(ctx, org, request)
 	return role, err
 }
 
 // UpdateCustomOrgRole updates an existing custom organization role by ID.
-func (g *GitHubClient) UpdateCustomOrgRole(ctx context.Context, org string, roleID int64, opts *github.CreateOrUpdateOrgRoleOptions) (*github.CustomOrgRoles, error) {
-	role, _, err := g.client.Organizations.UpdateCustomOrgRole(ctx, org, roleID, opts)
+func (g *GitHubClient) UpdateCustomOrgRole(ctx context.Context, org string, roleID int64, request github.UpdateCustomOrgRoleRequest) (*github.CustomOrgRole, error) {
+	role, _, err := g.client.Organizations.UpdateCustomOrgRole(ctx, org, roleID, request)
 	return role, err
 }
 
-// orgDeployKeysInput is the request body for enabling/disabling deploy keys at the org level.
-// go-github's Organization struct does not expose deploy_keys_enabled_for_repositories,
-// so we use a raw PATCH request.
-type orgDeployKeysInput struct {
-	DeployKeysEnabledForRepositories bool `json:"deploy_keys_enabled_for_repositories"`
-}
-
 // SetOrgDeployKeysEnabled enables or disables the ability to use deploy keys across
-// all repositories in the organization via PATCH /orgs/{org}.
-// Note: The returned *github.Organization does not expose deploy_keys_enabled_for_repositories.
-// To read back the current value of this setting, use GetOrgDeployKeysEnabled.
+// all repositories in the organization. The deploy_keys_enabled_for_repositories
+// field is natively supported by go-github (Organization struct + Organizations.Edit).
 func (g *GitHubClient) SetOrgDeployKeysEnabled(ctx context.Context, org string, enabled bool) (*github.Organization, error) {
-	u := fmt.Sprintf("orgs/%v", org)
-	req, err := g.client.NewRequest("PATCH", u, &orgDeployKeysInput{DeployKeysEnabledForRepositories: enabled})
-	if err != nil {
-		return nil, err
-	}
-	result := new(github.Organization)
-	_, err = g.client.Do(ctx, req, result)
+	result, _, err := g.client.Organizations.Edit(ctx, org, &github.Organization{
+		DeployKeysEnabledForRepositories: github.Ptr(enabled),
+	})
 	if err != nil {
 		return nil, err
 	}
 	return result, nil
 }
 
-// orgDeployKeysResponse is the response body subset for reading deploy_keys_enabled_for_repositories.
-type orgDeployKeysResponse struct {
-	DeployKeysEnabledForRepositories bool `json:"deploy_keys_enabled_for_repositories"`
-}
-
 // GetOrgDeployKeysEnabled returns whether deploy keys are enabled for repositories in the organization.
-// go-github's Organization struct does not expose this field, so a raw GET request is used.
 func (g *GitHubClient) GetOrgDeployKeysEnabled(ctx context.Context, org string) (bool, error) {
-	u := fmt.Sprintf("orgs/%v", org)
-	req, err := g.client.NewRequest("GET", u, nil)
+	result, _, err := g.client.Organizations.Get(ctx, org)
 	if err != nil {
 		return false, err
 	}
-	result := new(orgDeployKeysResponse)
-	_, err = g.client.Do(ctx, req, result)
-	if err != nil {
-		return false, err
-	}
-	return result.DeployKeysEnabledForRepositories, nil
+	return result.GetDeployKeysEnabledForRepositories(), nil
 }

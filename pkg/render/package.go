@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // PackageFields is the list of available field names for package rendering.

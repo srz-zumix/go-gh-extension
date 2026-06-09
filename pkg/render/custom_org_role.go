@@ -3,13 +3,13 @@ package render
 import (
 	"strings"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // CustomOrgRoleFieldList is the list of valid field names for custom organization role display.
 var CustomOrgRoleFieldList = []string{"ID", "NAME", "DESCRIPTION", "BASE_ROLE", "SOURCE", "PERMISSIONS", "CREATED_AT", "UPDATED_AT"}
 
-type customOrgRoleFieldGetter func(r *github.CustomOrgRoles) string
+type customOrgRoleFieldGetter func(r *github.CustomOrgRole) string
 type customOrgRoleFieldGetters struct {
 	Func map[string]customOrgRoleFieldGetter
 }
@@ -18,35 +18,35 @@ type customOrgRoleFieldGetters struct {
 func NewCustomOrgRoleFieldGetters() *customOrgRoleFieldGetters {
 	return &customOrgRoleFieldGetters{
 		Func: map[string]customOrgRoleFieldGetter{
-			"ID": func(r *github.CustomOrgRoles) string {
+			"ID": func(r *github.CustomOrgRole) string {
 				return ToString(r.ID)
 			},
-			"NAME": func(r *github.CustomOrgRoles) string {
+			"NAME": func(r *github.CustomOrgRole) string {
 				return ToString(r.Name)
 			},
-			"DESCRIPTION": func(r *github.CustomOrgRoles) string {
+			"DESCRIPTION": func(r *github.CustomOrgRole) string {
 				return ToString(r.Description)
 			},
-			"BASE_ROLE": func(r *github.CustomOrgRoles) string {
+			"BASE_ROLE": func(r *github.CustomOrgRole) string {
 				return ToString(r.BaseRole)
 			},
-			"SOURCE": func(r *github.CustomOrgRoles) string {
+			"SOURCE": func(r *github.CustomOrgRole) string {
 				return ToString(r.Source)
 			},
-			"PERMISSIONS": func(r *github.CustomOrgRoles) string {
+			"PERMISSIONS": func(r *github.CustomOrgRole) string {
 				return strings.Join(r.Permissions, ",")
 			},
-			"CREATED_AT": func(r *github.CustomOrgRoles) string {
+			"CREATED_AT": func(r *github.CustomOrgRole) string {
 				return ToString(r.CreatedAt)
 			},
-			"UPDATED_AT": func(r *github.CustomOrgRoles) string {
+			"UPDATED_AT": func(r *github.CustomOrgRole) string {
 				return ToString(r.UpdatedAt)
 			},
 		},
 	}
 }
 
-func (g *customOrgRoleFieldGetters) GetField(r *github.CustomOrgRoles, field string) string {
+func (g *customOrgRoleFieldGetters) GetField(r *github.CustomOrgRole, field string) string {
 	field = strings.ToUpper(field)
 	if getter, ok := g.Func[field]; ok {
 		return getter(r)
@@ -55,7 +55,7 @@ func (g *customOrgRoleFieldGetters) GetField(r *github.CustomOrgRoles, field str
 }
 
 // RenderCustomOrgRoles renders a list of custom organization roles as a table with the given headers.
-func (r *Renderer) RenderCustomOrgRoles(roles []*github.CustomOrgRoles, headers []string) error {
+func (r *Renderer) RenderCustomOrgRoles(roles []*github.CustomOrgRole, headers []string) error {
 	if r.exporter != nil {
 		return r.RenderExportedData(roles)
 	}

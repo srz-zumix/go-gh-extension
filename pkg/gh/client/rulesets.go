@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // ListRepositoryRulesets retrieves all rulesets for a specific repository
@@ -79,7 +79,7 @@ func (g *GitHubClient) ListOrgRulesets(ctx context.Context, org string) ([]*gith
 	}
 
 	for {
-		rulesets, resp, err := g.client.Organizations.GetAllRepositoryRulesets(ctx, org, opt)
+		rulesets, resp, err := g.client.Organizations.ListAllRepositoryRulesets(ctx, org, opt)
 		if err != nil {
 			return nil, err
 		}

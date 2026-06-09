@@ -3,7 +3,7 @@ package render
 import (
 	"fmt"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // RenderSecretScanningPatternConfigs renders secret scanning pattern configurations as a table.
@@ -164,5 +164,3 @@ func (r *Renderer) RenderSecretScanningScanHistory(history *github.SecretScannin
 	}
 	return table.Render()
 }
-
-

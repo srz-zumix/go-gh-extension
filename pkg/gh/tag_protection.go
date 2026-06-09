@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // ListTagProtections retrieves all tag protection settings for the repository.

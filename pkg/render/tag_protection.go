@@ -3,7 +3,7 @@ package render
 import (
 	"fmt"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // RenderTagProtections renders a list of tag protections in a table format.

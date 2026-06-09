@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 	"github.com/srz-zumix/go-gh-extension/pkg/unity"
@@ -33,7 +33,7 @@ func TestGetObjectName(t *testing.T) {
 		},
 		{
 			name:     "CustomOrgRoles",
-			item:     &github.CustomOrgRoles{Name: github.Ptr("role-name")},
+			item:     &github.CustomOrgRole{Name: github.Ptr("role-name")},
 			expected: "role-name",
 		},
 		{
@@ -164,7 +164,7 @@ func TestGetObjectNames(t *testing.T) {
 		},
 		{
 			name: "CustomOrgRoles",
-			items: []*github.CustomOrgRoles{
+			items: []*github.CustomOrgRole{
 				{Name: github.Ptr("role1")},
 				{Name: github.Ptr("role2")},
 			},

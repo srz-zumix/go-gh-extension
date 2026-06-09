@@ -25,13 +25,13 @@ type CodeQualitySetupUpdate struct {
 // GetCodeQualitySetup gets the code quality setup configuration for a repository.
 func (g *GitHubClient) GetCodeQualitySetup(ctx context.Context, owner, repo string) (*CodeQualitySetup, error) {
 	u := "repos/" + owner + "/" + repo + "/code-quality/setup"
-	req, err := g.client.NewRequest("GET", u, nil)
+	req, err := g.client.NewRequest(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	result := new(CodeQualitySetup)
-	_, err = g.client.Do(ctx, req, result)
+	_, err = g.client.Do(req, result)
 	if err != nil {
 		return nil, err
 	}
@@ -42,11 +42,11 @@ func (g *GitHubClient) GetCodeQualitySetup(ctx context.Context, owner, repo stri
 // UpdateCodeQualitySetup updates the code quality setup configuration for a repository.
 func (g *GitHubClient) UpdateCodeQualitySetup(ctx context.Context, owner, repo string, update *CodeQualitySetupUpdate) error {
 	u := "repos/" + owner + "/" + repo + "/code-quality/setup"
-	req, err := g.client.NewRequest("PATCH", u, update)
+	req, err := g.client.NewRequest(ctx, "PATCH", u, update)
 	if err != nil {
 		return err
 	}
 
-	_, err = g.client.Do(ctx, req, nil)
+	_, err = g.client.Do(req, nil)
 	return err
 }

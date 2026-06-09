@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,13 +35,17 @@ func (s stubTokenRoundTripper) Token() string {
 // newGHTestClient creates a *GitHubClient with the given token and base URL for use in pkg/gh tests.
 func newGHTestClient(t *testing.T, baseURL, token string) *GitHubClient {
 	t.Helper()
-	gc := github.NewClient(&http.Client{Transport: stubTokenRoundTripper{token: token}})
 	parsed, err := url.Parse(baseURL)
 	require.NoError(t, err)
 	if parsed.Path == "" || parsed.Path[len(parsed.Path)-1] != '/' {
 		parsed.Path += "/"
 	}
-	gc.BaseURL = parsed
+	base := parsed.String()
+	gc, err := github.NewClient(
+		github.WithHTTPClient(&http.Client{Transport: stubTokenRoundTripper{token: token}}),
+		github.WithURLs(&base, nil),
+	)
+	require.NoError(t, err)
 	g, err := client.NewClient(gc)
 	require.NoError(t, err)
 	return g

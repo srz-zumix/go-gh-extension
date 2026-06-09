@@ -7,7 +7,7 @@ import (
 	"slices"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // GitHubUser is an alias for github.User, exposed so callers do not need to import the upstream package directly.

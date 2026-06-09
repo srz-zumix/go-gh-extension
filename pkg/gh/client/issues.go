@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -169,4 +169,3 @@ func (g *GitHubClient) MinimizeComment(ctx context.Context, nodeID string, class
 
 	return graphql.Mutate(ctx, &mutation, input, nil)
 }
-

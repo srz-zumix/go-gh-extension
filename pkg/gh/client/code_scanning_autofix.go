@@ -27,12 +27,12 @@ type CodeScanningAutofixCommit struct {
 // GetCodeScanningAutofix gets the status and description of an autofix for a code scanning alert.
 func (g *GitHubClient) GetCodeScanningAutofix(ctx context.Context, owner, repo string, alertNumber int64) (*CodeScanningAutofix, error) {
 	url := fmt.Sprintf("repos/%v/%v/code-scanning/alerts/%v/autofix", owner, repo, alertNumber)
-	req, err := g.client.NewRequest("GET", url, nil)
+	req, err := g.client.NewRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 	autofix := new(CodeScanningAutofix)
-	_, err = g.client.Do(ctx, req, autofix)
+	_, err = g.client.Do(req, autofix)
 	if err != nil {
 		return nil, err
 	}
@@ -45,12 +45,12 @@ func (g *GitHubClient) GetCodeScanningAutofix(ctx context.Context, owner, repo s
 // autofix status is returned. Callers can poll GetCodeScanningAutofix to track progress.
 func (g *GitHubClient) CreateCodeScanningAutofix(ctx context.Context, owner, repo string, alertNumber int64) (*CodeScanningAutofix, error) {
 	url := fmt.Sprintf("repos/%v/%v/code-scanning/alerts/%v/autofix", owner, repo, alertNumber)
-	req, err := g.client.NewRequest("POST", url, nil)
+	req, err := g.client.NewRequest(ctx, "POST", url, nil)
 	if err != nil {
 		return nil, err
 	}
 	autofix := new(CodeScanningAutofix)
-	_, err = g.client.Do(ctx, req, autofix)
+	_, err = g.client.Do(req, autofix)
 	// HTTP 202: autofix is being generated asynchronously.
 	// go-github surfaces this as AcceptedError with the raw response body.
 	if err := handleAcceptedError(err, autofix); err != nil {
@@ -62,12 +62,12 @@ func (g *GitHubClient) CreateCodeScanningAutofix(ctx context.Context, owner, rep
 // CommitCodeScanningAutofix commits an autofix for a code scanning alert.
 func (g *GitHubClient) CommitCodeScanningAutofix(ctx context.Context, owner, repo string, alertNumber int64, opts *CodeScanningAutofixCommitOptions) (*CodeScanningAutofixCommit, error) {
 	url := fmt.Sprintf("repos/%v/%v/code-scanning/alerts/%v/autofix/commits", owner, repo, alertNumber)
-	req, err := g.client.NewRequest("POST", url, opts)
+	req, err := g.client.NewRequest(ctx, "POST", url, opts)
 	if err != nil {
 		return nil, err
 	}
 	commit := new(CodeScanningAutofixCommit)
-	_, err = g.client.Do(ctx, req, commit)
+	_, err = g.client.Do(req, commit)
 	if err != nil {
 		return nil, err
 	}

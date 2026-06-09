@@ -83,13 +83,13 @@ func (g *GitHubClient) listProjectsV1(ctx context.Context, basePath string) ([]P
 	page := 1
 	for {
 		u := fmt.Sprintf("%s?state=all&per_page=%d&page=%d", basePath, defaultPerPage, page)
-		req, err := g.client.NewRequest("GET", u, nil)
+		req, err := g.client.NewRequest(ctx, "GET", u, nil)
 		if err != nil {
 			return nil, err
 		}
 		setInertiaPreview(req)
 		var projects []ProjectV1
-		resp, err := g.client.Do(ctx, req, &projects)
+		resp, err := g.client.Do(req, &projects)
 		if err != nil {
 			if resp != nil && resp.StatusCode == 404 {
 				return nil, nil
@@ -111,13 +111,13 @@ func (g *GitHubClient) ListProjectV1Columns(ctx context.Context, projectID int64
 	page := 1
 	for {
 		u := fmt.Sprintf("projects/%d/columns?per_page=%d&page=%d", projectID, defaultPerPage, page)
-		req, err := g.client.NewRequest("GET", u, nil)
+		req, err := g.client.NewRequest(ctx, "GET", u, nil)
 		if err != nil {
 			return nil, err
 		}
 		setInertiaPreview(req)
 		var columns []ProjectV1Column
-		resp, err := g.client.Do(ctx, req, &columns)
+		resp, err := g.client.Do(req, &columns)
 		if err != nil {
 			return nil, err
 		}
@@ -136,13 +136,13 @@ func (g *GitHubClient) createProjectV1(ctx context.Context, path, name, body str
 		Name string `json:"name"`
 		Body string `json:"body"`
 	}{Name: name, Body: body}
-	req, err := g.client.NewRequest("POST", path, &input)
+	req, err := g.client.NewRequest(ctx, "POST", path, &input)
 	if err != nil {
 		return nil, err
 	}
 	setInertiaPreview(req)
 	var project ProjectV1
-	if _, err := g.client.Do(ctx, req, &project); err != nil {
+	if _, err := g.client.Do(req, &project); err != nil {
 		return nil, err
 	}
 	return &project, nil
@@ -165,12 +165,12 @@ func (g *GitHubClient) CreateRepoProjectV1(ctx context.Context, owner, repo, nam
 
 // DeleteProjectV1 deletes a classic project by its ID.
 func (g *GitHubClient) DeleteProjectV1(ctx context.Context, projectID int64) error {
-	req, err := g.client.NewRequest("DELETE", fmt.Sprintf("projects/%d", projectID), nil)
+	req, err := g.client.NewRequest(ctx, "DELETE", fmt.Sprintf("projects/%d", projectID), nil)
 	if err != nil {
 		return err
 	}
 	setInertiaPreview(req)
-	_, err = g.client.Do(ctx, req, nil)
+	_, err = g.client.Do(req, nil)
 	return err
 }
 
@@ -179,13 +179,13 @@ func (g *GitHubClient) CreateProjectV1Column(ctx context.Context, projectID int6
 	input := struct {
 		Name string `json:"name"`
 	}{Name: name}
-	req, err := g.client.NewRequest("POST", fmt.Sprintf("projects/%d/columns", projectID), &input)
+	req, err := g.client.NewRequest(ctx, "POST", fmt.Sprintf("projects/%d/columns", projectID), &input)
 	if err != nil {
 		return nil, err
 	}
 	setInertiaPreview(req)
 	var col ProjectV1Column
-	if _, err := g.client.Do(ctx, req, &col); err != nil {
+	if _, err := g.client.Do(req, &col); err != nil {
 		return nil, err
 	}
 	return &col, nil
@@ -196,13 +196,13 @@ func (g *GitHubClient) CreateProjectV1Card(ctx context.Context, columnID int64, 
 	input := struct {
 		Note string `json:"note"`
 	}{Note: note}
-	req, err := g.client.NewRequest("POST", fmt.Sprintf("projects/columns/%d/cards", columnID), &input)
+	req, err := g.client.NewRequest(ctx, "POST", fmt.Sprintf("projects/columns/%d/cards", columnID), &input)
 	if err != nil {
 		return nil, err
 	}
 	setInertiaPreview(req)
 	var card ProjectV1Card
-	if _, err := g.client.Do(ctx, req, &card); err != nil {
+	if _, err := g.client.Do(req, &card); err != nil {
 		return nil, err
 	}
 	return &card, nil
@@ -214,13 +214,13 @@ func (g *GitHubClient) ListProjectV1Cards(ctx context.Context, columnID int64) (
 	page := 1
 	for {
 		u := fmt.Sprintf("projects/columns/%d/cards?per_page=%d&page=%d", columnID, defaultPerPage, page)
-		req, err := g.client.NewRequest("GET", u, nil)
+		req, err := g.client.NewRequest(ctx, "GET", u, nil)
 		if err != nil {
 			return nil, err
 		}
 		setInertiaPreview(req)
 		var cards []ProjectV1Card
-		resp, err := g.client.Do(ctx, req, &cards)
+		resp, err := g.client.Do(req, &cards)
 		if err != nil {
 			return nil, err
 		}

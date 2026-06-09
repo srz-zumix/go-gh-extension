@@ -6,7 +6,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // ListDeployKeys lists all deploy keys for a repository.

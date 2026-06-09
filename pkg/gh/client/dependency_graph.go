@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v88/github"
 )
 
 // GetDependencyGraphSBOM retrieves the SBOM (Software Bill of Materials) for a repository using the dependency-graph/sbom API.
@@ -42,12 +42,12 @@ type DependencyChange struct {
 // GetDependencyGraphDiff retrieves the dependency diff between two commits or branches using the dependency-graph/compare API.
 func (g *GitHubClient) GetDependencyGraphDiff(ctx context.Context, owner, repo, basehead string) ([]*DependencyChange, error) {
 	u := fmt.Sprintf("repos/%v/%v/dependency-graph/compare/%v", owner, repo, url.PathEscape(basehead))
-	req, err := g.client.NewRequest("GET", u, nil)
+	req, err := g.client.NewRequest(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 	var changes []*DependencyChange
-	_, err = g.client.Do(ctx, req, &changes)
+	_, err = g.client.Do(req, &changes)
 	if err != nil {
 		return nil, err
 	}
