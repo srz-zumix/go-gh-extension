@@ -31,13 +31,22 @@ jobs:
       - name: Install go-licenses
         run: go install github.com/google/go-licenses/v2@latest
 
-      - name: Update version files
-        id: update-version
+      - name: Update version.go
         run: |
-
           VERSION=${TAG#v}
-
           sed -i "s/var Version = \".*\"/var Version = \"${VERSION}\"/" version/version.go
+
+      - name: Generate LICENSES
+        run: |
+          {
+            printf '%s\n' '{{range .}}================================================================================'
+            printf '%s\n' 'Package: {{.Name}}'
+            printf '%s\n' 'License: {{.LicenseName}}'
+            printf '%s\n' 'URL: {{.LicenseURL}}'
+            printf '%s\n' '================================================================================'
+            printf '%s\n' '{{.LicenseText}}'
+            printf '%s\n' '{{end}}'
+          } > "${RUNNER_TEMP}/licenses.tmpl"
 
           {
             printf '================================================================================\n'
@@ -48,8 +57,11 @@ jobs:
             cat "$(go env GOROOT)/LICENSE"
             printf '\n'
           } > third_party/LICENSES
-          go-licenses report ./... --template=third_party/licenses.tmpl 2>/dev/null >> third_party/LICENSES
+          go-licenses report ./... --template="${RUNNER_TEMP}/licenses.tmpl" 2>/dev/null >> third_party/LICENSES
 
+      - name: Check diff
+        id: check-diff
+        run: |
           if git diff --quiet; then
             echo "No changes"
             echo "diff=0" >> "${GITHUB_OUTPUT}"
@@ -59,7 +71,7 @@ jobs:
 
       - name: Commit changes
         uses: suzuki-shunsuke/commit-action@06e3b49d4706498d325d29bd85adc82ecf2f5d8f # v1.0.0
-        if: steps.update-version.outputs.diff == '1'
+        if: steps.check-diff.outputs.diff == '1'
         with:
           commit_message: "Bump version to ${{ inputs.tag_name }}"
           branch: ${{ env.BRANCH }}
@@ -69,7 +81,7 @@ jobs:
             third_party/LICENSES
 
       - name: Create pull request
-        if: steps.update-version.outputs.diff == '1'
+        if: steps.check-diff.outputs.diff == '1'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
