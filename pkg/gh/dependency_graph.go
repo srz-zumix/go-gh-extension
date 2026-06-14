@@ -269,3 +269,13 @@ func CreateRepositoryDependencyGraphSnapshot(ctx context.Context, g *GitHubClien
 	}
 	return result, nil
 }
+
+// EnableDependencyGraph enables the dependency graph for all eligible repositories in an organization.
+func EnableDependencyGraph(ctx context.Context, g *GitHubClient, repo repository.Repository) error {
+	return EnableDisableOrganizationSecurityFeature(ctx, g, repo, "dependency_graph", "enable_all", "")
+}
+
+// DisableDependencyGraph disables the dependency graph for all eligible repositories in an organization.
+func DisableDependencyGraph(ctx context.Context, g *GitHubClient, repo repository.Repository) error {
+	return EnableDisableOrganizationSecurityFeature(ctx, g, repo, "dependency_graph", "disable_all", "")
+}

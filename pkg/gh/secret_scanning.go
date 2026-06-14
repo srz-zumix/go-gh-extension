@@ -277,3 +277,23 @@ func GetSecretScanningScanHistory(ctx context.Context, g *GitHubClient, repo rep
 	}
 	return history, nil
 }
+
+// EnableSecretScanning enables secret scanning for all eligible repositories in an organization.
+func EnableSecretScanning(ctx context.Context, g *GitHubClient, repo repository.Repository) error {
+	return EnableDisableOrganizationSecurityFeature(ctx, g, repo, "secret_scanning", "enable_all", "")
+}
+
+// DisableSecretScanning disables secret scanning for all eligible repositories in an organization.
+func DisableSecretScanning(ctx context.Context, g *GitHubClient, repo repository.Repository) error {
+	return EnableDisableOrganizationSecurityFeature(ctx, g, repo, "secret_scanning", "disable_all", "")
+}
+
+// EnableSecretScanningPushProtection enables secret scanning push protection for all eligible repositories in an organization.
+func EnableSecretScanningPushProtection(ctx context.Context, g *GitHubClient, repo repository.Repository) error {
+	return EnableDisableOrganizationSecurityFeature(ctx, g, repo, "secret_scanning_push_protection", "enable_all", "")
+}
+
+// DisableSecretScanningPushProtection disables secret scanning push protection for all eligible repositories in an organization.
+func DisableSecretScanningPushProtection(ctx context.Context, g *GitHubClient, repo repository.Repository) error {
+	return EnableDisableOrganizationSecurityFeature(ctx, g, repo, "secret_scanning_push_protection", "disable_all", "")
+}
