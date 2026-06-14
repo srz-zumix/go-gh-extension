@@ -165,3 +165,23 @@ func UpdateDependabotAlert(ctx context.Context, g *GitHubClient, repo repository
 	}
 	return alert, nil
 }
+
+// EnableDependabotAlerts enables Dependabot alerts for all eligible repositories in an organization.
+func EnableDependabotAlerts(ctx context.Context, g *GitHubClient, repo repository.Repository) error {
+	return EnableDisableOrganizationSecurityFeature(ctx, g, repo, "dependabot_alerts", "enable_all", "")
+}
+
+// DisableDependabotAlerts disables Dependabot alerts for all eligible repositories in an organization.
+func DisableDependabotAlerts(ctx context.Context, g *GitHubClient, repo repository.Repository) error {
+	return EnableDisableOrganizationSecurityFeature(ctx, g, repo, "dependabot_alerts", "disable_all", "")
+}
+
+// EnableDependabotSecurityUpdates enables Dependabot security updates for all eligible repositories in an organization.
+func EnableDependabotSecurityUpdates(ctx context.Context, g *GitHubClient, repo repository.Repository) error {
+	return EnableDisableOrganizationSecurityFeature(ctx, g, repo, "dependabot_security_updates", "enable_all", "")
+}
+
+// DisableDependabotSecurityUpdates disables Dependabot security updates for all eligible repositories in an organization.
+func DisableDependabotSecurityUpdates(ctx context.Context, g *GitHubClient, repo repository.Repository) error {
+	return EnableDisableOrganizationSecurityFeature(ctx, g, repo, "dependabot_security_updates", "disable_all", "")
+}
