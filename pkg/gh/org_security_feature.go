@@ -41,7 +41,7 @@ func EnableDisableOrganizationSecurityFeature(ctx context.Context, g *GitHubClie
 	}
 	if querySuite != "" {
 		if securityProduct != "code_scanning_default_setup" {
-			return fmt.Errorf("--query-suite is only supported for code_scanning_default_setup")
+			return fmt.Errorf("query suite is only supported for code_scanning_default_setup")
 		}
 		if !slices.Contains(CodeScanningQuerySuites, querySuite) {
 			return fmt.Errorf("invalid query suite %q", querySuite)
