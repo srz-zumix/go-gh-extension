@@ -8,7 +8,7 @@ import (
 
 // EnableDisableOrgSecurityFeature enables or disables a security feature for all eligible repositories in an organization.
 func (g *GitHubClient) EnableDisableOrgSecurityFeature(ctx context.Context, org, securityProduct, enablement, querySuite string) error {
-	u := fmt.Sprintf("orgs/%v/%v/%v", org, securityProduct, enablement)
+	u := fmt.Sprintf("orgs/%s/%s/%s", org, securityProduct, enablement)
 	if querySuite != "" {
 		params := url.Values{}
 		params.Set("query_suite", querySuite)
