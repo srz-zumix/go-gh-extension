@@ -38,6 +38,8 @@ jobs:
 
       - name: Generate LICENSES
         run: |
+          mkdir -p third_party
+
           {
             printf '%s\n' '{{range .}}================================================================================'
             printf '%s\n' 'Package: {{.Name}}'
