@@ -225,7 +225,7 @@ var GlobalSecurityAdvisoryEcosystems = []string{
 	"rust",
 }
 
-// ListGlobalSecurityAdvisoriesOptions holds filter/sort/pagination options for listing global security advisories.
+// ListGlobalSecurityAdvisoriesOptions holds filter options for listing global security advisories.
 type ListGlobalSecurityAdvisoriesOptions struct {
 	Type      string
 	Severity  string
