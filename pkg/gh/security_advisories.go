@@ -201,3 +201,198 @@ func CreateRepositorySecurityAdvisoryFork(ctx context.Context, g *GitHubClient, 
 	}
 	return fork, nil
 }
+
+// GlobalSecurityAdvisoryTypes is the list of valid type values for filtering global security advisories.
+var GlobalSecurityAdvisoryTypes = []string{
+	"reviewed",
+	"malware",
+	"unreviewed",
+}
+
+// GlobalSecurityAdvisoryEcosystems is the list of valid ecosystem values for filtering global security advisories.
+var GlobalSecurityAdvisoryEcosystems = []string{
+	"actions",
+	"composer",
+	"erlang",
+	"go",
+	"maven",
+	"npm",
+	"nuget",
+	"other",
+	"pip",
+	"pub",
+	"rubygems",
+	"rust",
+}
+
+// ListGlobalSecurityAdvisoriesOptions holds filter/sort/pagination options for listing global security advisories.
+type ListGlobalSecurityAdvisoriesOptions struct {
+	Type      string
+	Severity  string
+	Ecosystem string
+	GHSAID    string
+	CVEID     string
+}
+
+// toGitHubListGlobalSecurityAdvisoriesOptions converts ListGlobalSecurityAdvisoriesOptions to github.ListGlobalSecurityAdvisoriesOptions.
+func toGitHubListGlobalSecurityAdvisoriesOptions(opts *ListGlobalSecurityAdvisoriesOptions) *github.ListGlobalSecurityAdvisoriesOptions {
+	if opts == nil {
+		return nil
+	}
+	o := &github.ListGlobalSecurityAdvisoriesOptions{}
+	if opts.Type != "" {
+		o.Type = &opts.Type
+	}
+	if opts.Severity != "" {
+		o.Severity = &opts.Severity
+	}
+	if opts.Ecosystem != "" {
+		o.Ecosystem = &opts.Ecosystem
+	}
+	if opts.GHSAID != "" {
+		o.GHSAID = &opts.GHSAID
+	}
+	if opts.CVEID != "" {
+		o.CVEID = &opts.CVEID
+	}
+	return o
+}
+
+// ListGlobalSecurityAdvisories lists global security advisories.
+func ListGlobalSecurityAdvisories(ctx context.Context, g *GitHubClient, opts *ListGlobalSecurityAdvisoriesOptions) ([]*github.GlobalSecurityAdvisory, error) {
+	advisories, err := g.ListGlobalSecurityAdvisories(ctx, toGitHubListGlobalSecurityAdvisoriesOptions(opts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list global security advisories: %w", err)
+	}
+	return advisories, nil
+}
+
+// GetGlobalSecurityAdvisory gets a global security advisory by GHSA ID.
+func GetGlobalSecurityAdvisory(ctx context.Context, g *GitHubClient, ghsaID string) (*github.GlobalSecurityAdvisory, error) {
+	advisory, err := g.GetGlobalSecurityAdvisory(ctx, ghsaID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get global security advisory %s: %w", ghsaID, err)
+	}
+	return advisory, nil
+}
+
+// CreateRepositorySecurityAdvisoryOptions holds options for creating a repository security advisory.
+type CreateRepositorySecurityAdvisoryOptions struct {
+	Summary                string
+	Description            string
+	CVEID                  string
+	Severity               string
+	CVSSVectorString       string
+	Ecosystem              string
+	PackageName            string
+	VulnerableVersionRange string
+	PatchedVersions        string
+	CWEIDs                 []string
+	StartPrivateFork       bool
+}
+
+// toClientCreateRepositorySecurityAdvisoryOptions converts CreateRepositorySecurityAdvisoryOptions to client.CreateRepositorySecurityAdvisoryOptions.
+func toClientCreateRepositorySecurityAdvisoryOptions(opts *CreateRepositorySecurityAdvisoryOptions) *client.CreateRepositorySecurityAdvisoryOptions {
+	if opts == nil {
+		return nil
+	}
+	o := &client.CreateRepositorySecurityAdvisoryOptions{
+		Summary:     opts.Summary,
+		Description: opts.Description,
+	}
+	if opts.CVEID != "" {
+		o.CVEID = &opts.CVEID
+	}
+	if opts.Severity != "" {
+		o.Severity = &opts.Severity
+	}
+	if opts.CVSSVectorString != "" {
+		o.CVSSVectorString = &opts.CVSSVectorString
+	}
+	if len(opts.CWEIDs) > 0 {
+		o.CWEIDs = opts.CWEIDs
+	}
+	if opts.StartPrivateFork {
+		b := true
+		o.StartPrivateFork = &b
+	}
+	pkg := &client.VulnerabilityPackageInput{
+		Ecosystem: opts.Ecosystem,
+	}
+	if opts.PackageName != "" {
+		pkg.Name = &opts.PackageName
+	}
+	vuln := client.RepositorySecurityAdvisoryVulnerabilityInput{
+		Package: pkg,
+	}
+	if opts.VulnerableVersionRange != "" {
+		vuln.VulnerableVersionRange = &opts.VulnerableVersionRange
+	}
+	if opts.PatchedVersions != "" {
+		vuln.PatchedVersions = &opts.PatchedVersions
+	}
+	o.Vulnerabilities = []client.RepositorySecurityAdvisoryVulnerabilityInput{vuln}
+	return o
+}
+
+// CreateRepositorySecurityAdvisory creates a repository security advisory.
+func CreateRepositorySecurityAdvisory(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *CreateRepositorySecurityAdvisoryOptions) (*github.SecurityAdvisory, error) {
+	advisory, err := g.CreateRepositorySecurityAdvisory(ctx, repo.Owner, repo.Name, toClientCreateRepositorySecurityAdvisoryOptions(opts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create repository security advisory: %w", err)
+	}
+	return advisory, nil
+}
+
+// ReportRepositorySecurityAdvisoryOptions holds options for reporting a repository security advisory.
+type ReportRepositorySecurityAdvisoryOptions struct {
+	Ecosystem        string
+	PackageName      string
+	Summary          string
+	Description      string
+	Severity         string
+	CVSSVectorString string
+	CWEIDs           []string
+	StartPrivateFork bool
+}
+
+// toClientReportRepositorySecurityAdvisoryOptions converts ReportRepositorySecurityAdvisoryOptions to client.ReportRepositorySecurityAdvisoryOptions.
+func toClientReportRepositorySecurityAdvisoryOptions(opts *ReportRepositorySecurityAdvisoryOptions) *client.ReportRepositorySecurityAdvisoryOptions {
+	if opts == nil {
+		return nil
+	}
+	pkg := &client.VulnerabilityPackageInput{
+		Ecosystem: opts.Ecosystem,
+	}
+	if opts.PackageName != "" {
+		pkg.Name = &opts.PackageName
+	}
+	o := &client.ReportRepositorySecurityAdvisoryOptions{
+		Package:     pkg,
+		Summary:     opts.Summary,
+		Description: opts.Description,
+	}
+	if opts.Severity != "" {
+		o.Severity = &opts.Severity
+	}
+	if opts.CVSSVectorString != "" {
+		o.CVSSVectorString = &opts.CVSSVectorString
+	}
+	if len(opts.CWEIDs) > 0 {
+		o.CWEIDs = opts.CWEIDs
+	}
+	if opts.StartPrivateFork {
+		b := true
+		o.StartPrivateFork = &b
+	}
+	return o
+}
+
+// ReportRepositorySecurityAdvisory reports a vulnerability in a repository.
+func ReportRepositorySecurityAdvisory(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *ReportRepositorySecurityAdvisoryOptions) (*github.SecurityAdvisory, error) {
+	advisory, err := g.ReportRepositorySecurityAdvisory(ctx, repo.Owner, repo.Name, toClientReportRepositorySecurityAdvisoryOptions(opts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to report repository security advisory: %w", err)
+	}
+	return advisory, nil
+}

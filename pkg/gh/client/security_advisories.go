@@ -105,3 +105,101 @@ func (g *GitHubClient) CreateRepositorySecurityAdvisoryFork(ctx context.Context,
 	}
 	return fork, nil
 }
+
+// ListGlobalSecurityAdvisories lists all global security advisories.
+func (g *GitHubClient) ListGlobalSecurityAdvisories(ctx context.Context, opts *github.ListGlobalSecurityAdvisoriesOptions) ([]*github.GlobalSecurityAdvisory, error) {
+	var all []*github.GlobalSecurityAdvisory
+	if opts == nil {
+		opts = &github.ListGlobalSecurityAdvisoriesOptions{}
+	}
+	opts.ListCursorOptions = github.ListCursorOptions{PerPage: defaultPerPage}
+	for {
+		advisories, resp, err := g.client.SecurityAdvisories.ListGlobalSecurityAdvisories(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, advisories...)
+		if resp.Cursor == "" {
+			break
+		}
+		opts.Cursor = resp.Cursor
+	}
+	return all, nil
+}
+
+// GetGlobalSecurityAdvisory gets a global security advisory by GHSA ID.
+func (g *GitHubClient) GetGlobalSecurityAdvisory(ctx context.Context, ghsaID string) (*github.GlobalSecurityAdvisory, error) {
+	advisory, _, err := g.client.SecurityAdvisories.GetGlobalSecurityAdvisories(ctx, ghsaID)
+	if err != nil {
+		return nil, err
+	}
+	return advisory, nil
+}
+
+// VulnerabilityPackageInput represents a package for a security advisory vulnerability.
+type VulnerabilityPackageInput struct {
+	Ecosystem string  `json:"ecosystem"`
+	Name      *string `json:"name,omitempty"`
+}
+
+// RepositorySecurityAdvisoryVulnerabilityInput represents a vulnerability entry for creating a repository security advisory.
+type RepositorySecurityAdvisoryVulnerabilityInput struct {
+	Package                *VulnerabilityPackageInput `json:"package"`
+	VulnerableVersionRange *string                    `json:"vulnerable_version_range,omitempty"`
+	PatchedVersions        *string                    `json:"patched_versions,omitempty"`
+	VulnerableFunctions    []string                   `json:"vulnerable_functions,omitempty"`
+}
+
+// CreateRepositorySecurityAdvisoryOptions specifies the parameters for creating a repository security advisory.
+type CreateRepositorySecurityAdvisoryOptions struct {
+	Summary          string                                         `json:"summary"`
+	Description      string                                         `json:"description"`
+	CVEID            *string                                        `json:"cve_id,omitempty"`
+	Severity         *string                                        `json:"severity,omitempty"`
+	CVSSVectorString *string                                        `json:"cvss_vector_string,omitempty"`
+	Vulnerabilities  []RepositorySecurityAdvisoryVulnerabilityInput `json:"vulnerabilities"`
+	CWEIDs           []string                                       `json:"cwe_ids,omitempty"`
+	StartPrivateFork *bool                                          `json:"start_private_fork,omitempty"`
+}
+
+// CreateRepositorySecurityAdvisory creates a repository security advisory.
+func (g *GitHubClient) CreateRepositorySecurityAdvisory(ctx context.Context, owner, repo string, opts *CreateRepositorySecurityAdvisoryOptions) (*github.SecurityAdvisory, error) {
+	url := fmt.Sprintf("repos/%v/%v/security-advisories", owner, repo)
+	req, err := g.client.NewRequest(ctx, "POST", url, opts)
+	if err != nil {
+		return nil, err
+	}
+	advisory := new(github.SecurityAdvisory)
+	_, err = g.client.Do(req, advisory)
+	if err != nil {
+		return nil, err
+	}
+	return advisory, nil
+}
+
+// ReportRepositorySecurityAdvisoryOptions specifies the parameters for reporting a repository security advisory.
+type ReportRepositorySecurityAdvisoryOptions struct {
+	Package          *VulnerabilityPackageInput                     `json:"package"`
+	Summary          string                                         `json:"summary"`
+	Description      string                                         `json:"description"`
+	Severity         *string                                        `json:"severity,omitempty"`
+	CVSSVectorString *string                                        `json:"cvss_vector_string,omitempty"`
+	Vulnerabilities  []RepositorySecurityAdvisoryVulnerabilityInput `json:"vulnerabilities,omitempty"`
+	CWEIDs           []string                                       `json:"cwe_ids,omitempty"`
+	StartPrivateFork *bool                                          `json:"start_private_fork,omitempty"`
+}
+
+// ReportRepositorySecurityAdvisory reports a vulnerability in a repository.
+func (g *GitHubClient) ReportRepositorySecurityAdvisory(ctx context.Context, owner, repo string, opts *ReportRepositorySecurityAdvisoryOptions) (*github.SecurityAdvisory, error) {
+	url := fmt.Sprintf("repos/%v/%v/security-advisories/reports", owner, repo)
+	req, err := g.client.NewRequest(ctx, "POST", url, opts)
+	if err != nil {
+		return nil, err
+	}
+	advisory := new(github.SecurityAdvisory)
+	_, err = g.client.Do(req, advisory)
+	if err != nil {
+		return nil, err
+	}
+	return advisory, nil
+}
