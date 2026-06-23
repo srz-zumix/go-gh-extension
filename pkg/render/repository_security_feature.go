@@ -2,7 +2,6 @@ package render
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
@@ -20,9 +19,9 @@ func (r *Renderer) RenderRepositorySecurityFeatureStatus(status *gh.RepositorySe
 	labelFmt := fmt.Sprintf("%%-%ds %%s", labelWidth)
 
 	r.writeLine(fmt.Sprintf(labelFmt, "Feature:", status.Feature))
-	r.writeLine(fmt.Sprintf(labelFmt, "Enabled:", strconv.FormatBool(status.Enabled)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Enabled:", ToString(status.Enabled)))
 	if status.Paused != nil {
-		r.writeLine(fmt.Sprintf(labelFmt, "Paused:", strconv.FormatBool(*status.Paused)))
+		r.writeLine(fmt.Sprintf(labelFmt, "Paused:", ToString(*status.Paused)))
 	}
 	return nil
 }
