@@ -342,6 +342,28 @@ func UpdateDiscussion(ctx context.Context, g *GitHubClient, id any, body string)
 	return g.UpdateDiscussion(ctx, getDiscussionNodeID(id), body)
 }
 
+// DiscussionCloseReason is an alias for client.DiscussionCloseReason.
+type DiscussionCloseReason = client.DiscussionCloseReason
+
+// Discussion close reason constants re-exported from the client package.
+const (
+	DiscussionCloseReasonResolved  = client.DiscussionCloseReasonResolved
+	DiscussionCloseReasonOutdated  = client.DiscussionCloseReasonOutdated
+	DiscussionCloseReasonDuplicate = client.DiscussionCloseReasonDuplicate
+)
+
+// CloseDiscussion closes a discussion with the given reason.
+// id may be a *Discussion, Discussion, or string.
+func CloseDiscussion(ctx context.Context, g *GitHubClient, id any, reason DiscussionCloseReason) error {
+	return g.CloseDiscussion(ctx, getDiscussionNodeID(id), reason)
+}
+
+// ReopenDiscussion reopens a closed discussion.
+// id may be a *Discussion, Discussion, or string.
+func ReopenDiscussion(ctx context.Context, g *GitHubClient, id any) error {
+	return g.ReopenDiscussion(ctx, getDiscussionNodeID(id))
+}
+
 // DeleteDiscussionComment deletes a discussion comment or reply by its node ID.
 func DeleteDiscussionComment(ctx context.Context, g *GitHubClient, commentID string) error {
 	return g.DeleteDiscussionComment(ctx, commentID)
