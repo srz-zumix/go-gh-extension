@@ -453,7 +453,7 @@ const (
 )
 
 // CloseDiscussion closes a discussion by its node ID with the given reason.
-// When reason is empty, the GitHub default (RESOLVED) is used.
+// If reason is empty, the reason field is omitted from the mutation input.
 func (g *GitHubClient) CloseDiscussion(ctx context.Context, discussionID string, reason DiscussionCloseReason) error {
 	graphql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
