@@ -440,6 +440,73 @@ func (g *GitHubClient) UpdateDiscussion(ctx context.Context, discussionID, body 
 	return graphql.Mutate(ctx, &mutation, gqlInput, nil)
 }
 
+// DiscussionCloseReason represents the reason a discussion is closed.
+type DiscussionCloseReason string
+
+const (
+	// DiscussionCloseReasonResolved indicates the discussion was resolved.
+	DiscussionCloseReasonResolved DiscussionCloseReason = "RESOLVED"
+	// DiscussionCloseReasonOutdated indicates the discussion is outdated.
+	DiscussionCloseReasonOutdated DiscussionCloseReason = "OUTDATED"
+	// DiscussionCloseReasonDuplicate indicates the discussion is a duplicate.
+	DiscussionCloseReasonDuplicate DiscussionCloseReason = "DUPLICATE"
+)
+
+// CloseDiscussion closes a discussion by its node ID with the given reason.
+// If reason is empty, the reason field is omitted from the mutation input.
+func (g *GitHubClient) CloseDiscussion(ctx context.Context, discussionID string, reason DiscussionCloseReason) error {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+
+	var mutation struct {
+		CloseDiscussion struct {
+			Discussion struct {
+				ID githubv4.String
+			}
+		} `graphql:"closeDiscussion(input: $input)"`
+	}
+
+	type CloseDiscussionInput struct {
+		DiscussionID githubv4.ID           `json:"discussionId"`
+		Reason       DiscussionCloseReason `json:"reason,omitempty"`
+	}
+
+	gqlInput := CloseDiscussionInput{
+		DiscussionID: githubv4.ID(discussionID),
+		Reason:       reason,
+	}
+
+	return graphql.Mutate(ctx, &mutation, gqlInput, nil)
+}
+
+// ReopenDiscussion reopens a closed discussion by its node ID.
+func (g *GitHubClient) ReopenDiscussion(ctx context.Context, discussionID string) error {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+
+	var mutation struct {
+		ReopenDiscussion struct {
+			Discussion struct {
+				ID githubv4.String
+			}
+		} `graphql:"reopenDiscussion(input: $input)"`
+	}
+
+	type ReopenDiscussionInput struct {
+		DiscussionID githubv4.ID `json:"discussionId"`
+	}
+
+	gqlInput := ReopenDiscussionInput{
+		DiscussionID: githubv4.ID(discussionID),
+	}
+
+	return graphql.Mutate(ctx, &mutation, gqlInput, nil)
+}
+
 // DeleteDiscussionComment deletes a discussion comment (or reply) by its node ID.
 func (g *GitHubClient) DeleteDiscussionComment(ctx context.Context, commentID string) error {
 	graphql, err := g.GetOrCreateGraphQLClient()
