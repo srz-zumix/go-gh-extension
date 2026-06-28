@@ -290,7 +290,7 @@ func (g *GitHubClient) GetRepositoryNodeID(ctx context.Context, owner string, re
 
 	var query struct {
 		Repository struct {
-			ID githubv4.String
+			ID githubv4.ID
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
@@ -303,5 +303,5 @@ func (g *GitHubClient) GetRepositoryNodeID(ctx context.Context, owner string, re
 		return nil, err
 	}
 
-	return githubv4.ID(query.Repository.ID), nil
+	return query.Repository.ID, nil
 }

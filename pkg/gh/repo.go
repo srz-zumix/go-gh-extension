@@ -11,6 +11,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v88/github"
+	"github.com/shurcooL/githubv4"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
@@ -693,8 +694,11 @@ func GetRepositoryNodeID(ctx context.Context, g *GitHubClient, repo repository.R
 		return "", err
 	}
 	// githubv4.ID is an interface{}; the underlying value is expected to be a string.
-	if s, ok := id.(string); ok {
-		return s, nil
+	switch v := id.(type) {
+	case string:
+		return v, nil
+	case githubv4.String:
+		return string(v), nil
 	}
 	return "", fmt.Errorf("unexpected repository node ID type %T", id)
 }
