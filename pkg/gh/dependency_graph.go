@@ -47,7 +47,7 @@ func GetRepositoryDependencyGraphSBOMWithSubmodules(ctx context.Context, g *GitH
 		return []*github.SBOM{sbom}, nil
 	}
 
-	submodules, err := GetRepositorySubmodules(ctx, g, repo, true)
+	submodules, err := GetRepositorySubmodules(ctx, g, repo, true, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get submodules for repository %s/%s: %w", repo.Owner, repo.Name, err)
 	}

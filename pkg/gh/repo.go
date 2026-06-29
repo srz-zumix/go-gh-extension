@@ -218,7 +218,7 @@ func CheckTeamPermissionsWithSubmodules(ctx context.Context, g *GitHubClient, re
 	}
 	teamRepos = append(teamRepos, teamRepo)
 
-	submodules, err := GetRepositorySubmodules(ctx, g, repo, true)
+	submodules, err := GetRepositorySubmodules(ctx, g, repo, true, false)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get submodules: %w", err)
 	}
@@ -469,7 +469,7 @@ func CheckRepositoryPermissionWithSubmodules(ctx context.Context, g *GitHubClien
 		hasPermissions = false
 	}
 
-	submodules, err := GetRepositorySubmodules(ctx, g, repo, true)
+	submodules, err := GetRepositorySubmodules(ctx, g, repo, true, false)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get submodules: %w", err)
 	}
@@ -499,14 +499,18 @@ func repoKey(g *GitHubClient, repo repository.Repository) string {
 	return strings.ToLower(host) + "/" + strings.ToLower(repo.Owner) + "/" + strings.ToLower(repo.Name)
 }
 
-func GetRepositorySubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool) ([]RepositorySubmodule, error) {
+// GetRepositorySubmodules retrieves the submodules of a repository.
+// When recursive is true, nested submodules are resolved as well. When
+// ignoreMissing is true, nested submodules whose repository cannot be resolved
+// are skipped instead of returning an error.
+func GetRepositorySubmodules(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool, ignoreMissing bool) ([]RepositorySubmodule, error) {
 	visited := map[string]struct{}{
 		repoKey(g, repo): {},
 	}
-	return getRepositorySubmodulesInternal(ctx, g, repo, recursive, visited)
+	return getRepositorySubmodulesInternal(ctx, g, repo, recursive, ignoreMissing, visited)
 }
 
-func getRepositorySubmodulesInternal(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool, visited map[string]struct{}) ([]RepositorySubmodule, error) {
+func getRepositorySubmodulesInternal(ctx context.Context, g *GitHubClient, repo repository.Repository, recursive bool, ignoreMissing bool, visited map[string]struct{}) ([]RepositorySubmodule, error) {
 	logger.Debug("getting submodules", "repo", repo.Owner+"/"+repo.Name, "recursive", recursive)
 	allSubmodules, err := g.GetRepositorySubmodules(ctx, repo.Owner, repo.Name)
 	if err != nil {
@@ -523,11 +527,16 @@ func getRepositorySubmodulesInternal(ctx context.Context, g *GitHubClient, repo 
 				}
 				logger.Debug("recursing into submodule", "submodule", submodule.Name, "repo", submodule.Repository.Owner+"/"+submodule.Repository.Name)
 				visited[key] = struct{}{}
-				allSubmodules[i].Submodules, err = getRepositorySubmodulesInternal(ctx, g, submodule.Repository, recursive, visited)
+				nested, nestedErr := getRepositorySubmodulesInternal(ctx, g, submodule.Repository, recursive, ignoreMissing, visited)
 				delete(visited, key)
-				if err != nil {
-					return nil, fmt.Errorf("failed to get nested submodules for submodule %s: %w", submodule.Name, err)
+				if nestedErr != nil {
+					if ignoreMissing && IsRepositoryNotFound(nestedErr) {
+						logger.Warn("submodule repository not found, skipping", "submodule", submodule.Name, "repo", submodule.Repository.Owner+"/"+submodule.Repository.Name)
+						continue
+					}
+					return nil, fmt.Errorf("failed to get nested submodules for submodule %s: %w", submodule.Name, nestedErr)
 				}
+				allSubmodules[i].Submodules = nested
 			} else {
 				logger.Debug("skipping submodule on different host", "submodule", submodule.Name, "host", submodule.Repository.Host)
 			}

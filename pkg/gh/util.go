@@ -79,6 +79,19 @@ func IsHTTPNotFound(err error) bool {
 	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == http.StatusNotFound
 }
 
+// IsRepositoryNotFound returns true if err indicates that a repository does not
+// exist. This covers both REST API 404 responses and GraphQL "Could not resolve
+// to a Repository" errors.
+func IsRepositoryNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	if IsHTTPNotFound(err) {
+		return true
+	}
+	return strings.Contains(err.Error(), "Could not resolve to a Repository")
+}
+
 // IsHTTPForbidden returns true if err is a GitHub API 403 Forbidden response.
 func IsHTTPForbidden(err error) bool {
 	var errResp *github.ErrorResponse
