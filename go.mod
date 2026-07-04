@@ -7,7 +7,7 @@ require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.19.0
 	github.com/cli/go-gh/v2 v2.13.0
 	github.com/cli/shurcooL-graphql v0.0.4
-	github.com/ddddddO/gtree v1.14.2
+	github.com/ddddddO/gtree v1.14.5
 	github.com/fatih/color v1.19.0
 	github.com/google/go-querystring v1.2.0
 	github.com/olekukonko/tablewriter v1.1.4
