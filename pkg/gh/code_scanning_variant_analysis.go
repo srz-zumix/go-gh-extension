@@ -21,6 +21,9 @@ type CreateCodeQLVariantAnalysisOptions struct {
 // toClientCreateCodeQLVariantAnalysisOptions converts CreateCodeQLVariantAnalysisOptions
 // to client.CreateCodeQLVariantAnalysisOptions.
 func toClientCreateCodeQLVariantAnalysisOptions(opts *CreateCodeQLVariantAnalysisOptions) *client.CreateCodeQLVariantAnalysisOptions {
+	if opts == nil {
+		return nil
+	}
 	return &client.CreateCodeQLVariantAnalysisOptions{
 		Language:         opts.Language,
 		QueryPack:        opts.QueryPack,

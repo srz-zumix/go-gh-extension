@@ -64,7 +64,7 @@ func (g *GitHubClient) ListAlertInstances(ctx context.Context, owner, repo strin
 		if resp.NextPage == 0 {
 			break
 		}
-		opts.ListOptions.Page = resp.NextPage
+		opts.Page = resp.NextPage
 	}
 
 	return allInstances, nil

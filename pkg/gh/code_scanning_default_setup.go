@@ -39,6 +39,9 @@ type UpdateCodeScanningDefaultSetupConfigurationOptions struct {
 // toGitHubUpdateDefaultSetupConfigurationOptions converts UpdateCodeScanningDefaultSetupConfigurationOptions
 // to github.UpdateDefaultSetupConfigurationOptions.
 func toGitHubUpdateDefaultSetupConfigurationOptions(opts *UpdateCodeScanningDefaultSetupConfigurationOptions) *github.UpdateDefaultSetupConfigurationOptions {
+	if opts == nil {
+		return nil
+	}
 	o := &github.UpdateDefaultSetupConfigurationOptions{
 		State: opts.State,
 	}
