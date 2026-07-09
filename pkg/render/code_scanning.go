@@ -319,6 +319,143 @@ func (r *Renderer) RenderSARIFID(sarifID *github.SarifID) error {
 	return nil
 }
 
+// RenderCodeScanningAlertInstances renders a list of code scanning alert instances as a table.
+func (r *Renderer) RenderCodeScanningAlertInstances(instances []*github.MostRecentInstance) error {
+	if r.exporter != nil {
+		return r.RenderExportedData(instances)
+	}
+	if len(instances) == 0 {
+		r.writeLine("No instances found.")
+		return nil
+	}
+
+	headers := []string{"Ref", "State", "Environment", "Commit SHA", "Location"}
+	table := r.newTableWriter(headers)
+	for _, instance := range instances {
+		location := ""
+		if instance.Location != nil {
+			location = fmt.Sprintf("%s:%d", ToString(instance.Location.Path), instance.Location.StartLine)
+		}
+		row := []string{
+			ToString(instance.Ref),
+			ToString(instance.State),
+			ToString(instance.Environment),
+			ToString(instance.CommitSHA),
+			location,
+		}
+		table.Append(row)
+	}
+	return table.Render()
+}
+
+// RenderDeleteAnalysis renders the result of deleting a code scanning analysis.
+func (r *Renderer) RenderDeleteAnalysis(result *github.DeleteAnalysis) error {
+	if r.exporter != nil {
+		return r.RenderExportedData(result)
+	}
+	if result == nil {
+		return nil
+	}
+
+	const labelFmt = "%-20s %s"
+
+	r.writeLine(fmt.Sprintf(labelFmt, "Next Analysis URL:", ToString(result.NextAnalysisURL)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Confirm Delete URL:", ToString(result.ConfirmDeleteURL)))
+
+	return nil
+}
+
+// RenderCodeScanningDefaultSetupConfiguration renders a code scanning default setup configuration for a repository.
+func (r *Renderer) RenderCodeScanningDefaultSetupConfiguration(config *github.DefaultSetupConfiguration) error {
+	if r.exporter != nil {
+		return r.RenderExportedData(config)
+	}
+	if config == nil {
+		return nil
+	}
+
+	const labelFmt = "%-14s %s"
+
+	r.writeLine(fmt.Sprintf(labelFmt, "State:", ToString(config.State)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Languages:", strings.Join(config.Languages, ", ")))
+	r.writeLine(fmt.Sprintf(labelFmt, "Query Suite:", ToString(config.QuerySuite)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Updated:", ToString(config.UpdatedAt)))
+
+	return nil
+}
+
+// RenderUpdateCodeScanningDefaultSetupConfigurationResponse renders the response of updating
+// a code scanning default setup configuration.
+func (r *Renderer) RenderUpdateCodeScanningDefaultSetupConfigurationResponse(resp *github.UpdateDefaultSetupConfigurationResponse) error {
+	if r.exporter != nil {
+		return r.RenderExportedData(resp)
+	}
+	if resp == nil {
+		return nil
+	}
+
+	const labelFmt = "%-10s %s"
+
+	r.writeLine(fmt.Sprintf(labelFmt, "Run ID:", ToString(resp.RunID)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Run URL:", ToString(resp.RunURL)))
+
+	return nil
+}
+
+// RenderCodeQLVariantAnalysis renders the summary of a CodeQL variant analysis.
+func (r *Renderer) RenderCodeQLVariantAnalysis(analysis *client.CodeQLVariantAnalysis) error {
+	if r.exporter != nil {
+		return r.RenderExportedData(analysis)
+	}
+	if analysis == nil {
+		return nil
+	}
+
+	const labelFmt = "%-16s %s"
+
+	r.writeLine(fmt.Sprintf(labelFmt, "ID:", ToString(analysis.ID)))
+	r.writeLine(fmt.Sprintf(labelFmt, "Status:", analysis.Status))
+	r.writeLine(fmt.Sprintf(labelFmt, "Query Language:", analysis.QueryLanguage))
+	if analysis.ControllerRepo != nil {
+		r.writeLine(fmt.Sprintf(labelFmt, "Controller Repo:", ToString(analysis.ControllerRepo.FullName)))
+	}
+	if analysis.Actor != nil {
+		r.writeLine(fmt.Sprintf(labelFmt, "Actor:", ToString(analysis.Actor.Login)))
+	}
+	if analysis.FailureReason != nil {
+		r.writeLine(fmt.Sprintf(labelFmt, "Failure Reason:", *analysis.FailureReason))
+	}
+	r.writeLine(fmt.Sprintf(labelFmt, "Scanned Repos:", ToString(len(analysis.ScannedRepositories))))
+
+	return nil
+}
+
+// RenderCodeQLVariantAnalysisRepoStatus renders the analysis status of a repository
+// in a CodeQL variant analysis.
+func (r *Renderer) RenderCodeQLVariantAnalysisRepoStatus(status *client.CodeQLVariantAnalysisRepoStatus) error {
+	if r.exporter != nil {
+		return r.RenderExportedData(status)
+	}
+	if status == nil {
+		return nil
+	}
+
+	const labelFmt = "%-14s %s"
+
+	if status.Repository != nil {
+		r.writeLine(fmt.Sprintf(labelFmt, "Repository:", ToString(status.Repository.FullName)))
+	}
+	r.writeLine(fmt.Sprintf(labelFmt, "Status:", status.AnalysisStatus))
+	if status.ResultCount != nil {
+		r.writeLine(fmt.Sprintf(labelFmt, "Results:", ToString(*status.ResultCount)))
+	}
+	if status.FailureMessage != nil {
+		r.writeLine(fmt.Sprintf(labelFmt, "Failure:", *status.FailureMessage))
+	}
+
+	return nil
+}
+
 // RenderCodeScanningAutofix renders the status of a code scanning autofix.
 func (r *Renderer) RenderCodeScanningAutofix(autofix *client.CodeScanningAutofix) error {
 	if r.exporter != nil {

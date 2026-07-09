@@ -142,6 +142,30 @@ func GetCodeScanningAlert(ctx context.Context, g *GitHubClient, repo repository.
 	return alert, nil
 }
 
+// ListCodeScanningAlertInstancesOptions holds filter options for listing code scanning alert instances.
+type ListCodeScanningAlertInstancesOptions struct {
+	Ref string
+}
+
+// toGitHubAlertInstancesListOptions converts ListCodeScanningAlertInstancesOptions to github.AlertInstancesListOptions.
+func toGitHubAlertInstancesListOptions(opts *ListCodeScanningAlertInstancesOptions) *github.AlertInstancesListOptions {
+	if opts == nil {
+		return nil
+	}
+	return &github.AlertInstancesListOptions{
+		Ref: opts.Ref,
+	}
+}
+
+// ListCodeScanningAlertInstances lists instances of a code scanning alert for a repository.
+func ListCodeScanningAlertInstances(ctx context.Context, g *GitHubClient, repo repository.Repository, number int64, opts *ListCodeScanningAlertInstancesOptions) ([]*github.MostRecentInstance, error) {
+	instances, err := g.ListAlertInstances(ctx, repo.Owner, repo.Name, number, toGitHubAlertInstancesListOptions(opts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list instances of code scanning alert #%d for %s/%s: %w", number, repo.Owner, repo.Name, err)
+	}
+	return instances, nil
+}
+
 // UpdateCodeScanningAlert updates a code scanning alert for a repository.
 func UpdateCodeScanningAlert(ctx context.Context, g *GitHubClient, repo repository.Repository, number int64, opts *UpdateCodeScanningAlertOptions) (*github.Alert, error) {
 	alert, err := g.UpdateRepoCodeScanningAlert(ctx, repo.Owner, repo.Name, number, toGitHubCodeScanningAlertState(opts))

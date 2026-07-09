@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 
 	"github.com/google/go-github/v88/github"
 )
@@ -36,4 +38,27 @@ func (g *GitHubClient) GetAnalysis(ctx context.Context, owner, repo string, id i
 		return nil, err
 	}
 	return analysis, nil
+}
+
+// DeleteAnalysis deletes a code scanning analysis from a repository.
+// If confirmDelete is true, deletion of the last analysis in a set is allowed.
+func (g *GitHubClient) DeleteAnalysis(ctx context.Context, owner, repo string, id int64, confirmDelete bool) (*github.DeleteAnalysis, error) {
+	u := fmt.Sprintf("repos/%v/%v/code-scanning/analyses/%v", owner, repo, id)
+	if confirmDelete {
+		params := url.Values{}
+		params.Set("confirm_delete", "true")
+		u = fmt.Sprintf("%s?%s", u, params.Encode())
+	}
+
+	req, err := g.client.NewRequest(ctx, "DELETE", u, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	result := new(github.DeleteAnalysis)
+	_, err = g.client.Do(req, result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }

@@ -25,3 +25,11 @@ func GetCodeQLDatabase(ctx context.Context, g *GitHubClient, repo repository.Rep
 	}
 	return database, nil
 }
+
+// DeleteCodeQLDatabase deletes a CodeQL database for a language in a repository.
+func DeleteCodeQLDatabase(ctx context.Context, g *GitHubClient, repo repository.Repository, language string) error {
+	if err := g.DeleteCodeQLDatabase(ctx, repo.Owner, repo.Name, language); err != nil {
+		return fmt.Errorf("failed to delete CodeQL database for language %q in %s/%s: %w", language, repo.Owner, repo.Name, err)
+	}
+	return nil
+}
