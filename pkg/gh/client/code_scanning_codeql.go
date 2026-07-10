@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	"github.com/google/go-github/v88/github"
 )
@@ -27,7 +28,7 @@ func (g *GitHubClient) GetCodeQLDatabase(ctx context.Context, owner, repo, langu
 
 // DeleteCodeQLDatabase deletes a CodeQL database for a language in a repository.
 func (g *GitHubClient) DeleteCodeQLDatabase(ctx context.Context, owner, repo, language string) error {
-	u := fmt.Sprintf("repos/%v/%v/code-scanning/codeql/databases/%v", owner, repo, language)
+	u := fmt.Sprintf("repos/%v/%v/code-scanning/codeql/databases/%v", owner, repo, url.PathEscape(language))
 	req, err := g.client.NewRequest(ctx, "DELETE", u, nil)
 	if err != nil {
 		return err
