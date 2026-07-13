@@ -325,7 +325,7 @@ func (r *Renderer) RenderCodeScanningAlertInstances(instances []*github.MostRece
 		return r.RenderExportedData(instances)
 	}
 	if len(instances) == 0 {
-		r.writeLine("No instances found.")
+		r.writeLine("No code scanning alert instances found.")
 		return nil
 	}
 
