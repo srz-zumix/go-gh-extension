@@ -46,3 +46,13 @@ func GetCodeScanningAnalysis(ctx context.Context, g *GitHubClient, repo reposito
 	}
 	return analysis, nil
 }
+
+// DeleteCodeScanningAnalysis deletes a code scanning analysis from a repository.
+// If confirmDelete is true, deletion of the last analysis in a set is allowed.
+func DeleteCodeScanningAnalysis(ctx context.Context, g *GitHubClient, repo repository.Repository, id int64, confirmDelete bool) (*github.DeleteAnalysis, error) {
+	result, err := g.DeleteAnalysis(ctx, repo.Owner, repo.Name, id, confirmDelete)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete code scanning analysis #%d for %s/%s: %w", id, repo.Owner, repo.Name, err)
+	}
+	return result, nil
+}

@@ -47,6 +47,29 @@ func (g *GitHubClient) UpdateRepoCodeScanningAlert(ctx context.Context, owner, r
 	return alert, nil
 }
 
+// ListAlertInstances lists instances of a code scanning alert for a repository.
+func (g *GitHubClient) ListAlertInstances(ctx context.Context, owner, repo string, number int64, opts *github.AlertInstancesListOptions) ([]*github.MostRecentInstance, error) {
+	var allInstances []*github.MostRecentInstance
+	if opts == nil {
+		opts = &github.AlertInstancesListOptions{}
+	}
+	opts.ListOptions = github.ListOptions{PerPage: defaultPerPage}
+
+	for {
+		instances, resp, err := g.client.CodeScanning.ListAlertInstances(ctx, owner, repo, number, opts)
+		if err != nil {
+			return nil, err
+		}
+		allInstances = append(allInstances, instances...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return allInstances, nil
+}
+
 // ListOrgCodeScanningAlerts lists all code scanning alerts for an organization.
 func (g *GitHubClient) ListOrgCodeScanningAlerts(ctx context.Context, org string, opts *github.AlertListOptions) ([]*github.Alert, error) {
 	var allAlerts []*github.Alert
