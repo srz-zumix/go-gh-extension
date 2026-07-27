@@ -252,6 +252,24 @@ func ExcludeSBOMPackages(sbom *github.SBOM, ecosystems []string) *github.SBOM {
 	return copySBOMWithPackages(sbom, packages)
 }
 
+// GenerateRepositoryDependencyGraphSBOMReport requests generation of an SBOM report for a repository.
+func GenerateRepositoryDependencyGraphSBOMReport(ctx context.Context, g *GitHubClient, repo repository.Repository) (*client.SBOMReportGeneration, error) {
+	result, err := g.GenerateDependencyGraphSBOMReport(ctx, repo.Owner, repo.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to request SBOM report generation for repository %s/%s: %w", repo.Owner, repo.Name, err)
+	}
+	return result, nil
+}
+
+// FetchRepositoryDependencyGraphSBOMReport fetches a previously generated SBOM report for a repository.
+func FetchRepositoryDependencyGraphSBOMReport(ctx context.Context, g *GitHubClient, repo repository.Repository, sbomUUID string) (*client.SBOMReport, error) {
+	result, err := g.FetchDependencyGraphSBOMReport(ctx, repo.Owner, repo.Name, sbomUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch SBOM report for repository %s/%s: %w", repo.Owner, repo.Name, err)
+	}
+	return result, nil
+}
+
 // GetRepositoryDependencyGraphDiff retrieves the dependency diff between two commits or branches.
 func GetRepositoryDependencyGraphDiff(ctx context.Context, g *GitHubClient, repo repository.Repository, basehead string) ([]*client.DependencyChange, error) {
 	changes, err := g.GetDependencyGraphDiff(ctx, repo.Owner, repo.Name, basehead)
