@@ -103,8 +103,11 @@ func (g *GitHubClient) FetchDependencyGraphSBOMReport(ctx context.Context, owner
 			return nil, err
 		}
 		defer func() { _ = downloadResp.Body.Close() }()
-		if err := github.CheckResponse(downloadResp); err != nil {
-			return nil, err
+		// The download host is not the GitHub API, so validate the status code
+		// directly instead of using github.CheckResponse, which expects GitHub's
+		// error response format and would produce misleading errors here.
+		if downloadResp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("unexpected status downloading SBOM report: %s", downloadResp.Status)
 		}
 		sbomInfo := new(github.SBOMInfo)
 		if err := json.NewDecoder(downloadResp.Body).Decode(sbomInfo); err != nil {

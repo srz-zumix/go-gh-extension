@@ -3,6 +3,7 @@ package client
 import (
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -53,14 +54,27 @@ func TestFetchDependencyGraphSBOMReport_Pending(t *testing.T) {
 }
 
 func TestFetchDependencyGraphSBOMReport_RedirectDoesNotForwardAuth(t *testing.T) {
-	const downloadHost = "https://objects.example.test/download/report.json"
 	const sbomBody = `{"SPDXID":"SPDXRef-DOCUMENT","spdxVersion":"SPDX-2.3"}`
 
+	// Real download endpoint hosted on a local test server. Using httptest.Server
+	// avoids mutating process-wide globals such as http.DefaultTransport.
+	var gotAuth string
+	var gotDownload bool
+	downloadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotDownload = true
+		gotAuth = r.Header.Get("Authorization")
+		_, _ = io.WriteString(w, sbomBody)
+	}))
+	defer downloadServer.Close()
+
+	// The authenticated transport injects an Authorization header on the GitHub
+	// API hop and redirects to the download server. This proves credentials are
+	// present on the authenticated hop and absent on the download hop.
 	tr := roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Host == "api.github.com" {
 			return &http.Response{
 				StatusCode: http.StatusFound,
-				Header:     http.Header{"Location": []string{downloadHost}},
+				Header:     http.Header{"Location": []string{downloadServer.URL + "/download/report.json"}},
 				Body:       io.NopCloser(strings.NewReader(``)),
 				Request:    r,
 			}, nil
@@ -70,30 +84,12 @@ func TestFetchDependencyGraphSBOMReport_RedirectDoesNotForwardAuth(t *testing.T)
 	})
 	g := newTestClient(t, "https://api.github.com/", tr)
 
-	// The download hop must not use the authenticated transport; swap the
-	// default transport temporarily so we can assert no Authorization header
-	// is sent to the third-party download host.
-	var gotAuth string
-	var gotHost string
-	origTransport := http.DefaultTransport
-	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		gotAuth = r.Header.Get("Authorization")
-		gotHost = r.URL.Host
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader(sbomBody)),
-			Request:    r,
-		}, nil
-	})
-	defer func() { http.DefaultTransport = origTransport }()
-
 	report, err := g.FetchDependencyGraphSBOMReport(t.Context(), "owner", "repo", "uuid-1")
 	require.NoError(t, err)
 	require.NotNil(t, report)
 	assert.False(t, report.Pending)
 	require.NotNil(t, report.SBOM)
 	assert.Equal(t, "SPDXRef-DOCUMENT", report.SBOM.GetSPDXID())
-	assert.Equal(t, "objects.example.test", gotHost)
+	assert.True(t, gotDownload)
 	assert.Empty(t, gotAuth)
 }
