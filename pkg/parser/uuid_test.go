@@ -20,6 +20,11 @@ func TestUUID(t *testing.T) {
 			want:  "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 		},
 		{
+			name:  "surrounding whitespace is trimmed and normalized",
+			input: "  A1B2C3D4-E5F6-7890-ABCD-EF1234567890  ",
+			want:  "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+		{
 			name:    "missing hyphens is invalid",
 			input:   "00000000000000000000000000000000",
 			wantErr: true,
