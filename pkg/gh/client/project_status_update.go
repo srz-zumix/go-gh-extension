@@ -22,7 +22,7 @@ const (
 type ProjectV2StatusUpdate struct {
 	ID         string
 	Body       string
-	Status     string // INACTIVE, ON_TRACK, AT_RISK, OFF_TRACK, COMPLETE
+	Status     ProjectV2StatusUpdateStatus // INACTIVE, ON_TRACK, AT_RISK, OFF_TRACK, COMPLETE
 	StartDate  string // YYYY-MM-DD, empty when unset
 	TargetDate string // YYYY-MM-DD, empty when unset
 	Creator    string
@@ -48,7 +48,7 @@ func (n *projectV2StatusUpdateNode) toProjectV2StatusUpdate() ProjectV2StatusUpd
 	s := ProjectV2StatusUpdate{
 		ID:        string(n.ID),
 		Body:      string(n.Body),
-		Status:    string(n.Status),
+		Status:    ProjectV2StatusUpdateStatus(n.Status),
 		Creator:   string(n.Creator.Login),
 		CreatedAt: n.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt: n.UpdatedAt.UTC().Format(time.RFC3339),
