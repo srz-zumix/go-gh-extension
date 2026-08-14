@@ -26,7 +26,7 @@ func ClearProjectV2ItemFieldValue(ctx context.Context, g *GitHubClient, projectI
 }
 
 // MoveProjectV2Item moves an item within a GitHub Project v2.
-// The item is placed after afterItemID; pass nil to move the item to the top.
+// The item is placed after the item with the given afterItemID; pass nil to move the item to the top.
 func MoveProjectV2Item(ctx context.Context, g *GitHubClient, projectID, itemID string, afterItemID *string) error {
 	input := client.UpdateProjectV2ItemPositionInput{
 		ProjectID: githubv4.ID(projectID),

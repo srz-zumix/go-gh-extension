@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"time"
 
 	"github.com/shurcooL/githubv4"
 )
@@ -49,8 +50,8 @@ func (n *projectV2StatusUpdateNode) toProjectV2StatusUpdate() ProjectV2StatusUpd
 		Body:      string(n.Body),
 		Status:    string(n.Status),
 		Creator:   string(n.Creator.Login),
-		CreatedAt: n.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt: n.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt: n.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt: n.UpdatedAt.UTC().Format(time.RFC3339),
 	}
 	if n.StartDate != nil {
 		s.StartDate = n.StartDate.Format("2006-01-02")
