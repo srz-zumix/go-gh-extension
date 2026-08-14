@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/shurcooL/githubv4"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
@@ -317,5 +318,58 @@ func ArchiveProjectV2Item(ctx context.Context, g *GitHubClient, projectID, itemI
 	return g.ArchiveProjectV2Item(ctx, client.ArchiveProjectV2ItemInput{
 		ProjectID: githubv4.ID(projectID),
 		ItemID:    githubv4.ID(itemID),
+	})
+}
+
+// GetProjectV2ByID retrieves a ProjectV2 by its GraphQL node ID.
+func GetProjectV2ByID(ctx context.Context, g *GitHubClient, projectID string) (*ProjectV2, error) {
+	return g.GetProjectV2ByID(ctx, projectID)
+}
+
+// ListRepositoryProjectsV2 lists all ProjectV2s linked to a repository.
+func ListRepositoryProjectsV2(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]ProjectV2, error) {
+	return g.ListRepositoryProjectsV2(ctx, repo.Owner, repo.Name, 100)
+}
+
+// SetProjectV2Title updates the title of a ProjectV2.
+func SetProjectV2Title(ctx context.Context, g *GitHubClient, projectID string, title string) (*ProjectV2, error) {
+	t := githubv4.String(title)
+	return g.UpdateProjectV2(ctx, client.UpdateProjectV2Input{
+		ProjectID: githubv4.ID(projectID),
+		Title:     &t,
+	})
+}
+
+// SetProjectV2Closed closes or reopens a ProjectV2.
+func SetProjectV2Closed(ctx context.Context, g *GitHubClient, projectID string, closed bool) (*ProjectV2, error) {
+	c := githubv4.Boolean(closed)
+	return g.UpdateProjectV2(ctx, client.UpdateProjectV2Input{
+		ProjectID: githubv4.ID(projectID),
+		Closed:    &c,
+	})
+}
+
+// CopyProjectV2 copies a ProjectV2 to the given owner with a new title.
+func CopyProjectV2(ctx context.Context, g *GitHubClient, projectID string, ownerID string, title string, includeDraftIssues bool) (*ProjectV2, error) {
+	include := githubv4.Boolean(includeDraftIssues)
+	return g.CopyProjectV2(ctx, client.CopyProjectV2Input{
+		ProjectID:          githubv4.ID(projectID),
+		OwnerID:            githubv4.ID(ownerID),
+		Title:              githubv4.String(title),
+		IncludeDraftIssues: &include,
+	})
+}
+
+// MarkProjectV2AsTemplate marks a ProjectV2 as a template.
+func MarkProjectV2AsTemplate(ctx context.Context, g *GitHubClient, projectID string) error {
+	return g.MarkProjectV2AsTemplate(ctx, client.MarkProjectV2AsTemplateInput{
+		ProjectID: githubv4.ID(projectID),
+	})
+}
+
+// UnmarkProjectV2AsTemplate unmarks a ProjectV2 as a template.
+func UnmarkProjectV2AsTemplate(ctx context.Context, g *GitHubClient, projectID string) error {
+	return g.UnmarkProjectV2AsTemplate(ctx, client.UnmarkProjectV2AsTemplateInput{
+		ProjectID: githubv4.ID(projectID),
 	})
 }
