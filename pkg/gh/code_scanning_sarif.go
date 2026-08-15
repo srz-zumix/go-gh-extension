@@ -22,11 +22,11 @@ type UploadSARIFOptions struct {
 }
 
 // toGitHubSARIFAnalysis converts UploadSARIFOptions to github.SarifAnalysis.
-func toGitHubSARIFAnalysis(opts *UploadSARIFOptions) *github.SarifAnalysis {
+func toGitHubSARIFAnalysis(opts *UploadSARIFOptions) github.SarifAnalysis {
 	if opts == nil {
-		return nil
+		return github.SarifAnalysis{}
 	}
-	s := &github.SarifAnalysis{
+	s := github.SarifAnalysis{
 		CommitSHA: opts.CommitSHA,
 		Ref:       opts.Ref,
 		Sarif:     opts.SARIF,
@@ -47,7 +47,10 @@ func toGitHubSARIFAnalysis(opts *UploadSARIFOptions) *github.SarifAnalysis {
 //
 // The SARIF payload must already be base64-encoded and gzip-compressed.
 func UploadSARIF(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *UploadSARIFOptions) (*github.SarifID, error) {
-	sarifID, err := g.UploadSarif(ctx, repo.Owner, repo.Name, *toGitHubSARIFAnalysis(opts))
+	if opts == nil {
+		return nil, fmt.Errorf("UploadSARIFOptions cannot be nil")
+	}
+	sarifID, err := g.UploadSarif(ctx, repo.Owner, repo.Name, toGitHubSARIFAnalysis(opts))
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload SARIF for %s/%s: %w", repo.Owner, repo.Name, err)
 	}
