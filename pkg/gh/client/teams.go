@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -380,7 +380,7 @@ func (g *GitHubClient) GetExternalGroup(ctx context.Context, org string, groupID
 
 // UpdateConnectedExternalGroup sets or updates the external group connected to a team (EMU).
 func (g *GitHubClient) UpdateConnectedExternalGroup(ctx context.Context, org string, teamSlug string, groupID int64) (*github.ExternalGroup, error) {
-	eg := &github.ExternalGroup{GroupID: &groupID}
+	eg := github.UpdateConnectedExternalGroupRequest{GroupID: groupID}
 	result, _, err := g.client.Teams.UpdateConnectedExternalGroup(ctx, org, teamSlug, eg)
 	if err != nil {
 		return nil, err

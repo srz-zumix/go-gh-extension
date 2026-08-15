@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/cli/cli/v2/git"
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
@@ -24,7 +24,7 @@ func GetGist(ctx context.Context, g *GitHubClient, gistID string) (*github.Gist,
 }
 
 // CreateGist creates a new gist with the specified parameters.
-func CreateGist(ctx context.Context, g *GitHubClient, gist *github.Gist) (*github.Gist, error) {
+func CreateGist(ctx context.Context, g *GitHubClient, gist github.CreateGistRequest) (*github.Gist, error) {
 	return g.CreateGist(ctx, gist)
 }
 
@@ -35,15 +35,14 @@ func CopyGist(ctx context.Context, src, dst *GitHubClient, gistID string) (*gith
 		return nil, err
 	}
 
-	newGist := &github.Gist{
+	newGist := github.CreateGistRequest{
 		Description: gist.Description,
 		Public:      gist.Public,
-		Files:       make(map[github.GistFilename]github.GistFile),
+		Files:       make(map[github.GistFilename]*github.CreateGistFile),
 	}
 	for name, file := range gist.Files {
-		newGist.Files[name] = github.GistFile{
-			Filename: file.Filename,
-			Content:  file.Content,
+		newGist.Files[name] = &github.CreateGistFile{
+			Content: file.GetContent(),
 		}
 	}
 
@@ -94,11 +93,11 @@ func MigrateGist(ctx context.Context, src, dst *GitHubClient, gistID string) (_ 
 	// (which implies --force) will overwrite all refs with the source history.
 	// The placeholder's initial commit becomes a dangling (unreachable) object
 	// after the push and is invisible in normal git operations.
-	placeholder := &github.Gist{
+	placeholder := github.CreateGistRequest{
 		Description: srcGist.Description,
 		Public:      srcGist.Public,
-		Files: map[github.GistFilename]github.GistFile{
-			".gitkeep": {Content: github.Ptr("placeholder")},
+		Files: map[github.GistFilename]*github.CreateGistFile{
+			".gitkeep": {Content: "placeholder"},
 		},
 	}
 	dstGist, err := dst.CreateGist(ctx, placeholder)

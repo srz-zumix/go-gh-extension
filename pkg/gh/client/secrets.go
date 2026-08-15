@@ -6,7 +6,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 // GetRepoPublicKey gets the public key for encrypting secrets in a repository.
@@ -28,8 +28,8 @@ func (g *GitHubClient) GetOrgPublicKey(ctx context.Context, org string) (*github
 }
 
 // GetEnvPublicKey gets the public key for encrypting secrets in an environment.
-func (g *GitHubClient) GetEnvPublicKey(ctx context.Context, repoID int, env string) (*github.PublicKey, error) {
-	key, _, err := g.client.Actions.GetEnvPublicKey(ctx, repoID, env)
+func (g *GitHubClient) GetEnvPublicKey(ctx context.Context, owner, repo, env string) (*github.PublicKey, error) {
+	key, _, err := g.client.Actions.GetEnvPublicKey(ctx, owner, repo, env)
 	if err != nil {
 		return nil, err
 	}
@@ -91,11 +91,11 @@ func (g *GitHubClient) ListOrgSecrets(ctx context.Context, org string) ([]*githu
 }
 
 // ListEnvSecrets lists all secrets in an environment without revealing their encrypted values.
-func (g *GitHubClient) ListEnvSecrets(ctx context.Context, repoID int, env string) ([]*github.Secret, error) {
+func (g *GitHubClient) ListEnvSecrets(ctx context.Context, owner, repo, env string) ([]*github.Secret, error) {
 	var allSecrets []*github.Secret
 	opt := &github.ListOptions{PerPage: defaultPerPage}
 	for {
-		secrets, resp, err := g.client.Actions.ListEnvSecrets(ctx, repoID, env, opt)
+		secrets, resp, err := g.client.Actions.ListEnvSecrets(ctx, owner, repo, env, opt)
 		if err != nil {
 			return nil, err
 		}
@@ -127,8 +127,8 @@ func (g *GitHubClient) GetOrgSecret(ctx context.Context, org, name string) (*git
 }
 
 // GetEnvSecret gets a single environment secret without revealing its encrypted value.
-func (g *GitHubClient) GetEnvSecret(ctx context.Context, repoID int, env, secretName string) (*github.Secret, error) {
-	secret, _, err := g.client.Actions.GetEnvSecret(ctx, repoID, env, secretName)
+func (g *GitHubClient) GetEnvSecret(ctx context.Context, owner, repo, env, secretName string) (*github.Secret, error) {
+	secret, _, err := g.client.Actions.GetEnvSecret(ctx, owner, repo, env, secretName)
 	if err != nil {
 		return nil, err
 	}
@@ -137,19 +137,27 @@ func (g *GitHubClient) GetEnvSecret(ctx context.Context, repoID int, env, secret
 
 // CreateOrUpdateRepoSecret creates or updates a repository secret with an encrypted value.
 func (g *GitHubClient) CreateOrUpdateRepoSecret(ctx context.Context, owner, repo string, eSecret *github.EncryptedSecret) error {
-	_, err := g.client.Actions.CreateOrUpdateRepoSecret(ctx, owner, repo, eSecret)
+	body := github.SecretRequest{KeyID: eSecret.KeyID, EncryptedValue: eSecret.EncryptedValue}
+	_, err := g.client.Actions.CreateOrUpdateRepoSecret(ctx, owner, repo, eSecret.Name, body)
 	return err
 }
 
 // CreateOrUpdateOrgSecret creates or updates an organization secret with an encrypted value.
 func (g *GitHubClient) CreateOrUpdateOrgSecret(ctx context.Context, org string, eSecret *github.EncryptedSecret) error {
-	_, err := g.client.Actions.CreateOrUpdateOrgSecret(ctx, org, eSecret)
+	body := github.SecretOrgRequest{
+		KeyID:                 eSecret.KeyID,
+		EncryptedValue:        eSecret.EncryptedValue,
+		Visibility:            eSecret.Visibility,
+		SelectedRepositoryIDs: []int64(eSecret.SelectedRepositoryIDs),
+	}
+	_, err := g.client.Actions.CreateOrUpdateOrgSecret(ctx, org, eSecret.Name, body)
 	return err
 }
 
 // CreateOrUpdateEnvSecret creates or updates an environment secret with an encrypted value.
-func (g *GitHubClient) CreateOrUpdateEnvSecret(ctx context.Context, repoID int, env string, eSecret *github.EncryptedSecret) error {
-	_, err := g.client.Actions.CreateOrUpdateEnvSecret(ctx, repoID, env, eSecret)
+func (g *GitHubClient) CreateOrUpdateEnvSecret(ctx context.Context, owner, repo, env string, eSecret *github.EncryptedSecret) error {
+	body := github.SecretRequest{KeyID: eSecret.KeyID, EncryptedValue: eSecret.EncryptedValue}
+	_, err := g.client.Actions.CreateOrUpdateEnvSecret(ctx, owner, repo, env, eSecret.Name, body)
 	return err
 }
 
@@ -166,8 +174,8 @@ func (g *GitHubClient) DeleteOrgSecret(ctx context.Context, org, name string) er
 }
 
 // DeleteEnvSecret deletes a secret in an environment using the secret name.
-func (g *GitHubClient) DeleteEnvSecret(ctx context.Context, repoID int, env, secretName string) error {
-	_, err := g.client.Actions.DeleteEnvSecret(ctx, repoID, env, secretName)
+func (g *GitHubClient) DeleteEnvSecret(ctx context.Context, owner, repo, env, secretName string) error {
+	_, err := g.client.Actions.DeleteEnvSecret(ctx, owner, repo, env, secretName)
 	return err
 }
 
@@ -197,12 +205,12 @@ func (g *GitHubClient) SetSelectedReposForOrgSecret(ctx context.Context, org, na
 
 // AddSelectedRepoToOrgSecret adds a repository to an organization secret.
 func (g *GitHubClient) AddSelectedRepoToOrgSecret(ctx context.Context, org, name string, repo *github.Repository) error {
-	_, err := g.client.Actions.AddSelectedRepoToOrgSecret(ctx, org, name, repo)
+	_, err := g.client.Actions.AddSelectedRepoToOrgSecret(ctx, org, name, repo.GetID())
 	return err
 }
 
 // RemoveSelectedRepoFromOrgSecret removes a repository from an organization secret.
 func (g *GitHubClient) RemoveSelectedRepoFromOrgSecret(ctx context.Context, org, name string, repo *github.Repository) error {
-	_, err := g.client.Actions.RemoveSelectedRepoFromOrgSecret(ctx, org, name, repo)
+	_, err := g.client.Actions.RemoveSelectedRepoFromOrgSecret(ctx, org, name, repo.GetID())
 	return err
 }

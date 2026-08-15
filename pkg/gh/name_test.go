@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 	"github.com/srz-zumix/go-gh-extension/pkg/unity"
@@ -48,7 +48,7 @@ func TestGetObjectName(t *testing.T) {
 		},
 		{
 			name:     "Label",
-			item:     &github.Label{Name: github.Ptr("bug")},
+			item:     &github.Label{Name: "bug"},
 			expected: "bug",
 		},
 		{
@@ -173,8 +173,8 @@ func TestGetObjectNames(t *testing.T) {
 		{
 			name: "Labels",
 			items: []*github.Label{
-				{Name: github.Ptr("bug")},
-				{Name: github.Ptr("feature")},
+				{Name: "bug"},
+				{Name: "feature"},
 			},
 			expected: []string{"bug", "feature"},
 		},

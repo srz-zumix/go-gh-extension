@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 // UploadSARIFOptions holds the parameters for uploading SARIF data.
@@ -27,9 +27,9 @@ func toGitHubSARIFAnalysis(opts *UploadSARIFOptions) *github.SarifAnalysis {
 		return nil
 	}
 	s := &github.SarifAnalysis{
-		CommitSHA: &opts.CommitSHA,
-		Ref:       &opts.Ref,
-		Sarif:     &opts.SARIF,
+		CommitSHA: opts.CommitSHA,
+		Ref:       opts.Ref,
+		Sarif:     opts.SARIF,
 	}
 	if opts.CheckoutURI != "" {
 		s.CheckoutURI = &opts.CheckoutURI
@@ -47,7 +47,7 @@ func toGitHubSARIFAnalysis(opts *UploadSARIFOptions) *github.SarifAnalysis {
 //
 // The SARIF payload must already be base64-encoded and gzip-compressed.
 func UploadSARIF(ctx context.Context, g *GitHubClient, repo repository.Repository, opts *UploadSARIFOptions) (*github.SarifID, error) {
-	sarifID, err := g.UploadSarif(ctx, repo.Owner, repo.Name, toGitHubSARIFAnalysis(opts))
+	sarifID, err := g.UploadSarif(ctx, repo.Owner, repo.Name, *toGitHubSARIFAnalysis(opts))
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload SARIF for %s/%s: %w", repo.Owner, repo.Name, err)
 	}

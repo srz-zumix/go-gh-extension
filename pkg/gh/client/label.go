@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -15,12 +15,12 @@ func (g *GitHubClient) GetLabel(ctx context.Context, owner, repo, name string) (
 	return label, nil
 }
 
-func (g *GitHubClient) CreateLabel(ctx context.Context, owner, repo string, label *github.Label) (*github.Label, error) {
-	label, _, err := g.client.Issues.CreateLabel(ctx, owner, repo, label)
+func (g *GitHubClient) CreateLabel(ctx context.Context, owner, repo string, label github.CreateIssueLabelRequest) (*github.Label, error) {
+	created, _, err := g.client.Issues.CreateLabel(ctx, owner, repo, label)
 	if err != nil {
 		return nil, err
 	}
-	return label, nil
+	return created, nil
 }
 
 func (g *GitHubClient) DeleteLabel(ctx context.Context, owner, repo, name string) error {
@@ -31,12 +31,12 @@ func (g *GitHubClient) DeleteLabel(ctx context.Context, owner, repo, name string
 	return nil
 }
 
-func (g *GitHubClient) EditLabel(ctx context.Context, owner, repo, name string, label *github.Label) (*github.Label, error) {
-	label, _, err := g.client.Issues.EditLabel(ctx, owner, repo, name, label)
+func (g *GitHubClient) EditLabel(ctx context.Context, owner, repo, name string, label github.UpdateIssueLabelRequest) (*github.Label, error) {
+	edited, _, err := g.client.Issues.UpdateLabel(ctx, owner, repo, name, label)
 	if err != nil {
 		return nil, err
 	}
-	return label, nil
+	return edited, nil
 }
 
 func (g *GitHubClient) ListLabels(ctx context.Context, owner, repo string) ([]*github.Label, error) {

@@ -1,7 +1,7 @@
 package render
 
 import (
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 func (r *Renderer) RenderHovercard(hovercard *github.Hovercard) error {

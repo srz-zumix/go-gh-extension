@@ -3,7 +3,7 @@ package render
 import (
 	"strings"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 // OrgMemberPrivilegeFieldList is the ordered list of fields used when displaying member privileges.

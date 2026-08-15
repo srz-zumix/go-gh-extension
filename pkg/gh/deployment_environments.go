@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 // CreateUpdateEnvironment creates or updates an environment for a repository.
@@ -121,18 +121,17 @@ func GetDeploymentBranchPolicy(ctx context.Context, g *GitHubClient, repo reposi
 
 // CreateDeploymentBranchPolicy creates a deployment branch policy for an environment.
 func CreateDeploymentBranchPolicy(ctx context.Context, g *GitHubClient, repo repository.Repository, environment string, ref string, refType string) (*github.DeploymentBranchPolicy, error) {
-	request := &github.DeploymentBranchPolicyRequest{
-		Name: &ref,
+	request := github.CreateDeploymentBranchPolicyRequest{
+		Name: ref,
 		Type: &refType,
 	}
 	return g.CreateDeploymentBranchPolicy(ctx, repo.Owner, repo.Name, environment, request)
 }
 
 // UpdateDeploymentBranchPolicy updates a deployment branch policy.
-func UpdateDeploymentBranchPolicy(ctx context.Context, g *GitHubClient, repo repository.Repository, environment string, branchPolicyID int64, ref *string, refType *string) (*github.DeploymentBranchPolicy, error) {
-	request := &github.DeploymentBranchPolicyRequest{
+func UpdateDeploymentBranchPolicy(ctx context.Context, g *GitHubClient, repo repository.Repository, environment string, branchPolicyID int64, ref string) (*github.DeploymentBranchPolicy, error) {
+	request := github.UpdateDeploymentBranchPolicyRequest{
 		Name: ref,
-		Type: refType,
 	}
 	return g.UpdateDeploymentBranchPolicy(ctx, repo.Owner, repo.Name, environment, branchPolicyID, request)
 }

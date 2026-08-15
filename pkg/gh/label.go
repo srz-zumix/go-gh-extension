@@ -5,14 +5,14 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 func GetLabelNames(labels []*github.Label) []string {
 	names := []string{}
 	for _, label := range labels {
-		if label.Name != nil {
-			names = append(names, *label.Name)
+		if label.Name != "" {
+			names = append(names, label.Name)
 		}
 	}
 	return names
@@ -27,14 +27,14 @@ func GetLabel(ctx context.Context, g *GitHubClient, repo repository.Repository, 
 }
 
 func CreateLabel(ctx context.Context, g *GitHubClient, repo repository.Repository, name, description, color *string) (*github.Label, error) {
-	label := &github.Label{
-		Name:        name,
+	req := github.CreateIssueLabelRequest{
+		Name:        *name,
 		Description: description,
 		Color:       color,
 	}
-	createdLabel, err := g.CreateLabel(ctx, repo.Owner, repo.Name, label)
+	createdLabel, err := g.CreateLabel(ctx, repo.Owner, repo.Name, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create label %s: %w", *label.Name, err)
+		return nil, fmt.Errorf("failed to create label %s: %w", *name, err)
 	}
 	return createdLabel, nil
 }
@@ -58,11 +58,29 @@ func DeleteUnusedLabel(ctx context.Context, g *GitHubClient, repo repository.Rep
 }
 
 func EditLabel(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, label *github.Label) (*github.Label, error) {
-	editedLabel, err := g.EditLabel(ctx, repo.Owner, repo.Name, name, label)
+	editedLabel, err := g.EditLabel(ctx, repo.Owner, repo.Name, name, toUpdateIssueLabelRequest(label))
 	if err != nil {
 		return nil, fmt.Errorf("failed to edit label %s: %w", name, err)
 	}
 	return editedLabel, nil
+}
+
+// toUpdateIssueLabelRequest converts a github.Label into an UpdateIssueLabelRequest.
+func toUpdateIssueLabelRequest(label *github.Label) github.UpdateIssueLabelRequest {
+	return github.UpdateIssueLabelRequest{
+		NewName:     github.Ptr(label.Name),
+		Color:       github.Ptr(label.Color),
+		Description: label.Description,
+	}
+}
+
+// toCreateIssueLabelRequest converts a github.Label into a CreateIssueLabelRequest.
+func toCreateIssueLabelRequest(label *github.Label) github.CreateIssueLabelRequest {
+	return github.CreateIssueLabelRequest{
+		Name:        label.Name,
+		Color:       github.Ptr(label.Color),
+		Description: label.Description,
+	}
 }
 
 func ListLabels(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Label, error) {
@@ -86,26 +104,26 @@ func CopyLabels(ctx context.Context, g *GitHubClient, src, dst repository.Reposi
 	}
 	dstLabelMap := make(map[string]*github.Label)
 	for _, l := range dstLabels {
-		if l.Name != nil {
-			dstLabelMap[*l.Name] = l
+		if l.Name != "" {
+			dstLabelMap[l.Name] = l
 		}
 	}
 	for _, label := range srcLabels {
-		if label.Name == nil {
+		if label.Name == "" {
 			continue
 		}
-		if _, exists := dstLabelMap[*label.Name]; exists {
+		if _, exists := dstLabelMap[label.Name]; exists {
 			if force {
-				_, err := g.EditLabel(ctx, dst.Owner, dst.Name, *label.Name, label)
+				_, err := g.EditLabel(ctx, dst.Owner, dst.Name, label.Name, toUpdateIssueLabelRequest(label))
 				if err != nil {
-					return fmt.Errorf("failed to update label %s: %w", *label.Name, err)
+					return fmt.Errorf("failed to update label %s: %w", label.Name, err)
 				}
 			}
 			continue
 		}
-		_, err := g.CreateLabel(ctx, dst.Owner, dst.Name, label)
+		_, err := g.CreateLabel(ctx, dst.Owner, dst.Name, toCreateIssueLabelRequest(label))
 		if err != nil {
-			return fmt.Errorf("failed to create label %s: %w", *label.Name, err)
+			return fmt.Errorf("failed to create label %s: %w", label.Name, err)
 		}
 	}
 	return nil
@@ -124,46 +142,46 @@ func SyncLabels(ctx context.Context, g *GitHubClient, src, dst repository.Reposi
 	}
 	dstLabelMap := make(map[string]*github.Label)
 	for _, l := range dstLabels {
-		if l.Name != nil {
-			dstLabelMap[*l.Name] = l
+		if l.Name != "" {
+			dstLabelMap[l.Name] = l
 		}
 	}
 	for _, label := range srcLabels {
-		if label.Name == nil {
+		if label.Name == "" {
 			continue
 		}
-		if dstLabel, exists := dstLabelMap[*label.Name]; exists {
+		if dstLabel, exists := dstLabelMap[label.Name]; exists {
 			// update if any field differs
 			if !equalLabel(label, dstLabel) {
-				_, err := g.EditLabel(ctx, dst.Owner, dst.Name, *label.Name, label)
+				_, err := g.EditLabel(ctx, dst.Owner, dst.Name, label.Name, toUpdateIssueLabelRequest(label))
 				if err != nil {
-					return fmt.Errorf("failed to update label %s: %w", *label.Name, err)
+					return fmt.Errorf("failed to update label %s: %w", label.Name, err)
 				}
 			}
 			continue
 		}
-		_, err := g.CreateLabel(ctx, dst.Owner, dst.Name, label)
+		_, err := g.CreateLabel(ctx, dst.Owner, dst.Name, toCreateIssueLabelRequest(label))
 		if err != nil {
-			return fmt.Errorf("failed to create label %s: %w", *label.Name, err)
+			return fmt.Errorf("failed to create label %s: %w", label.Name, err)
 		}
 	}
 	// Delete labels from dst that do not exist in src
 	srcLabelMap := make(map[string]struct{})
 	for _, label := range srcLabels {
-		if label.Name != nil {
-			srcLabelMap[*label.Name] = struct{}{}
+		if label.Name != "" {
+			srcLabelMap[label.Name] = struct{}{}
 		}
 	}
 	for _, l := range dstLabels {
-		if l.Name != nil {
-			if _, exists := srcLabelMap[*l.Name]; !exists {
+		if l.Name != "" {
+			if _, exists := srcLabelMap[l.Name]; !exists {
 				if force {
-					if err := g.DeleteLabel(ctx, dst.Owner, dst.Name, *l.Name); err != nil {
-						return fmt.Errorf("failed to delete label %s: %w", *l.Name, err)
+					if err := g.DeleteLabel(ctx, dst.Owner, dst.Name, l.Name); err != nil {
+						return fmt.Errorf("failed to delete label %s: %w", l.Name, err)
 					}
 				} else {
-					if _, err := DeleteUnusedLabel(ctx, g, dst, *l.Name); err != nil {
-						return fmt.Errorf("failed to delete unused label %s: %w", *l.Name, err)
+					if _, err := DeleteUnusedLabel(ctx, g, dst, l.Name); err != nil {
+						return fmt.Errorf("failed to delete unused label %s: %w", l.Name, err)
 					}
 				}
 			}
@@ -191,16 +209,13 @@ func GetRepositoryLabelIDs(ctx context.Context, g *GitHubClient, owner string, r
 }
 
 func equalLabel(a, b *github.Label) bool {
-	if a.Name == nil || b.Name == nil {
+	if a.Name == "" || b.Name == "" {
 		return false
 	}
-	if *a.Name != *b.Name {
+	if a.Name != b.Name {
 		return false
 	}
-	if (a.Color == nil) != (b.Color == nil) {
-		return false
-	}
-	if a.Color != nil && b.Color != nil && *a.Color != *b.Color {
+	if a.Color != b.Color {
 		return false
 	}
 	if (a.Description == nil) != (b.Description == nil) {
