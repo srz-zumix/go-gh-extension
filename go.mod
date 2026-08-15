@@ -9,6 +9,7 @@ require (
 	github.com/cli/shurcooL-graphql v0.0.4
 	github.com/ddddddO/gtree v1.14.2
 	github.com/fatih/color v1.19.0
+	github.com/google/go-github/v90 v90.0.0
 	github.com/google/go-querystring v1.2.0
 	github.com/olekukonko/tablewriter v1.1.4
 	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
@@ -94,6 +95,6 @@ require (
 require (
 	github.com/cli/cli/v2 v2.93.0
 	github.com/cli/safeexec v1.0.1 // indirect
-	github.com/google/go-github/v88 v88.0.0
+	github.com/google/go-github/v88 v88.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
 )

@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -52,12 +52,12 @@ func (g *GitHubClient) ClearIssueLabels(ctx context.Context, owner string, repo 
 // CreateIssue creates a new issue in the given repository.
 // Returns the created issue, including its node ID.
 func (g *GitHubClient) CreateIssue(ctx context.Context, owner, repo, title, body string, labels []string) (*github.Issue, error) {
-	req := &github.IssueRequest{
-		Title: github.Ptr(title),
+	req := github.CreateIssueRequest{
+		Title: title,
 		Body:  github.Ptr(body),
 	}
 	if len(labels) > 0 {
-		req.Labels = &labels
+		req.Labels = labels
 	}
 	issue, _, err := g.client.Issues.Create(ctx, owner, repo, req)
 	return issue, err

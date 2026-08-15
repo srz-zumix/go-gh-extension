@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
@@ -61,11 +61,11 @@ func AddDiscussionLabels(ctx context.Context, g *GitHubClient, repo repository.R
 	for _, labelName := range labelNames {
 		found := false
 		for _, label := range labels {
-			if label.Name != nil && *label.Name == labelName {
-				if label.NodeID == nil {
+			if label.Name == labelName {
+				if label.NodeID == "" {
 					return nil, fmt.Errorf("label '%s' has no NodeID in repository '%s/%s'", labelName, repo.Owner, repo.Name)
 				}
-				labelIDs = append(labelIDs, *label.NodeID)
+				labelIDs = append(labelIDs, label.NodeID)
 				found = true
 				break
 			}
@@ -109,11 +109,11 @@ func RemoveDiscussionLabels(ctx context.Context, g *GitHubClient, repo repositor
 	for _, labelName := range labelNames {
 		found := false
 		for _, label := range labelsToRemove {
-			if label.Name != nil && *label.Name == labelName {
-				if label.NodeID == nil {
+			if label.Name == labelName {
+				if label.NodeID == "" {
 					return nil, fmt.Errorf("label '%s' has no NodeID in repository '%s/%s'", labelName, repo.Owner, repo.Name)
 				}
-				labelIDs = append(labelIDs, *label.NodeID)
+				labelIDs = append(labelIDs, label.NodeID)
 				found = true
 				break
 			}
@@ -210,11 +210,11 @@ func SetDiscussionLabels(ctx context.Context, g *GitHubClient, repo repository.R
 	for _, labelName := range labelNames {
 		found := false
 		for _, label := range labels {
-			if label.Name != nil && *label.Name == labelName {
-				if label.NodeID == nil {
+			if label.Name == labelName {
+				if label.NodeID == "" {
 					return nil, fmt.Errorf("label '%s' has no NodeID in repository '%s/%s'", labelName, repo.Owner, repo.Name)
 				}
-				labelIDs = append(labelIDs, *label.NodeID)
+				labelIDs = append(labelIDs, label.NodeID)
 				found = true
 				break
 			}
@@ -264,8 +264,8 @@ func getLabelsFromNames(ctx context.Context, g *GitHubClient, repo repository.Re
 	// Create a map for quick lookup
 	labelMap := make(map[string]*github.Label)
 	for _, label := range allLabels {
-		if label.Name != nil {
-			labelMap[*label.Name] = label
+		if label.Name != "" {
+			labelMap[label.Name] = label
 		}
 	}
 

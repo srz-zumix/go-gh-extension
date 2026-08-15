@@ -10,7 +10,7 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/google/go-querystring/query"
 	"github.com/shurcooL/githubv4"
 )

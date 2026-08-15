@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -18,7 +18,7 @@ func (g *GitHubClient) GetPullRequest(ctx context.Context, owner string, repo st
 }
 
 // CreatePullRequest creates a new pull request.
-func (g *GitHubClient) CreatePullRequest(ctx context.Context, owner string, repo string, newPR *github.NewPullRequest) (*github.PullRequest, error) {
+func (g *GitHubClient) CreatePullRequest(ctx context.Context, owner string, repo string, newPR github.CreatePullRequest) (*github.PullRequest, error) {
 	pr, _, err := g.client.PullRequests.Create(ctx, owner, repo, newPR)
 	if err != nil {
 		return nil, err

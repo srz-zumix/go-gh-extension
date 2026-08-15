@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 // ListGists lists gists for the specified user. Pass an empty string for the
@@ -35,7 +35,7 @@ func (g *GitHubClient) GetGist(ctx context.Context, gistID string) (*github.Gist
 }
 
 // CreateGist creates a new gist.
-func (g *GitHubClient) CreateGist(ctx context.Context, gist *github.Gist) (*github.Gist, error) {
+func (g *GitHubClient) CreateGist(ctx context.Context, gist github.CreateGistRequest) (*github.Gist, error) {
 	created, _, err := g.client.Gists.Create(ctx, gist)
 	if err != nil {
 		return nil, err

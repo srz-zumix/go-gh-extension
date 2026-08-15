@@ -6,7 +6,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 // ListRepoVariables lists all variables in a repository.
@@ -65,25 +65,32 @@ func (g *GitHubClient) GetOrgVariable(ctx context.Context, org, name string) (*g
 
 // CreateRepoVariable creates a repository variable.
 func (g *GitHubClient) CreateRepoVariable(ctx context.Context, owner, repo string, variable *github.ActionsVariable) error {
-	_, err := g.client.Actions.CreateRepoVariable(ctx, owner, repo, variable)
+	body := github.ActionsCreateVariableRequest{Name: variable.Name, Value: variable.Value}
+	_, err := g.client.Actions.CreateRepoVariable(ctx, owner, repo, body)
 	return err
 }
 
 // UpdateRepoVariable updates a repository variable.
 func (g *GitHubClient) UpdateRepoVariable(ctx context.Context, owner, repo string, variable *github.ActionsVariable) error {
-	_, err := g.client.Actions.UpdateRepoVariable(ctx, owner, repo, variable)
+	body := github.ActionsUpdateVariableRequest{Value: &variable.Value}
+	_, err := g.client.Actions.UpdateRepoVariable(ctx, owner, repo, variable.Name, body)
 	return err
 }
 
 // CreateOrgVariable creates an organization variable.
 func (g *GitHubClient) CreateOrgVariable(ctx context.Context, org string, variable *github.ActionsVariable) error {
-	_, err := g.client.Actions.CreateOrgVariable(ctx, org, variable)
+	body := github.ActionsCreateOrgVariableRequest{Name: variable.Name, Value: variable.Value}
+	if variable.Visibility != nil {
+		body.Visibility = *variable.Visibility
+	}
+	_, err := g.client.Actions.CreateOrgVariable(ctx, org, body)
 	return err
 }
 
 // UpdateOrgVariable updates an organization variable.
 func (g *GitHubClient) UpdateOrgVariable(ctx context.Context, org string, variable *github.ActionsVariable) error {
-	_, err := g.client.Actions.UpdateOrgVariable(ctx, org, variable)
+	body := github.ActionsUpdateOrgVariableRequest{Value: &variable.Value, Visibility: variable.Visibility}
+	_, err := g.client.Actions.UpdateOrgVariable(ctx, org, variable.Name, body)
 	return err
 }
 
@@ -116,12 +123,14 @@ func (g *GitHubClient) GetEnvVariable(ctx context.Context, owner, repo, env, nam
 
 // CreateEnvVariable creates an environment variable.
 func (g *GitHubClient) CreateEnvVariable(ctx context.Context, owner, repo, env string, variable *github.ActionsVariable) error {
-	_, err := g.client.Actions.CreateEnvVariable(ctx, owner, repo, env, variable)
+	body := github.ActionsCreateVariableRequest{Name: variable.Name, Value: variable.Value}
+	_, err := g.client.Actions.CreateEnvVariable(ctx, owner, repo, env, body)
 	return err
 }
 
 // UpdateEnvVariable updates an environment variable.
 func (g *GitHubClient) UpdateEnvVariable(ctx context.Context, owner, repo, env string, variable *github.ActionsVariable) error {
-	_, err := g.client.Actions.UpdateEnvVariable(ctx, owner, repo, env, variable)
+	body := github.ActionsUpdateVariableRequest{Value: &variable.Value}
+	_, err := g.client.Actions.UpdateEnvVariable(ctx, owner, repo, env, variable.Name, body)
 	return err
 }
