@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 // CreateCodeQLVariantAnalysisOptions specifies parameters for creating a CodeQL variant analysis.

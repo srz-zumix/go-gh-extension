@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

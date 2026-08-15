@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 type labelFieldGetter func(label *github.Label) string
@@ -17,16 +17,10 @@ func NewLabelFieldGetters() *labelFieldGetters {
 	return &labelFieldGetters{
 		Func: map[string]labelFieldGetter{
 			"NAME": func(label *github.Label) string {
-				if label.Name == nil {
-					return ""
-				}
-				return *label.Name
+				return label.Name
 			},
 			"COLOR": func(label *github.Label) string {
-				if label.Color == nil {
-					return ""
-				}
-				return *label.Color
+				return label.Color
 			},
 			"DESCRIPTION": func(label *github.Label) string {
 				if label.Description == nil {
@@ -35,19 +29,13 @@ func NewLabelFieldGetters() *labelFieldGetters {
 				return *label.Description
 			},
 			"DEFAULT": func(label *github.Label) string {
-				if label.Default == nil {
-					return ""
-				}
-				if *label.Default {
+				if label.Default {
 					return "YES"
 				}
 				return "NO"
 			},
 			"URL": func(label *github.Label) string {
-				if label.URL == nil {
-					return ""
-				}
-				return *label.URL
+				return label.URL
 			},
 		},
 	}
@@ -84,8 +72,8 @@ func (r *Renderer) RenderLabels(labels []*github.Label, headers []string) error 
 		row := make([]string, len(headers))
 		for i, header := range headers {
 			row[i] = getter.GetField(label, header)
-			if r.Color && header == "COLOR" && label.Color != nil {
-				c := *label.Color
+			if r.Color && header == "COLOR" && label.Color != "" {
+				c := label.Color
 				r, g, b, err := ToRGB(c)
 				if err != nil {
 					break

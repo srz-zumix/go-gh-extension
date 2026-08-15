@@ -3,11 +3,11 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 // UploadSarif uploads SARIF data for a repository.
-func (g *GitHubClient) UploadSarif(ctx context.Context, owner, repo string, sarif *github.SarifAnalysis) (*github.SarifID, error) {
+func (g *GitHubClient) UploadSarif(ctx context.Context, owner, repo string, sarif github.SarifAnalysis) (*github.SarifID, error) {
 	sarifID, _, err := g.client.CodeScanning.UploadSarif(ctx, owner, repo, sarif)
 	if err != nil {
 		return nil, err

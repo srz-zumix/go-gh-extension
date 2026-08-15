@@ -3,7 +3,7 @@ package actions
 import (
 	"testing"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 func TestEventPayloadHelpers(t *testing.T) {

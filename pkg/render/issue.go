@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/tw"
 )
@@ -37,8 +37,8 @@ func NewIssueFieldGetters(enableColor bool) *issueFieldGetters {
 				var labelNames []string
 				for _, label := range issue.Labels {
 					labelName := "'" + ToString(label.Name) + "'"
-					if enableColor && label.Color != nil && *label.Color != "" {
-						r, g, b, err := ToRGB(*label.Color)
+					if enableColor && label.Color != "" {
+						r, g, b, err := ToRGB(label.Color)
 						if err == nil {
 							labelName = color.RGB(r, g, b).Sprint(labelName)
 						}

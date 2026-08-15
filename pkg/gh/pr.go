@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
@@ -499,10 +499,10 @@ type NewPullRequest struct {
 
 // CreatePullRequest creates a new pull request (wrapper).
 func CreatePullRequest(ctx context.Context, g *GitHubClient, repo repository.Repository, newPR NewPullRequest) (*github.PullRequest, error) {
-	gpr := &github.NewPullRequest{
+	gpr := github.CreatePullRequest{
 		Title:               &newPR.Title,
-		Head:                &newPR.Head,
-		Base:                &newPR.Base,
+		Head:                newPR.Head,
+		Base:                newPR.Base,
 		HeadRepo:            newPR.HeadRepo,
 		Body:                newPR.Body,
 		Issue:               newPR.Issue,

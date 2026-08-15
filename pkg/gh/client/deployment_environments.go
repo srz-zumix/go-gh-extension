@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v90/github"
 )
 
 // ListEnvironments retrieves all environments for a repository.
@@ -81,7 +81,7 @@ func (g *GitHubClient) GetDeploymentBranchPolicy(ctx context.Context, owner stri
 }
 
 // CreateDeploymentBranchPolicy creates a deployment branch policy for an environment.
-func (g *GitHubClient) CreateDeploymentBranchPolicy(ctx context.Context, owner string, repo string, environment string, request *github.DeploymentBranchPolicyRequest) (*github.DeploymentBranchPolicy, error) {
+func (g *GitHubClient) CreateDeploymentBranchPolicy(ctx context.Context, owner string, repo string, environment string, request github.CreateDeploymentBranchPolicyRequest) (*github.DeploymentBranchPolicy, error) {
 	policy, _, err := g.client.Repositories.CreateDeploymentBranchPolicy(ctx, owner, repo, environment, request)
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func (g *GitHubClient) CreateDeploymentBranchPolicy(ctx context.Context, owner s
 }
 
 // UpdateDeploymentBranchPolicy updates a deployment branch policy.
-func (g *GitHubClient) UpdateDeploymentBranchPolicy(ctx context.Context, owner string, repo string, environment string, branchPolicyID int64, request *github.DeploymentBranchPolicyRequest) (*github.DeploymentBranchPolicy, error) {
+func (g *GitHubClient) UpdateDeploymentBranchPolicy(ctx context.Context, owner string, repo string, environment string, branchPolicyID int64, request github.UpdateDeploymentBranchPolicyRequest) (*github.DeploymentBranchPolicy, error) {
 	policy, _, err := g.client.Repositories.UpdateDeploymentBranchPolicy(ctx, owner, repo, environment, branchPolicyID, request)
 	if err != nil {
 		return nil, err
