@@ -1007,3 +1007,125 @@ func (g *GitHubClient) ListOrgProjectV2Views(ctx context.Context, org string, nu
 	}
 	return all, nil
 }
+
+// GetProjectV2ByID retrieves a ProjectV2 by its GraphQL node ID.
+func (g *GitHubClient) GetProjectV2ByID(ctx context.Context, id string) (*ProjectV2, error) {
+	gql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+	var query struct {
+		Node struct {
+			ProjectV2 ProjectV2 `graphql:"... on ProjectV2"`
+		} `graphql:"node(id: $id)"`
+	}
+	variables := map[string]any{
+		"id": githubv4.ID(id),
+	}
+	if err := gql.Query(ctx, &query, variables); err != nil {
+		return nil, err
+	}
+	p := query.Node.ProjectV2
+	return &p, nil
+}
+
+// ListRepositoryProjectsV2 lists all ProjectV2s linked to a repository.
+func (g *GitHubClient) ListRepositoryProjectsV2(ctx context.Context, owner string, name string, first int) ([]ProjectV2, error) {
+	gql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+	var query struct {
+		Repository struct {
+			ProjectsV2 struct {
+				Nodes    []ProjectV2
+				PageInfo struct {
+					EndCursor   githubv4.String
+					HasNextPage bool
+				}
+			} `graphql:"projectsV2(first: $first, after: $cursor)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+	variables := map[string]any{
+		"owner":  githubv4.String(owner),
+		"name":   githubv4.String(name),
+		"first":  githubv4.Int(first),
+		"cursor": (*githubv4.String)(nil),
+	}
+	var all []ProjectV2
+	for {
+		if err := gql.Query(ctx, &query, variables); err != nil {
+			return nil, err
+		}
+		all = append(all, query.Repository.ProjectsV2.Nodes...)
+		if !query.Repository.ProjectsV2.PageInfo.HasNextPage {
+			break
+		}
+		variables["cursor"] = githubv4.NewString(query.Repository.ProjectsV2.PageInfo.EndCursor)
+	}
+	return all, nil
+}
+
+// CopyProjectV2Input is the input for copying a GitHub Project v2.
+type CopyProjectV2Input struct {
+	ProjectID          githubv4.ID       `json:"projectId"`
+	OwnerID            githubv4.ID       `json:"ownerId"`
+	Title              githubv4.String   `json:"title"`
+	IncludeDraftIssues *githubv4.Boolean `json:"includeDraftIssues,omitempty"`
+}
+
+// MarkProjectV2AsTemplateInput is the input for marking a Project v2 as a template.
+type MarkProjectV2AsTemplateInput struct {
+	ProjectID githubv4.ID `json:"projectId"`
+}
+
+// UnmarkProjectV2AsTemplateInput is the input for unmarking a Project v2 as a template.
+type UnmarkProjectV2AsTemplateInput struct {
+	ProjectID githubv4.ID `json:"projectId"`
+}
+
+// CopyProjectV2 copies a GitHub Project v2 to the given owner.
+func (g *GitHubClient) CopyProjectV2(ctx context.Context, input CopyProjectV2Input) (*ProjectV2, error) {
+	gql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+	var mutation struct {
+		CopyProjectV2 struct {
+			ProjectV2 ProjectV2
+		} `graphql:"copyProjectV2(input: $input)"`
+	}
+	if err := gql.Mutate(ctx, &mutation, input, nil); err != nil {
+		return nil, err
+	}
+	p := mutation.CopyProjectV2.ProjectV2
+	return &p, nil
+}
+
+// MarkProjectV2AsTemplate marks a GitHub Project v2 as a template.
+func (g *GitHubClient) MarkProjectV2AsTemplate(ctx context.Context, input MarkProjectV2AsTemplateInput) error {
+	gql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+	var mutation struct {
+		MarkProjectV2AsTemplate struct {
+			ClientMutationID githubv4.String `graphql:"clientMutationId"`
+		} `graphql:"markProjectV2AsTemplate(input: $input)"`
+	}
+	return gql.Mutate(ctx, &mutation, input, nil)
+}
+
+// UnmarkProjectV2AsTemplate unmarks a GitHub Project v2 as a template.
+func (g *GitHubClient) UnmarkProjectV2AsTemplate(ctx context.Context, input UnmarkProjectV2AsTemplateInput) error {
+	gql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+	var mutation struct {
+		UnmarkProjectV2AsTemplate struct {
+			ClientMutationID githubv4.String `graphql:"clientMutationId"`
+		} `graphql:"unmarkProjectV2AsTemplate(input: $input)"`
+	}
+	return gql.Mutate(ctx, &mutation, input, nil)
+}
