@@ -139,3 +139,21 @@ func SetOrgMembersCanCreateTeams(ctx context.Context, g *GitHubClient, repo repo
 		MembersCanCreateTeams: &enabled,
 	})
 }
+
+// GetOrgActionsPermissions retrieves the GitHub Actions permissions for the organization.
+func GetOrgActionsPermissions(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.ActionsPermissions, error) {
+	permissions, err := g.GetOrgActionsPermissions(ctx, repo.Owner)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GitHub Actions permissions for organization '%s': %w", repo.Owner, err)
+	}
+	return permissions, nil
+}
+
+// UpdateOrgActionsPermissions updates the GitHub Actions permissions for the organization.
+func UpdateOrgActionsPermissions(ctx context.Context, g *GitHubClient, repo repository.Repository, permissions github.ActionsPermissions) (*github.ActionsPermissions, error) {
+	result, err := g.UpdateOrgActionsPermissions(ctx, repo.Owner, permissions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update GitHub Actions permissions for organization '%s': %w", repo.Owner, err)
+	}
+	return result, nil
+}
