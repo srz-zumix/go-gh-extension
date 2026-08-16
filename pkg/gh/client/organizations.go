@@ -195,18 +195,18 @@ func (g *GitHubClient) GetOrgDeployKeysEnabled(ctx context.Context, org string) 
 	return result.GetDeployKeysEnabledForRepositories(), nil
 }
 
-// GetActionsPermissions retrieves the GitHub Actions permissions for the organization.
-func (g *GitHubClient) GetActionsPermissions(ctx context.Context, org string) (*github.ActionsPermissions, error) {
-	permissions, _, err := g.client.Organizations.GetActionsPermissions(ctx, org)
+// GetOrgActionsPermissions retrieves the GitHub Actions permissions for the organization.
+func (g *GitHubClient) GetOrgActionsPermissions(ctx context.Context, org string) (*github.ActionsPermissions, error) {
+	permissions, _, err := g.client.Actions.GetActionsPermissions(ctx, org)
 	if err != nil {
 		return nil, err
 	}
 	return permissions, nil
 }
 
-// UpdateActionsPermissions updates the GitHub Actions permissions for the organization.
-func (g *GitHubClient) UpdateActionsPermissions(ctx context.Context, org string, permissions github.ActionsPermissions) (*github.ActionsPermissions, error) {
-	result, _, err := g.client.Organizations.UpdateActionsPermissions(ctx, org, permissions)
+// UpdateOrgActionsPermissions updates the GitHub Actions permissions for the organization.
+func (g *GitHubClient) UpdateOrgActionsPermissions(ctx context.Context, org string, permissions github.ActionsPermissions) (*github.ActionsPermissions, error) {
+	result, _, err := g.client.Actions.UpdateActionsPermissions(ctx, org, permissions)
 	if err != nil {
 		return nil, err
 	}
