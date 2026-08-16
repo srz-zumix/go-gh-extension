@@ -358,6 +358,18 @@ func (g *GitHubClient) GetPullRequestCommentThreadID(ctx context.Context, owner 
 
 // ListPullRequests retrieves all pull requests for a specific repository.
 func (g *GitHubClient) ListPullRequests(ctx context.Context, owner string, repo string, opts *github.PullRequestListOptions, maxCount int) ([]*github.PullRequest, error) {
+	return g.ListPullRequestsUntil(ctx, owner, repo, opts, maxCount, nil)
+}
+
+// ListPullRequestsUntil retrieves pull requests page by page, like
+// ListPullRequests, but additionally stops requesting further pages once
+// stop returns true for the most recently fetched page. This lets callers
+// short-circuit pagination when the sort order guarantees that later pages
+// are no longer relevant (e.g. sorted by creation date descending and
+// filtering by a lower bound date), avoiding exhaustive pagination over
+// repositories with a large pull request history. A nil stop behaves the
+// same as ListPullRequests.
+func (g *GitHubClient) ListPullRequestsUntil(ctx context.Context, owner string, repo string, opts *github.PullRequestListOptions, maxCount int, stop func(page []*github.PullRequest) bool) ([]*github.PullRequest, error) {
 	var allPullRequests []*github.PullRequest
 	perPage := defaultPerPage
 	if maxCount > 0 {
@@ -382,7 +394,7 @@ func (g *GitHubClient) ListPullRequests(ctx context.Context, owner string, repo 
 			return nil, err
 		}
 		allPullRequests = append(allPullRequests, prs...)
-		if resp.NextPage == 0 || (maxCount > 0 && len(allPullRequests) >= maxCount) {
+		if resp.NextPage == 0 || (maxCount > 0 && len(allPullRequests) >= maxCount) || (stop != nil && stop(prs)) {
 			break
 		}
 		opt.Page = resp.NextPage

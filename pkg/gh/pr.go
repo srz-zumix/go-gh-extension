@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v90/github"
@@ -124,6 +125,39 @@ func ListPullRequests(ctx context.Context, g *GitHubClient, repo repository.Repo
 		}
 	}
 	return g.ListPullRequests(ctx, repo.Owner, repo.Name, ghOpts, -1)
+}
+
+// ListPullRequestsSince retrieves pull requests like ListPullRequests, but
+// when since is non-nil, stops requesting further pages once every pull
+// request on a fetched page was created before since. This avoids
+// exhaustive pagination over repositories with a large pull request history
+// when only recent pull requests are needed. Callers must sort by creation
+// date descending (e.g. via ListPullRequestsOptionSortCreated and
+// ListPullRequestsOptionDirectionDescending) for this optimization to
+// produce correct results.
+func ListPullRequestsSince(ctx context.Context, g *GitHubClient, repo repository.Repository, since *time.Time, opts ...ListPullRequestsOption) ([]*github.PullRequest, error) {
+	var ghOpts *github.PullRequestListOptions
+	if opts != nil {
+		ghOpts = &github.PullRequestListOptions{}
+		for _, opt := range opts {
+			opt.apply(ghOpts)
+		}
+	}
+	if since == nil {
+		return g.ListPullRequestsUntil(ctx, repo.Owner, repo.Name, ghOpts, -1, nil)
+	}
+	stop := func(page []*github.PullRequest) bool {
+		if len(page) == 0 {
+			return false
+		}
+		for _, pr := range page {
+			if !pr.GetCreatedAt().Time.Before(*since) {
+				return false
+			}
+		}
+		return true
+	}
+	return g.ListPullRequestsUntil(ctx, repo.Owner, repo.Name, ghOpts, -1, stop)
 }
 
 func FindPullRequest(ctx context.Context, g *GitHubClient, repo repository.Repository, opts ...ListPullRequestsOption) (*github.PullRequest, error) {
