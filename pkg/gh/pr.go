@@ -146,12 +146,24 @@ func ListPullRequestsSince(ctx context.Context, g *GitHubClient, repo repository
 	if since == nil {
 		return g.ListPullRequestsUntil(ctx, repo.Owner, repo.Name, ghOpts, -1, nil)
 	}
+	// The early-stop optimization is only correct when pages are ordered by
+	// creation date descending. Reject explicitly incompatible sort options so
+	// callers do not silently drop results; empty values fall back to the
+	// GitHub API defaults (created/desc), which are compatible.
+	if ghOpts != nil {
+		if ghOpts.Sort != "" && ghOpts.Sort != "created" {
+			return nil, fmt.Errorf("since-based listing requires sort by creation date, got sort %q", ghOpts.Sort)
+		}
+		if ghOpts.Direction != "" && ghOpts.Direction != "desc" {
+			return nil, fmt.Errorf("since-based listing requires descending order, got direction %q", ghOpts.Direction)
+		}
+	}
 	stop := func(page []*github.PullRequest) bool {
 		if len(page) == 0 {
 			return false
 		}
 		for _, pr := range page {
-			if !pr.GetCreatedAt().Time.Before(*since) {
+			if !pr.GetCreatedAt().Before(*since) {
 				return false
 			}
 		}
