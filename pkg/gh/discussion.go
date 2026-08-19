@@ -284,6 +284,9 @@ func getLabelsFromNames(ctx context.Context, g *GitHubClient, repo repository.Re
 // an organization or user when repo.Name is empty.
 func SearchDiscussions(ctx context.Context, g *GitHubClient, repo repository.Repository, query string) ([]Discussion, error) {
 	if repo.Name == "" {
+		if repo.Owner == "" {
+			return nil, fmt.Errorf("owner is required when repository name is empty")
+		}
 		return searchDiscussionsByOwner(ctx, g, repo.Owner, query)
 	}
 
