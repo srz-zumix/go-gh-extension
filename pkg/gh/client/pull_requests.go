@@ -2,8 +2,11 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/v90/github"
 	"github.com/shurcooL/githubv4"
@@ -356,8 +359,22 @@ func (g *GitHubClient) GetPullRequestCommentThreadID(ctx context.Context, owner 
 	return "", fmt.Errorf("failed to find thread ID for comment %d", commentID)
 }
 
-// ListPullRequests retrieves all pull requests for a specific repository.
+// ListPullRequests retrieves pull requests for a specific repository. When
+// maxCount is positive, at most maxCount pull requests are returned; a
+// non-positive maxCount retrieves all pull requests across every page.
 func (g *GitHubClient) ListPullRequests(ctx context.Context, owner string, repo string, opts *github.PullRequestListOptions, maxCount int) ([]*github.PullRequest, error) {
+	return g.ListPullRequestsUntil(ctx, owner, repo, opts, maxCount, nil)
+}
+
+// ListPullRequestsUntil retrieves pull requests page by page, like
+// ListPullRequests, but additionally stops requesting further pages once
+// stop returns true for the most recently fetched page. This lets callers
+// short-circuit pagination when the sort order guarantees that later pages
+// are no longer relevant (e.g. sorted by creation date descending and
+// filtering by a lower bound date), avoiding exhaustive pagination over
+// repositories with a large pull request history. A nil stop behaves the
+// same as ListPullRequests.
+func (g *GitHubClient) ListPullRequestsUntil(ctx context.Context, owner string, repo string, opts *github.PullRequestListOptions, maxCount int, stop func(page []*github.PullRequest) bool) ([]*github.PullRequest, error) {
 	var allPullRequests []*github.PullRequest
 	perPage := defaultPerPage
 	if maxCount > 0 {
@@ -377,12 +394,12 @@ func (g *GitHubClient) ListPullRequests(ctx context.Context, owner string, repo 
 	}
 
 	for {
-		prs, resp, err := g.client.PullRequests.List(ctx, owner, repo, opt)
+		prs, resp, err := g.listPullRequestsPage(ctx, owner, repo, opt)
 		if err != nil {
 			return nil, err
 		}
 		allPullRequests = append(allPullRequests, prs...)
-		if resp.NextPage == 0 || (maxCount > 0 && len(allPullRequests) >= maxCount) {
+		if resp.NextPage == 0 || (maxCount > 0 && len(allPullRequests) >= maxCount) || (stop != nil && stop(prs)) {
 			break
 		}
 		opt.Page = resp.NextPage
@@ -392,6 +409,59 @@ func (g *GitHubClient) ListPullRequests(ctx context.Context, owner string, repo 
 		allPullRequests = allPullRequests[:maxCount]
 	}
 	return allPullRequests, nil
+}
+
+const (
+	listPullRequestsMaxAttempts = 4
+	listPullRequestsRetryDelay  = 2 * time.Second
+)
+
+// listPullRequestsPage fetches a single page, retrying transient failures such
+// as HTTP client timeouts, which are common on repositories with a very large
+// pull request history.
+func (g *GitHubClient) listPullRequestsPage(ctx context.Context, owner string, repo string, opt *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error) {
+	var lastErr error
+	for attempt := range listPullRequestsMaxAttempts {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			case <-time.After(listPullRequestsRetryDelay << (attempt - 1)):
+			}
+		}
+		prs, resp, err := g.client.PullRequests.List(ctx, owner, repo, opt)
+		if err == nil {
+			return prs, resp, nil
+		}
+		// The caller's context takes precedence over any retry policy.
+		if ctx.Err() != nil || !isRetryableRequestError(err) {
+			return nil, nil, err
+		}
+		lastErr = err
+	}
+	return nil, nil, lastErr
+}
+
+// isRetryableRequestError reports whether err is a transient failure that is
+// likely to succeed on a subsequent attempt.
+func isRetryableRequestError(err error) bool {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) && urlErr.Timeout() {
+		return true
+	}
+	var rateLimitErr *github.RateLimitError
+	if errors.As(err, &rateLimitErr) {
+		return true
+	}
+	var abuseErr *github.AbuseRateLimitError
+	if errors.As(err, &abuseErr) {
+		return true
+	}
+	var errResp *github.ErrorResponse
+	if errors.As(err, &errResp) && errResp.Response != nil {
+		return errResp.Response.StatusCode >= 500
+	}
+	return false
 }
 
 // associatedPullRequestNode represents a pull request from GraphQL
