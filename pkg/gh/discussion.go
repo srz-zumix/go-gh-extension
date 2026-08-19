@@ -280,9 +280,40 @@ func getLabelsFromNames(ctx context.Context, g *GitHubClient, repo repository.Re
 	return result, nil
 }
 
-// SearchDiscussions searches discussions in a repository
+// SearchDiscussions searches discussions in a repository, or across all repositories owned by
+// an organization or user when repo.Name is empty.
 func SearchDiscussions(ctx context.Context, g *GitHubClient, repo repository.Repository, query string) ([]Discussion, error) {
+	if repo.Name == "" {
+		if repo.Owner == "" {
+			return nil, fmt.Errorf("owner is required when repository name is empty")
+		}
+		return searchDiscussionsByOwner(ctx, g, repo.Owner, query)
+	}
+
 	searchQuery := fmt.Sprintf("repo:%s/%s %s", repo.Owner, repo.Name, query)
+	discussions, err := g.SearchDiscussions(ctx, searchQuery, 100)
+	if err != nil {
+		return nil, err
+	}
+	return discussions, nil
+}
+
+// searchDiscussionsByOwner searches discussions across all repositories owned by an organization or user
+func searchDiscussionsByOwner(ctx context.Context, g *GitHubClient, owner string, query string) ([]Discussion, error) {
+	ownerType, err := DetectOwnerType(ctx, g, owner)
+	if err != nil {
+		return nil, err
+	}
+
+	var scope string
+	switch ownerType {
+	case OwnerTypeOrg:
+		scope = "org"
+	case OwnerTypeUser:
+		scope = "user"
+	}
+	searchQuery := fmt.Sprintf("%s:%s %s", scope, owner, query)
+
 	discussions, err := g.SearchDiscussions(ctx, searchQuery, 100)
 	if err != nil {
 		return nil, err

@@ -16,6 +16,9 @@ type Discussion struct {
 	Author struct {
 		Login string
 	}
+	Repository struct {
+		NameWithOwner string
+	}
 	Category struct {
 		Name string
 		Slug string
@@ -44,6 +47,9 @@ type rawDiscussion struct {
 	Body   githubv4.String
 	Author struct {
 		Login githubv4.String
+	}
+	Repository struct {
+		NameWithOwner githubv4.String
 	}
 	Category struct {
 		Name githubv4.String
@@ -78,6 +84,7 @@ func (r rawDiscussion) toDiscussion() Discussion {
 		URL:       string(r.URL),
 	}
 	d.Author.Login = string(r.Author.Login)
+	d.Repository.NameWithOwner = string(r.Repository.NameWithOwner)
 	d.Category.Name = string(r.Category.Name)
 	d.Category.Slug = string(r.Category.Slug)
 	if r.ClosedAt != nil {
