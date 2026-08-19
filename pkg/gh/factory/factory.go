@@ -60,6 +60,21 @@ type Config struct {
 
 type Option func(*Config) error
 
+// DefaultTimeout is the HTTP client timeout applied when neither the Timeout
+// option nor SetDefaultTimeout configures one.
+const DefaultTimeout = 30 * time.Second
+
+var defaultTimeout = DefaultTimeout
+
+// SetDefaultTimeout overrides the HTTP client timeout used by clients created
+// afterwards. A non-positive duration restores DefaultTimeout.
+func SetDefaultTimeout(d time.Duration) {
+	if d <= 0 {
+		d = DefaultTimeout
+	}
+	defaultTimeout = d
+}
+
 // Token sets the access token.
 func Token(t string) Option {
 	return func(c *Config) error {
@@ -163,7 +178,7 @@ func NewGithubClient(opts ...Option) (*github.Client, error) {
 		Token:               "",
 		DialTimeout:         10 * time.Second,
 		TLSHandshakeTimeout: 10 * time.Second,
-		Timeout:             30 * time.Second,
+		Timeout:             defaultTimeout,
 	}
 	for _, o := range opts {
 		if err := o(c); err != nil {
