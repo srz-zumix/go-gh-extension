@@ -27,6 +27,9 @@ func NewDiscussionFieldGetters(enableColor bool) *discussionFieldGetters {
 			"AUTHOR": func(discussion *client.Discussion) string {
 				return ToString(discussion.Author.Login)
 			},
+			"REPOSITORY": func(discussion *client.Discussion) string {
+				return ToString(discussion.Repository.NameWithOwner)
+			},
 			"CATEGORY": func(discussion *client.Discussion) string {
 				return ToString(discussion.Category.Name)
 			},
