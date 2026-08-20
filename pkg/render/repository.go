@@ -48,6 +48,9 @@ func NewRepositoryFieldGetters() *RepositoryFieldGetters {
 			"ARCHIVED": func(repo *github.Repository) string {
 				return ToString(repo.Archived)
 			},
+			"DISCUSSIONS": func(repo *github.Repository) string {
+				return ToString(repo.HasDiscussions)
+			},
 			"FORK": func(repo *github.Repository) string {
 				return ToString(repo.Fork)
 			},

@@ -204,3 +204,28 @@ func TestReadOnlyClient(t *testing.T) {
 		})
 	}
 }
+
+func TestSetDefaultTimeout(t *testing.T) {
+	t.Cleanup(func() { SetDefaultTimeout(DefaultTimeout) })
+
+	// Overriding the default changes the timeout of a newly created client.
+	const override = 5 * time.Second
+	SetDefaultTimeout(override)
+	c, err := NewGithubClient(SkipAuth(true))
+	if err != nil {
+		t.Fatalf("NewGithubClient() error = %v", err)
+	}
+	if got := c.Client().Timeout; got != override {
+		t.Errorf("client timeout = %v, want %v", got, override)
+	}
+
+	// A non-positive duration restores DefaultTimeout.
+	SetDefaultTimeout(0)
+	c, err = NewGithubClient(SkipAuth(true))
+	if err != nil {
+		t.Fatalf("NewGithubClient() error = %v", err)
+	}
+	if got := c.Client().Timeout; got != DefaultTimeout {
+		t.Errorf("client timeout after reset = %v, want %v", got, DefaultTimeout)
+	}
+}

@@ -32,6 +32,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
@@ -59,6 +60,33 @@ type Config struct {
 }
 
 type Option func(*Config) error
+
+// DefaultTimeout is the HTTP client timeout applied when neither the Timeout
+// option nor SetDefaultTimeout configures one.
+const DefaultTimeout = 30 * time.Second
+
+// defaultTimeout stores the current default HTTP client timeout as nanoseconds.
+// It is accessed atomically so SetDefaultTimeout and NewGithubClient are safe to
+// call concurrently from multiple goroutines.
+var defaultTimeout atomic.Int64
+
+func init() {
+	defaultTimeout.Store(int64(DefaultTimeout))
+}
+
+// SetDefaultTimeout overrides the HTTP client timeout used by clients created
+// afterwards. A non-positive duration restores DefaultTimeout.
+func SetDefaultTimeout(d time.Duration) {
+	if d <= 0 {
+		d = DefaultTimeout
+	}
+	defaultTimeout.Store(int64(d))
+}
+
+// getDefaultTimeout returns the current default HTTP client timeout.
+func getDefaultTimeout() time.Duration {
+	return time.Duration(defaultTimeout.Load())
+}
 
 // Token sets the access token.
 func Token(t string) Option {
@@ -163,7 +191,7 @@ func NewGithubClient(opts ...Option) (*github.Client, error) {
 		Token:               "",
 		DialTimeout:         10 * time.Second,
 		TLSHandshakeTimeout: 10 * time.Second,
-		Timeout:             30 * time.Second,
+		Timeout:             getDefaultTimeout(),
 	}
 	for _, o := range opts {
 		if err := o(c); err != nil {

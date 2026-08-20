@@ -1,6 +1,8 @@
 package gh
 
 import (
+	"time"
+
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
@@ -112,4 +114,13 @@ func NewGitHubClientWithToken(repo repository.Repository, token string) (*GitHub
 		return nil, err
 	}
 	return client.NewClient(c)
+}
+
+// DefaultHTTPTimeout is the HTTP timeout applied when none is configured.
+const DefaultHTTPTimeout = factory.DefaultTimeout
+
+// SetHTTPTimeout sets the HTTP timeout for clients created afterwards. Because
+// clients are cached per host, call it before creating any client.
+func SetHTTPTimeout(d time.Duration) {
+	factory.SetDefaultTimeout(d)
 }
