@@ -160,29 +160,40 @@ func ListProtectedBranches(ctx context.Context, g *GitHubClient, repo repository
 }
 
 // ListOrganizationRepositories lists all repositories in an organization (wrapper).
-func ListOrganizationRepositories(ctx context.Context, g *GitHubClient, org string) ([]*github.Repository, error) {
-	return g.ListOrganizationRepositories(ctx, org, "all")
+func ListOrganizationRepositories(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Repository, error) {
+	return g.ListOrganizationRepositories(ctx, repo.Owner, "all")
 }
 
 // ListUserRepositories lists all repositories owned by a user (wrapper).
-func ListUserRepositories(ctx context.Context, g *GitHubClient, user string) ([]*github.Repository, error) {
-	return g.ListUserRepositories(ctx, user, "all")
+func ListUserRepositories(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Repository, error) {
+	return g.ListUserRepositories(ctx, repo.Owner, "all")
 }
 
 // ListOwnerRepositories lists all repositories for the given owner.
 // It first attempts to list by organization; if the owner is not an organization (HTTP 404),
 // it falls back to listing by user.
-func ListOwnerRepositories(ctx context.Context, g *GitHubClient, owner string) ([]*github.Repository, error) {
-	repos, err := g.ListOrganizationRepositories(ctx, owner, "all")
+func ListOwnerRepositories(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Repository, error) {
+	repos, err := ListOrganizationRepositories(ctx, g, repo)
 	if err != nil {
 		var errResp *github.ErrorResponse
 		if errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == 404 {
 			// Owner is not an organization; fall back to user repositories
-			return g.ListUserRepositories(ctx, owner, "all")
+			return ListUserRepositories(ctx, g, repo)
 		}
 		return nil, err
 	}
 	return repos, nil
+}
+
+// FilterRepositoriesWithDiscussions returns the subset of repos that have Discussions enabled.
+func FilterRepositoriesWithDiscussions(repos []*github.Repository) []*github.Repository {
+	filtered := make([]*github.Repository, 0, len(repos))
+	for _, r := range repos {
+		if r.GetHasDiscussions() {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered
 }
 
 // CheckTeamPermissions is a wrapper function to check team permissions for a repository.
