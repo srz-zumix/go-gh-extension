@@ -66,7 +66,11 @@ func CreateProjectV2View(ctx context.Context, g *GitHubClient, owner string, num
 		body.Filter = &f
 	}
 	for _, s := range input.SortBy {
-		body.SortBy = append(body.SortBy, []any{s.FieldID, strings.ToLower(s.Direction)})
+		dir := strings.ToLower(strings.TrimSpace(s.Direction))
+		if dir != "asc" && dir != "desc" {
+			return nil, fmt.Errorf("unsupported sort direction '%s' (expected ASC or DESC)", s.Direction)
+		}
+		body.SortBy = append(body.SortBy, []any{s.FieldID, dir})
 	}
 
 	ownerType, err := DetectOwnerType(ctx, g, owner)
