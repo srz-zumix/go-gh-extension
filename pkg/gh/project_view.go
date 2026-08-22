@@ -18,7 +18,7 @@ type ProjectV2ViewSortByInput struct {
 }
 
 // ProjectV2ViewInput describes a view to create in a ProjectV2.
-// Layout uses the GraphQL layout name (TABLE_LAYOUT, BOARD_LAYOUT, ROADMAP_LAYOUT).
+// Layout accepts GraphQL layout names (TABLE_LAYOUT, BOARD_LAYOUT, ROADMAP_LAYOUT) or short forms (TABLE, BOARD, ROADMAP).
 // Field references are REST field IDs (ProjectV2Field.DatabaseID) of the target project.
 type ProjectV2ViewInput struct {
 	Name                    string
