@@ -97,7 +97,6 @@ func ListProjectV2Items(ctx context.Context, g *GitHubClient, owner string, numb
 }
 
 // ListProjectV2Views lists all views for a ProjectV2.
-// The GitHub GraphQL API supports reading views but does not expose a createProjectV2View mutation.
 func ListProjectV2Views(ctx context.Context, g *GitHubClient, owner string, number int) ([]ProjectV2View, error) {
 	ownerType, err := DetectOwnerType(ctx, g, owner)
 	if err != nil {

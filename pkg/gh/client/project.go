@@ -25,6 +25,7 @@ type ProjectV2 struct {
 // Iterations is populated only for ITERATION fields.
 type ProjectV2Field struct {
 	ID         string
+	DatabaseID int64 // REST field ID, used by the Project views REST endpoints
 	Name       string
 	DataType   string // TEXT, NUMBER, DATE, SINGLE_SELECT, ITERATION, TITLE, ASSIGNEES, etc.
 	Options    []ProjectV2SingleSelectOption
@@ -99,15 +100,17 @@ type ProjectV2Item struct {
 // Exactly one variant's ID will be non-empty for any given node.
 type projectV2FieldConfigNode struct {
 	AsProjectV2Field struct {
-		ID       githubv4.String
-		Name     githubv4.String
-		DataType githubv4.String
+		ID         githubv4.String
+		DatabaseID githubv4.Int
+		Name       githubv4.String
+		DataType   githubv4.String
 	} `graphql:"... on ProjectV2Field"`
 	AsSingleSelectField struct {
-		ID       githubv4.String
-		Name     githubv4.String
-		DataType githubv4.String
-		Options  []struct {
+		ID         githubv4.String
+		DatabaseID githubv4.Int
+		Name       githubv4.String
+		DataType   githubv4.String
+		Options    []struct {
 			ID          githubv4.String
 			Name        githubv4.String
 			Color       githubv4.String
@@ -116,6 +119,7 @@ type projectV2FieldConfigNode struct {
 	} `graphql:"... on ProjectV2SingleSelectField"`
 	AsIterationField struct {
 		ID            githubv4.String
+		DatabaseID    githubv4.Int
 		Name          githubv4.String
 		DataType      githubv4.String
 		Configuration struct {
@@ -133,9 +137,10 @@ type projectV2FieldConfigNode struct {
 func (n *projectV2FieldConfigNode) toProjectV2Field() ProjectV2Field {
 	if n.AsProjectV2Field.ID != "" {
 		return ProjectV2Field{
-			ID:       string(n.AsProjectV2Field.ID),
-			Name:     string(n.AsProjectV2Field.Name),
-			DataType: string(n.AsProjectV2Field.DataType),
+			ID:         string(n.AsProjectV2Field.ID),
+			DatabaseID: int64(n.AsProjectV2Field.DatabaseID),
+			Name:       string(n.AsProjectV2Field.Name),
+			DataType:   string(n.AsProjectV2Field.DataType),
 		}
 	}
 	if n.AsSingleSelectField.ID != "" {
@@ -149,10 +154,11 @@ func (n *projectV2FieldConfigNode) toProjectV2Field() ProjectV2Field {
 			}
 		}
 		return ProjectV2Field{
-			ID:       string(n.AsSingleSelectField.ID),
-			Name:     string(n.AsSingleSelectField.Name),
-			DataType: string(n.AsSingleSelectField.DataType),
-			Options:  opts,
+			ID:         string(n.AsSingleSelectField.ID),
+			DatabaseID: int64(n.AsSingleSelectField.DatabaseID),
+			Name:       string(n.AsSingleSelectField.Name),
+			DataType:   string(n.AsSingleSelectField.DataType),
+			Options:    opts,
 		}
 	}
 	if n.AsIterationField.ID != "" {
@@ -167,6 +173,7 @@ func (n *projectV2FieldConfigNode) toProjectV2Field() ProjectV2Field {
 		}
 		return ProjectV2Field{
 			ID:         string(n.AsIterationField.ID),
+			DatabaseID: int64(n.AsIterationField.DatabaseID),
 			Name:       string(n.AsIterationField.Name),
 			DataType:   string(n.AsIterationField.DataType),
 			Iterations: iters,
@@ -355,11 +362,74 @@ func (n *projectV2ItemNode) toProjectV2Item() ProjectV2Item {
 // ─────────────────────────────────────────
 
 // ProjectV2View represents a view in a GitHub Project v2.
-// The GitHub GraphQL API supports reading views but does not expose a createProjectV2View mutation.
+// The GraphQL API supports reading views; creation is only available through the REST API.
 type ProjectV2View struct {
 	ID     string
+	Number int
 	Name   string
 	Layout string // BOARD_LAYOUT, TABLE_LAYOUT, ROADMAP_LAYOUT
+	Filter string
+	// VisibleFields holds the visible field names in display order.
+	VisibleFields         []string
+	GroupByFields         []string
+	VerticalGroupByFields []string
+	SortBy                []ProjectV2ViewSortBy
+}
+
+// ProjectV2ViewSortBy represents a single sort criterion of a project view.
+type ProjectV2ViewSortBy struct {
+	FieldName string
+	Direction string // ASC or DESC
+}
+
+// projectV2ViewNode is the raw GraphQL node for a project view.
+type projectV2ViewNode struct {
+	ID     githubv4.String
+	Number githubv4.Int
+	Name   githubv4.String
+	Layout githubv4.String
+	Filter githubv4.String
+	Fields struct {
+		Nodes []fieldConfigNameRef
+	} `graphql:"fields(first: 50)"`
+	GroupByFields struct {
+		Nodes []fieldConfigNameRef
+	} `graphql:"groupByFields(first: 10)"`
+	VerticalGroupByFields struct {
+		Nodes []fieldConfigNameRef
+	} `graphql:"verticalGroupByFields(first: 10)"`
+	SortByFields struct {
+		Nodes []struct {
+			Direction githubv4.String
+			Field     fieldConfigNameRef
+		}
+	} `graphql:"sortByFields(first: 10)"`
+}
+
+func (n *projectV2ViewNode) toProjectV2View() ProjectV2View {
+	v := ProjectV2View{
+		ID:     string(n.ID),
+		Number: int(n.Number),
+		Name:   string(n.Name),
+		Layout: string(n.Layout),
+		Filter: string(n.Filter),
+	}
+	for i := range n.Fields.Nodes {
+		v.VisibleFields = append(v.VisibleFields, n.Fields.Nodes[i].name())
+	}
+	for i := range n.GroupByFields.Nodes {
+		v.GroupByFields = append(v.GroupByFields, n.GroupByFields.Nodes[i].name())
+	}
+	for i := range n.VerticalGroupByFields.Nodes {
+		v.VerticalGroupByFields = append(v.VerticalGroupByFields, n.VerticalGroupByFields.Nodes[i].name())
+	}
+	for i := range n.SortByFields.Nodes {
+		v.SortBy = append(v.SortBy, ProjectV2ViewSortBy{
+			FieldName: n.SortByFields.Nodes[i].Field.name(),
+			Direction: string(n.SortByFields.Nodes[i].Direction),
+		})
+	}
+	return v
 }
 
 type projectV2FieldsQueryResult struct {
@@ -909,7 +979,6 @@ func (g *GitHubClient) ArchiveProjectV2Item(ctx context.Context, input ArchivePr
 }
 
 // ListUserProjectV2Views lists all views for a user's ProjectV2.
-// The GitHub GraphQL API supports reading views but does not expose a createProjectV2View mutation.
 func (g *GitHubClient) ListUserProjectV2Views(ctx context.Context, login string, number int) ([]ProjectV2View, error) {
 	gql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
@@ -919,11 +988,7 @@ func (g *GitHubClient) ListUserProjectV2Views(ctx context.Context, login string,
 		User struct {
 			ProjectV2 struct {
 				Views struct {
-					Nodes []struct {
-						ID     githubv4.String
-						Name   githubv4.String
-						Layout githubv4.String
-					}
+					Nodes    []projectV2ViewNode
 					PageInfo struct {
 						EndCursor   githubv4.String
 						HasNextPage bool
@@ -943,12 +1008,8 @@ func (g *GitHubClient) ListUserProjectV2Views(ctx context.Context, login string,
 		if err := gql.Query(ctx, &query, variables); err != nil {
 			return nil, err
 		}
-		for _, n := range query.User.ProjectV2.Views.Nodes {
-			all = append(all, ProjectV2View{
-				ID:     string(n.ID),
-				Name:   string(n.Name),
-				Layout: string(n.Layout),
-			})
+		for i := range query.User.ProjectV2.Views.Nodes {
+			all = append(all, query.User.ProjectV2.Views.Nodes[i].toProjectV2View())
 		}
 		if !query.User.ProjectV2.Views.PageInfo.HasNextPage {
 			break
@@ -959,7 +1020,6 @@ func (g *GitHubClient) ListUserProjectV2Views(ctx context.Context, login string,
 }
 
 // ListOrgProjectV2Views lists all views for an org's ProjectV2.
-// The GitHub GraphQL API supports reading views but does not expose a createProjectV2View mutation.
 func (g *GitHubClient) ListOrgProjectV2Views(ctx context.Context, org string, number int) ([]ProjectV2View, error) {
 	gql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
@@ -969,11 +1029,7 @@ func (g *GitHubClient) ListOrgProjectV2Views(ctx context.Context, org string, nu
 		Organization struct {
 			ProjectV2 struct {
 				Views struct {
-					Nodes []struct {
-						ID     githubv4.String
-						Name   githubv4.String
-						Layout githubv4.String
-					}
+					Nodes    []projectV2ViewNode
 					PageInfo struct {
 						EndCursor   githubv4.String
 						HasNextPage bool
@@ -993,12 +1049,8 @@ func (g *GitHubClient) ListOrgProjectV2Views(ctx context.Context, org string, nu
 		if err := gql.Query(ctx, &query, variables); err != nil {
 			return nil, err
 		}
-		for _, n := range query.Organization.ProjectV2.Views.Nodes {
-			all = append(all, ProjectV2View{
-				ID:     string(n.ID),
-				Name:   string(n.Name),
-				Layout: string(n.Layout),
-			})
+		for i := range query.Organization.ProjectV2.Views.Nodes {
+			all = append(all, query.Organization.ProjectV2.Views.Nodes[i].toProjectV2View())
 		}
 		if !query.Organization.ProjectV2.Views.PageInfo.HasNextPage {
 			break
