@@ -17,7 +17,7 @@ var (
 )
 
 // AddPersistentFlags registers the options shared by every command and installs
-// the PersistentPreRun hook that applies them.
+// the PersistentPreRun hook that applies them. It also enables cobra.EnableTraverseRunHooks so persistent hooks run for the full command chain.
 func AddPersistentFlags(cmd *cobra.Command) {
 	// Run every persistent hook in the command chain, not just the closest one,
 	// so descendant commands that define their own PersistentPreRun(E) do not
