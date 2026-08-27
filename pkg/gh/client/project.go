@@ -4,6 +4,8 @@ package client
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/shurcooL/githubv4"
 )
@@ -22,14 +24,29 @@ type ProjectV2 struct {
 
 // ProjectV2Field represents a resolved field (column) in a GitHub Project v2.
 // Options is populated only for SINGLE_SELECT fields.
-// Iterations is populated only for ITERATION fields.
+// Iterations and CompletedIterations are populated only for ITERATION fields.
 type ProjectV2Field struct {
 	ID         string
 	DatabaseID int64 // REST field ID, used by the Project views REST endpoints
 	Name       string
 	DataType   string // TEXT, NUMBER, DATE, SINGLE_SELECT, ITERATION, TITLE, ASSIGNEES, etc.
 	Options    []ProjectV2SingleSelectOption
+	// Iterations holds the current and upcoming iterations of an ITERATION field.
 	Iterations []ProjectV2IterationOption
+	// CompletedIterations holds the past iterations of an ITERATION field.
+	CompletedIterations []ProjectV2IterationOption
+	// IterationDuration is the default iteration length in days of an ITERATION field.
+	IterationDuration int
+}
+
+// AllIterations returns the completed and current iterations of an ITERATION field
+// ordered by start date, oldest first.
+func (f *ProjectV2Field) AllIterations() []ProjectV2IterationOption {
+	all := make([]ProjectV2IterationOption, 0, len(f.CompletedIterations)+len(f.Iterations))
+	all = append(all, f.CompletedIterations...)
+	all = append(all, f.Iterations...)
+	sort.SliceStable(all, func(i, j int) bool { return all[i].StartDate < all[j].StartDate })
+	return all
 }
 
 // ProjectV2SingleSelectOption represents an option in a SINGLE_SELECT field.
@@ -97,8 +114,10 @@ type ProjectV2Item struct {
 
 // projectV2FieldConfigNode is the inline-fragment representation of the
 // ProjectV2FieldConfiguration union (ProjectV2Field | ProjectV2SingleSelectField | ProjectV2IterationField).
-// Exactly one variant's ID will be non-empty for any given node.
+// The GraphQL response merges every matching inline fragment into a single flat object, so the
+// variant must be selected by __typename instead of by which fragment has a non-empty ID.
 type projectV2FieldConfigNode struct {
+	Typename         githubv4.String `graphql:"__typename"`
 	AsProjectV2Field struct {
 		ID         githubv4.String
 		DatabaseID githubv4.Int
@@ -130,20 +149,19 @@ type projectV2FieldConfigNode struct {
 				StartDate githubv4.String
 				Duration  githubv4.Int
 			}
+			CompletedIterations []struct {
+				ID        githubv4.String
+				Title     githubv4.String
+				StartDate githubv4.String
+				Duration  githubv4.Int
+			}
 		}
 	} `graphql:"... on ProjectV2IterationField"`
 }
 
 func (n *projectV2FieldConfigNode) toProjectV2Field() ProjectV2Field {
-	if n.AsProjectV2Field.ID != "" {
-		return ProjectV2Field{
-			ID:         string(n.AsProjectV2Field.ID),
-			DatabaseID: int64(n.AsProjectV2Field.DatabaseID),
-			Name:       string(n.AsProjectV2Field.Name),
-			DataType:   string(n.AsProjectV2Field.DataType),
-		}
-	}
-	if n.AsSingleSelectField.ID != "" {
+	switch string(n.Typename) {
+	case "ProjectV2SingleSelectField":
 		opts := make([]ProjectV2SingleSelectOption, len(n.AsSingleSelectField.Options))
 		for i, o := range n.AsSingleSelectField.Options {
 			opts[i] = ProjectV2SingleSelectOption{
@@ -160,8 +178,7 @@ func (n *projectV2FieldConfigNode) toProjectV2Field() ProjectV2Field {
 			DataType:   string(n.AsSingleSelectField.DataType),
 			Options:    opts,
 		}
-	}
-	if n.AsIterationField.ID != "" {
+	case "ProjectV2IterationField":
 		iters := make([]ProjectV2IterationOption, len(n.AsIterationField.Configuration.Iterations))
 		for i, it := range n.AsIterationField.Configuration.Iterations {
 			iters[i] = ProjectV2IterationOption{
@@ -171,12 +188,30 @@ func (n *projectV2FieldConfigNode) toProjectV2Field() ProjectV2Field {
 				Duration:  int(it.Duration),
 			}
 		}
+		completed := make([]ProjectV2IterationOption, len(n.AsIterationField.Configuration.CompletedIterations))
+		for i, it := range n.AsIterationField.Configuration.CompletedIterations {
+			completed[i] = ProjectV2IterationOption{
+				ID:        string(it.ID),
+				Title:     string(it.Title),
+				StartDate: string(it.StartDate),
+				Duration:  int(it.Duration),
+			}
+		}
 		return ProjectV2Field{
-			ID:         string(n.AsIterationField.ID),
-			DatabaseID: int64(n.AsIterationField.DatabaseID),
-			Name:       string(n.AsIterationField.Name),
-			DataType:   string(n.AsIterationField.DataType),
-			Iterations: iters,
+			ID:                  string(n.AsIterationField.ID),
+			DatabaseID:          int64(n.AsIterationField.DatabaseID),
+			Name:                string(n.AsIterationField.Name),
+			DataType:            string(n.AsIterationField.DataType),
+			Iterations:          iters,
+			CompletedIterations: completed,
+			IterationDuration:   int(n.AsIterationField.Configuration.Duration),
+		}
+	case "ProjectV2Field":
+		return ProjectV2Field{
+			ID:         string(n.AsProjectV2Field.ID),
+			DatabaseID: int64(n.AsProjectV2Field.DatabaseID),
+			Name:       string(n.AsProjectV2Field.Name),
+			DataType:   string(n.AsProjectV2Field.DataType),
 		}
 	}
 	return ProjectV2Field{}
@@ -237,7 +272,7 @@ type projectV2ItemFieldValueNode struct {
 		Field  fieldConfigNameRef
 	} `graphql:"... on ProjectV2ItemFieldNumberValue"`
 	AsDate struct {
-		Date  *githubv4.Date
+		Date  *githubv4.String
 		Field fieldConfigNameRef
 	} `graphql:"... on ProjectV2ItemFieldDateValue"`
 	AsSingleSelect struct {
@@ -323,7 +358,7 @@ func (n *projectV2ItemNode) toProjectV2Item() ProjectV2Item {
 				item.FieldValues = append(item.FieldValues, ProjectV2FieldValue{
 					FieldName: fieldName,
 					ValueType: "DATE",
-					Date:      fv.AsDate.Date.Format("2006-01-02"),
+					Date:      normalizeDateScalar(string(*fv.AsDate.Date)),
 				})
 			}
 		} else if fv.AsSingleSelect.Name != nil {
@@ -442,14 +477,52 @@ type projectV2FieldsQueryResult struct {
 	} `graphql:"fields(first: $fieldsFirst, after: $fieldsCursor)"`
 }
 
+type projectV2ItemsConnection struct {
+	Nodes    []projectV2ItemNode
+	PageInfo struct {
+		EndCursor   githubv4.String
+		HasNextPage bool
+	}
+}
+
 type projectV2ItemsQueryResult struct {
-	Items struct {
-		Nodes    []projectV2ItemNode
-		PageInfo struct {
-			EndCursor   githubv4.String
-			HasNextPage bool
+	Items projectV2ItemsConnection `graphql:"items(first: $itemsFirst, after: $itemsCursor)"`
+}
+
+// projectV2AllItemsQueryResult selects archived items as well. The items connection defaults to
+// archivedStates: [NOT_ARCHIVED], and the argument is missing on older GitHub Enterprise Server.
+type projectV2AllItemsQueryResult struct {
+	Items projectV2ItemsConnection `graphql:"items(first: $itemsFirst, after: $itemsCursor, archivedStates: [ARCHIVED, NOT_ARCHIVED])"`
+}
+
+// unsupportedArchivedStates reports whether the GraphQL API rejected the archivedStates argument.
+func unsupportedArchivedStates(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "archivedStates")
+}
+
+// normalizeDateScalar returns the YYYY-MM-DD part of a GraphQL Date scalar. The scalar must be read
+// as a string because githubv4.Date embeds time.Time, which only unmarshals RFC 3339 timestamps.
+func normalizeDateScalar(s string) string {
+	if i := strings.IndexByte(s, 'T'); i > 0 {
+		return s[:i]
+	}
+	return s
+}
+
+// paginateProjectV2Items runs query until every item page is consumed. conn must point at the
+// items connection inside query so that each page is read after the query is re-executed.
+func paginateProjectV2Items(ctx context.Context, gql *githubv4.Client, query any, variables map[string]any, conn *projectV2ItemsConnection) ([]ProjectV2Item, error) {
+	var all []ProjectV2Item
+	for {
+		if err := gql.Query(ctx, query, variables); err != nil {
+			return nil, err
 		}
-	} `graphql:"items(first: $itemsFirst, after: $itemsCursor)"`
+		all = append(all, processItems(conn.Nodes)...)
+		if !conn.PageInfo.HasNextPage {
+			return all, nil
+		}
+		variables["itemsCursor"] = githubv4.NewString(conn.PageInfo.EndCursor)
+	}
 }
 
 func processFields(nodes []projectV2FieldConfigNode) []ProjectV2Field {
@@ -652,66 +725,66 @@ func (g *GitHubClient) ListOrgProjectV2Fields(ctx context.Context, org string, n
 	return all, nil
 }
 
-// ListUserProjectV2Items lists all items for a user's ProjectV2.
+// ListUserProjectV2Items lists all items, including archived ones, for a user's ProjectV2.
 func (g *GitHubClient) ListUserProjectV2Items(ctx context.Context, login string, number int, first int) ([]ProjectV2Item, error) {
 	gql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
 		return nil, err
+	}
+	newVariables := func() map[string]any {
+		return map[string]any{
+			"owner":       githubv4.String(login),
+			"number":      githubv4.Int(number),
+			"itemsFirst":  githubv4.Int(first),
+			"itemsCursor": (*githubv4.String)(nil),
+		}
+	}
+	var allItemsQuery struct {
+		User struct {
+			ProjectV2 projectV2AllItemsQueryResult `graphql:"projectV2(number: $number)"`
+		} `graphql:"user(login: $owner)"`
+	}
+	items, err := paginateProjectV2Items(ctx, gql, &allItemsQuery, newVariables(), &allItemsQuery.User.ProjectV2.Items)
+	if !unsupportedArchivedStates(err) {
+		return items, err
 	}
 	var query struct {
 		User struct {
 			ProjectV2 projectV2ItemsQueryResult `graphql:"projectV2(number: $number)"`
 		} `graphql:"user(login: $owner)"`
 	}
-	variables := map[string]any{
-		"owner":       githubv4.String(login),
-		"number":      githubv4.Int(number),
-		"itemsFirst":  githubv4.Int(first),
-		"itemsCursor": (*githubv4.String)(nil),
-	}
-	var all []ProjectV2Item
-	for {
-		if err := gql.Query(ctx, &query, variables); err != nil {
-			return nil, err
-		}
-		all = append(all, processItems(query.User.ProjectV2.Items.Nodes)...)
-		if !query.User.ProjectV2.Items.PageInfo.HasNextPage {
-			break
-		}
-		variables["itemsCursor"] = githubv4.NewString(query.User.ProjectV2.Items.PageInfo.EndCursor)
-	}
-	return all, nil
+	return paginateProjectV2Items(ctx, gql, &query, newVariables(), &query.User.ProjectV2.Items)
 }
 
-// ListOrgProjectV2Items lists all items for an org's ProjectV2.
+// ListOrgProjectV2Items lists all items, including archived ones, for an org's ProjectV2.
 func (g *GitHubClient) ListOrgProjectV2Items(ctx context.Context, org string, number int, first int) ([]ProjectV2Item, error) {
 	gql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
 		return nil, err
+	}
+	newVariables := func() map[string]any {
+		return map[string]any{
+			"owner":       githubv4.String(org),
+			"number":      githubv4.Int(number),
+			"itemsFirst":  githubv4.Int(first),
+			"itemsCursor": (*githubv4.String)(nil),
+		}
+	}
+	var allItemsQuery struct {
+		Organization struct {
+			ProjectV2 projectV2AllItemsQueryResult `graphql:"projectV2(number: $number)"`
+		} `graphql:"organization(login: $owner)"`
+	}
+	items, err := paginateProjectV2Items(ctx, gql, &allItemsQuery, newVariables(), &allItemsQuery.Organization.ProjectV2.Items)
+	if !unsupportedArchivedStates(err) {
+		return items, err
 	}
 	var query struct {
 		Organization struct {
 			ProjectV2 projectV2ItemsQueryResult `graphql:"projectV2(number: $number)"`
 		} `graphql:"organization(login: $owner)"`
 	}
-	variables := map[string]any{
-		"owner":       githubv4.String(org),
-		"number":      githubv4.Int(number),
-		"itemsFirst":  githubv4.Int(first),
-		"itemsCursor": (*githubv4.String)(nil),
-	}
-	var all []ProjectV2Item
-	for {
-		if err := gql.Query(ctx, &query, variables); err != nil {
-			return nil, err
-		}
-		all = append(all, processItems(query.Organization.ProjectV2.Items.Nodes)...)
-		if !query.Organization.ProjectV2.Items.PageInfo.HasNextPage {
-			break
-		}
-		variables["itemsCursor"] = githubv4.NewString(query.Organization.ProjectV2.Items.PageInfo.EndCursor)
-	}
-	return all, nil
+	return paginateProjectV2Items(ctx, gql, &query, newVariables(), &query.Organization.ProjectV2.Items)
 }
 
 // GetOwnerNodeID returns the GraphQL node ID for a user or organization login.

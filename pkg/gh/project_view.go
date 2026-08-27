@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/shurcooL/githubv4"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
@@ -100,4 +101,11 @@ func CreateProjectV2View(ctx context.Context, g *GitHubClient, owner string, num
 		Layout: input.Layout,
 		Filter: input.Filter,
 	}, nil
+}
+
+// DeleteProjectV2View deletes a view from a ProjectV2. viewID is the view node ID.
+func DeleteProjectV2View(ctx context.Context, g *GitHubClient, viewID string) error {
+	return g.DeleteProjectV2View(ctx, client.DeleteProjectV2ViewInput{
+		ViewID: githubv4.ID(viewID),
+	})
 }
