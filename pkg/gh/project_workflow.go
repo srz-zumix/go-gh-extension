@@ -1,5 +1,4 @@
 package gh
-package gh
 
 import (
 	"context"
