@@ -179,23 +179,41 @@ func CreateProjectV2Field(ctx context.Context, g *GitHubClient, projectID string
 // iterations contains the source iterations to replicate; startDate and duration are taken
 // from the first iteration, or fall back to a sane default if empty or not provided.
 func CreateProjectV2IterationField(ctx context.Context, g *GitHubClient, projectID string, name string, iterations []ProjectV2IterationOption) error {
+	input := client.CreateProjectV2FieldInput{
+		ProjectID:              githubv4.ID(projectID),
+		DataType:               githubv4.String("ITERATION"),
+		Name:                   githubv4.String(name),
+		IterationConfiguration: iterationConfigInput(iterations),
+	}
+	return g.CreateProjectV2Field(ctx, input)
+}
+
+// UpdateProjectV2FieldIterations replaces the iterations of an ITERATION field.
+// The iteration input has no ID, so the destination assigns new iteration IDs.
+func UpdateProjectV2FieldIterations(ctx context.Context, g *GitHubClient, fieldID string, iterations []ProjectV2IterationOption) error {
+	return g.UpdateProjectV2Field(ctx, client.UpdateProjectV2FieldInput{
+		FieldID:                githubv4.ID(fieldID),
+		IterationConfiguration: iterationConfigInput(iterations),
+	})
+}
+
+// iterationConfigInput builds the iteration configuration from the given iterations.
+// The start date and duration are taken from the first iteration that specifies them.
+func iterationConfigInput(iterations []ProjectV2IterationOption) *client.ProjectV2IterationFieldConfigInput {
 	var startDate githubv4.String
 	var duration githubv4.Int
-	if len(iterations) > 0 {
-		// Find the first iteration that has StartDate and Duration set.
-		for _, it := range iterations {
-			if startDate == "" && it.StartDate != "" {
-				startDate = githubv4.String(it.StartDate)
-			}
-			if duration == 0 && it.Duration > 0 {
-				duration = githubv4.Int(it.Duration)
-			}
-			if startDate != "" && duration != 0 {
-				break
-			}
+	for _, it := range iterations {
+		if startDate == "" && it.StartDate != "" {
+			startDate = githubv4.String(it.StartDate)
+		}
+		if duration == 0 && it.Duration > 0 {
+			duration = githubv4.Int(it.Duration)
+		}
+		if startDate != "" && duration != 0 {
+			break
 		}
 	}
-	// Provide minimal defaults if the first iteration does not specify them or no iterations are given.
+	// Provide minimal defaults if the iterations do not specify them or no iterations are given.
 	if startDate == "" {
 		startDate = githubv4.String(time.Now().Format("2006-01-02"))
 	}
@@ -210,17 +228,11 @@ func CreateProjectV2IterationField(ctx context.Context, g *GitHubClient, project
 			Duration:  githubv4.Int(it.Duration),
 		}
 	}
-	input := client.CreateProjectV2FieldInput{
-		ProjectID: githubv4.ID(projectID),
-		DataType:  githubv4.String("ITERATION"),
-		Name:      githubv4.String(name),
-		IterationConfiguration: &client.ProjectV2IterationFieldConfigInput{
-			StartDate:  startDate,
-			Duration:   duration,
-			Iterations: iters,
-		},
+	return &client.ProjectV2IterationFieldConfigInput{
+		StartDate:  startDate,
+		Duration:   duration,
+		Iterations: iters,
 	}
-	return g.CreateProjectV2Field(ctx, input)
 }
 
 // AddProjectV2DraftIssue adds a draft issue to a GitHub Project v2.

@@ -35,8 +35,8 @@ type projectV2StatusUpdateNode struct {
 	ID         githubv4.String
 	Body       githubv4.String
 	Status     githubv4.String
-	StartDate  *githubv4.Date
-	TargetDate *githubv4.Date
+	StartDate  *githubv4.String
+	TargetDate *githubv4.String
 	CreatedAt  githubv4.DateTime
 	UpdatedAt  githubv4.DateTime
 	Creator    struct {
@@ -54,10 +54,10 @@ func (n *projectV2StatusUpdateNode) toProjectV2StatusUpdate() ProjectV2StatusUpd
 		UpdatedAt: n.UpdatedAt.UTC().Format(time.RFC3339),
 	}
 	if n.StartDate != nil {
-		s.StartDate = n.StartDate.Format("2006-01-02")
+		s.StartDate = normalizeDateScalar(string(*n.StartDate))
 	}
 	if n.TargetDate != nil {
-		s.TargetDate = n.TargetDate.Format("2006-01-02")
+		s.TargetDate = normalizeDateScalar(string(*n.TargetDate))
 	}
 	return s
 }

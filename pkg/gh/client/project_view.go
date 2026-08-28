@@ -3,6 +3,8 @@ package client
 import (
 	"context"
 	"fmt"
+
+	"github.com/shurcooL/githubv4"
 )
 
 // CreateProjectV2ViewRequest is the request body for the Project views REST endpoints.
@@ -51,4 +53,23 @@ func (g *GitHubClient) createProjectV2View(ctx context.Context, url string, body
 		return nil, err
 	}
 	return &view, nil
+}
+
+// DeleteProjectV2ViewInput is the input for deleting a view from a Project v2.
+type DeleteProjectV2ViewInput struct {
+	ViewID githubv4.ID `json:"viewId"`
+}
+
+// DeleteProjectV2View deletes a view from a GitHub Project v2.
+func (g *GitHubClient) DeleteProjectV2View(ctx context.Context, input DeleteProjectV2ViewInput) error {
+	gql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return err
+	}
+	var mutation struct {
+		DeleteProjectV2View struct {
+			ClientMutationID githubv4.String `graphql:"clientMutationId"`
+		} `graphql:"deleteProjectV2View(input: $input)"`
+	}
+	return gql.Mutate(ctx, &mutation, input, nil)
 }
