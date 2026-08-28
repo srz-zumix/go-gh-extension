@@ -69,6 +69,12 @@ jobs:
             echo "diff=0" >> "${GITHUB_OUTPUT}"
           else
             echo "diff=1" >> "${GITHUB_OUTPUT}"
+            # Determine PR title based on which files changed
+            if git diff --quiet -- version/version.go; then
+              echo "pr_title=Update LICENSES" >> "${GITHUB_OUTPUT}"
+            else
+              echo "pr_title=Release ${TAG}" >> "${GITHUB_OUTPUT}"
+            fi
           fi
 
       - name: Commit changes
@@ -86,10 +92,11 @@ jobs:
         if: steps.check-diff.outputs.diff == '1'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TITLE: ${{ steps.check-diff.outputs.pr_title }}
         run: |
           if ! gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number' | grep -q .; then
             gh pr create \
-              --title "Release ${TAG}" \
+              --title "${PR_TITLE}" \
               --body "Bump version to ${TAG}" \
               --base main \
               --head "${BRANCH}"
