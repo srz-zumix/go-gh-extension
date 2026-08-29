@@ -52,3 +52,20 @@ func TestEncryptSecretInvalidPublicKey(t *testing.T) {
 		t.Error("expected an error for a public key that is not base64")
 	}
 }
+
+func TestEncryptSecretNilPublicKey(t *testing.T) {
+	if _, err := EncryptSecret(nil, "MY_SECRET", "value"); err == nil {
+		t.Error("expected an error for a nil public key")
+	}
+}
+
+func TestEncryptSecretMissingKeyID(t *testing.T) {
+	publicKey, _, err := box.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("failed to generate key pair: %v", err)
+	}
+	encodedKey := base64.StdEncoding.EncodeToString(publicKey[:])
+	if _, err := EncryptSecret(&github.PublicKey{Key: &encodedKey}, "MY_SECRET", "value"); err == nil {
+		t.Error("expected an error for a public key with an empty key ID")
+	}
+}

@@ -17,6 +17,12 @@ const publicKeySize = 32
 // EncryptSecret seals value with publicKey so the result can be passed to the
 // CreateOrUpdate*Secret functions.
 func EncryptSecret(publicKey *github.PublicKey, name, value string) (*github.EncryptedSecret, error) {
+	if publicKey == nil {
+		return nil, fmt.Errorf("public key is nil")
+	}
+	if publicKey.GetKeyID() == "" {
+		return nil, fmt.Errorf("public key ID is empty")
+	}
 	decoded, err := base64.StdEncoding.DecodeString(publicKey.GetKey())
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode public key: %w", err)
