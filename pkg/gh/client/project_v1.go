@@ -208,12 +208,23 @@ func (g *GitHubClient) CreateProjectV1Card(ctx context.Context, columnID int64, 
 	return &card, nil
 }
 
-// ListProjectV1Cards lists all cards in a classic project column.
+// ListProjectV1Cards lists the non-archived cards in a classic project column.
 func (g *GitHubClient) ListProjectV1Cards(ctx context.Context, columnID int64) ([]ProjectV1Card, error) {
+	return g.listProjectV1Cards(ctx, columnID, "not_archived")
+}
+
+// ListProjectV1CardsAll lists the cards in a classic project column, including archived ones.
+func (g *GitHubClient) ListProjectV1CardsAll(ctx context.Context, columnID int64) ([]ProjectV1Card, error) {
+	return g.listProjectV1Cards(ctx, columnID, "all")
+}
+
+// listProjectV1Cards is the shared implementation for listing classic project cards.
+// archivedState is one of "not_archived", "archived" or "all".
+func (g *GitHubClient) listProjectV1Cards(ctx context.Context, columnID int64, archivedState string) ([]ProjectV1Card, error) {
 	var all []ProjectV1Card
 	page := 1
 	for {
-		u := fmt.Sprintf("projects/columns/%d/cards?per_page=%d&page=%d", columnID, defaultPerPage, page)
+		u := fmt.Sprintf("projects/columns/%d/cards?archived_state=%s&per_page=%d&page=%d", columnID, archivedState, defaultPerPage, page)
 		req, err := g.client.NewRequest(ctx, "GET", u, nil)
 		if err != nil {
 			return nil, err
