@@ -59,9 +59,14 @@ func ListProjectV1Columns(ctx context.Context, g *GitHubClient, repo repository.
 	return g.ListProjectV1Columns(ctx, projectID)
 }
 
-// ListProjectV1Cards lists all cards for a classic project column.
+// ListProjectV1Cards lists the non-archived cards for a classic project column.
 func ListProjectV1Cards(ctx context.Context, g *GitHubClient, repo repository.Repository, columnID int64) ([]ProjectV1Card, error) {
 	return g.ListProjectV1Cards(ctx, columnID)
+}
+
+// ListProjectV1CardsAll lists the cards for a classic project column, including archived ones.
+func ListProjectV1CardsAll(ctx context.Context, g *GitHubClient, repo repository.Repository, columnID int64) ([]ProjectV1Card, error) {
+	return g.ListProjectV1CardsAll(ctx, columnID)
 }
 
 // CreateProjectV1 creates a classic project under repo.
