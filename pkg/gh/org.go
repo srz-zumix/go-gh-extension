@@ -140,6 +140,27 @@ func SetOrgMembersCanCreateTeams(ctx context.Context, g *GitHubClient, repo repo
 	})
 }
 
+// SetOrgMembersCanCreatePublicRepos sets whether organization members can create public repositories.
+func SetOrgMembersCanCreatePublicRepos(ctx context.Context, g *GitHubClient, repo repository.Repository, enabled bool) (*Organization, error) {
+	return EditOrg(ctx, g, repo, &github.Organization{
+		MembersCanCreatePublicRepos: &enabled,
+	})
+}
+
+// SetOrgWebCommitSignoffRequired sets whether web-based commit signoff is required for the organization.
+func SetOrgWebCommitSignoffRequired(ctx context.Context, g *GitHubClient, repo repository.Repository, required bool) (*Organization, error) {
+	return EditOrg(ctx, g, repo, &github.Organization{
+		WebCommitSignoffRequired: &required,
+	})
+}
+
+// Allowed values for the organization GitHub Actions allowed_actions policy.
+const (
+	OrgAllowedActionsAll       = "all"
+	OrgAllowedActionsLocalOnly = "local_only"
+	OrgAllowedActionsSelected  = "selected"
+)
+
 // GetOrgActionsPermissions retrieves the GitHub Actions permissions for the organization.
 func GetOrgActionsPermissions(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.ActionsPermissions, error) {
 	permissions, err := g.GetOrgActionsPermissions(ctx, repo.Owner)
@@ -156,4 +177,12 @@ func UpdateOrgActionsPermissions(ctx context.Context, g *GitHubClient, repo repo
 		return nil, fmt.Errorf("failed to update GitHub Actions permissions for organization '%s': %w", repo.Owner, err)
 	}
 	return result, nil
+}
+
+// SetOrgAllowedActions sets which GitHub Actions are allowed to run in the organization.
+// allowedActions must be one of the OrgAllowedActions* constants.
+func SetOrgAllowedActions(ctx context.Context, g *GitHubClient, repo repository.Repository, allowedActions string) (*github.ActionsPermissions, error) {
+	return UpdateOrgActionsPermissions(ctx, g, repo, github.ActionsPermissions{
+		AllowedActions: &allowedActions,
+	})
 }
