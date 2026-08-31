@@ -724,7 +724,7 @@ func DisableIssues(ctx context.Context, g *GitHubClient, repo repository.Reposit
 
 // SetDeleteBranchOnMerge sets whether head branches are automatically deleted after pull requests are merged.
 func SetDeleteBranchOnMerge(ctx context.Context, g *GitHubClient, repo repository.Repository, enabled bool) (*github.Repository, error) {
-	return EditRepository(ctx, g, repo, &github.Repository{DeleteBranchOnMerge: &enabled})
+	return EditRepository(ctx, g, repo, &github.Repository{DeleteBranchOnMerge: github.Ptr(enabled)})
 }
 
 // GetRepositoryNodeID retrieves the GraphQL node ID of a repository.

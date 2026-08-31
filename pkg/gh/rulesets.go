@@ -48,14 +48,14 @@ type RepositoryRulesetMigrateConfig struct {
 	Repositories map[int64]*github.Repository
 }
 
-// HasAnyRulesetRule reports whether a ruleset rules set defines at least one rule.
+// HasAnyRulesetRule reports whether the rules contain at least one configured rule.
 func HasAnyRulesetRule(rules *github.RepositoryRulesetRules) bool {
 	if rules == nil {
 		return false
 	}
 	v := reflect.ValueOf(*rules)
 	for i := 0; i < v.NumField(); i++ {
-		if field := v.Field(i); field.Kind() == reflect.Ptr && !field.IsNil() {
+		if field := v.Field(i); field.Kind() == reflect.Pointer && !field.IsNil() {
 			return true
 		}
 	}
