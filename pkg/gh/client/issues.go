@@ -16,6 +16,50 @@ func (g *GitHubClient) GetIssueByNumber(ctx context.Context, owner, repo string,
 	return issue, nil
 }
 
+// IssueOrPullRequestRef identifies an issue or pull request by its GraphQL node ID and type name.
+type IssueOrPullRequestRef struct {
+	ID       string
+	Typename string // "Issue" or "PullRequest"
+}
+
+// GetIssueOrPullRequestNodeID resolves the GraphQL node ID of the issue or pull request with the
+// given number. It returns nil when the number does not exist in the repository.
+func (g *GitHubClient) GetIssueOrPullRequestNodeID(ctx context.Context, owner, repo string, number int) (*IssueOrPullRequestRef, error) {
+	gql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+	var query struct {
+		Repository struct {
+			IssueOrPullRequest struct {
+				Typename githubv4.String `graphql:"__typename"`
+				AsIssue  struct {
+					ID githubv4.String
+				} `graphql:"... on Issue"`
+				AsPullRequest struct {
+					ID githubv4.String
+				} `graphql:"... on PullRequest"`
+			} `graphql:"issueOrPullRequest(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+	variables := map[string]any{
+		"owner":  githubv4.String(owner),
+		"name":   githubv4.String(repo),
+		"number": githubv4.Int(number),
+	}
+	if err := gql.Query(ctx, &query, variables); err != nil {
+		return nil, err
+	}
+	node := query.Repository.IssueOrPullRequest
+	switch string(node.Typename) {
+	case "Issue":
+		return &IssueOrPullRequestRef{ID: string(node.AsIssue.ID), Typename: "Issue"}, nil
+	case "PullRequest":
+		return &IssueOrPullRequestRef{ID: string(node.AsPullRequest.ID), Typename: "PullRequest"}, nil
+	}
+	return nil, nil
+}
+
 // SetPullRequestLabels sets labels for a pull request
 func (g *GitHubClient) ReplaceIssueLabels(ctx context.Context, owner string, repo string, number int, labels []string) ([]*github.Label, error) {
 	result, _, err := g.client.Issues.ReplaceLabelsForIssue(ctx, owner, repo, number, labels)

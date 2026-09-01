@@ -14,6 +14,14 @@ type ProjectV2SingleSelectFieldOptionInput struct {
 	Description githubv4.String  `json:"description"`
 }
 
+// ProjectV2MultiSelectFieldOptionInput is a multi-select option used when updating a field.
+type ProjectV2MultiSelectFieldOptionInput struct {
+	ID          *githubv4.String `json:"id,omitempty"`
+	Name        githubv4.String  `json:"name"`
+	Color       githubv4.String  `json:"color"`
+	Description githubv4.String  `json:"description"`
+}
+
 // ProjectV2IterationFieldIterationInput is a single iteration used when updating an ITERATION field.
 type ProjectV2IterationFieldIterationInput struct {
 	ID        *githubv4.String `json:"id,omitempty"`
@@ -27,6 +35,7 @@ type UpdateProjectV2FieldInput struct {
 	FieldID                githubv4.ID                             `json:"fieldId"`
 	Name                   *githubv4.String                        `json:"name,omitempty"`
 	SingleSelectOptions    []ProjectV2SingleSelectFieldOptionInput `json:"singleSelectOptions,omitempty"`
+	MultiSelectOptions     []ProjectV2MultiSelectFieldOptionInput  `json:"multiSelectOptions,omitempty"`
 	IterationConfiguration *ProjectV2IterationFieldConfigInput     `json:"iterationConfiguration,omitempty"`
 }
 

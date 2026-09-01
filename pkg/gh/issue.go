@@ -9,6 +9,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v90/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
@@ -100,6 +101,15 @@ func GetIssue(ctx context.Context, g *GitHubClient, repo repository.Repository, 
 		return nil, err
 	}
 	return g.GetIssueByNumber(ctx, repo.Owner, repo.Name, number)
+}
+
+// IssueOrPullRequestRef identifies an issue or pull request by its GraphQL node ID and type name.
+type IssueOrPullRequestRef = client.IssueOrPullRequestRef
+
+// GetIssueOrPullRequestNodeID resolves the GraphQL node ID of the issue or pull request with the
+// given number. It returns nil when the number does not exist in the repository.
+func GetIssueOrPullRequestNodeID(ctx context.Context, g *GitHubClient, repo repository.Repository, number int) (*IssueOrPullRequestRef, error) {
+	return g.GetIssueOrPullRequestNodeID(ctx, repo.Owner, repo.Name, number)
 }
 
 func GetIssueNumber(issue any) (int, error) {
