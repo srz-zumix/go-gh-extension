@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -45,6 +46,20 @@ type RepositoryRulesetMigrateConfig struct {
 	Users        map[int64]*GitHubUser
 	CheckRuns    map[int64]*CheckRun
 	Repositories map[int64]*github.Repository
+}
+
+// HasAnyRulesetRule reports whether the rules contain at least one configured rule.
+func HasAnyRulesetRule(rules *github.RepositoryRulesetRules) bool {
+	if rules == nil {
+		return false
+	}
+	v := reflect.ValueOf(*rules)
+	for i := 0; i < v.NumField(); i++ {
+		if field := v.Field(i); field.Kind() == reflect.Pointer && !field.IsNil() {
+			return true
+		}
+	}
+	return false
 }
 
 func ListRepositoryRulesets(ctx context.Context, g *GitHubClient, repo repository.Repository, includesParents bool) ([]*github.RepositoryRuleset, error) {

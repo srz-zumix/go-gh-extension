@@ -707,6 +707,26 @@ func EnableDiscussions(ctx context.Context, g *GitHubClient, repo repository.Rep
 	return EditRepository(ctx, g, repo, &github.Repository{HasDiscussions: github.Ptr(true)})
 }
 
+// DisableDiscussions disables Discussions on a repository.
+func DisableDiscussions(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
+	return EditRepository(ctx, g, repo, &github.Repository{HasDiscussions: github.Ptr(false)})
+}
+
+// EnableIssues enables Issues on a repository.
+func EnableIssues(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
+	return EditRepository(ctx, g, repo, &github.Repository{HasIssues: github.Ptr(true)})
+}
+
+// DisableIssues disables Issues on a repository.
+func DisableIssues(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.Repository, error) {
+	return EditRepository(ctx, g, repo, &github.Repository{HasIssues: github.Ptr(false)})
+}
+
+// SetDeleteBranchOnMerge sets whether head branches are automatically deleted after pull requests are merged.
+func SetDeleteBranchOnMerge(ctx context.Context, g *GitHubClient, repo repository.Repository, enabled bool) (*github.Repository, error) {
+	return EditRepository(ctx, g, repo, &github.Repository{DeleteBranchOnMerge: github.Ptr(enabled)})
+}
+
 // GetRepositoryNodeID retrieves the GraphQL node ID of a repository.
 func GetRepositoryNodeID(ctx context.Context, g *GitHubClient, repo repository.Repository) (string, error) {
 	id, err := g.GetRepositoryNodeID(ctx, repo.Owner, repo.Name)
