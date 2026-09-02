@@ -30,7 +30,7 @@ type ProjectV2Field struct {
 	DatabaseID int64 // REST field ID, used by the Project views REST endpoints
 	Name       string
 	DataType   string // TEXT, NUMBER, DATE, SINGLE_SELECT, MULTI_SELECT, ITERATION, TITLE, ASSIGNEES, etc.
-	Options    []ProjectV2SingleSelectOption
+	Options    []ProjectV2SelectOption
 	// Iterations holds the current and upcoming iterations of an ITERATION field.
 	Iterations []ProjectV2IterationOption
 	// CompletedIterations holds the past iterations of an ITERATION field.
@@ -56,6 +56,11 @@ type ProjectV2SingleSelectOption struct {
 	Color       string
 	Description string
 }
+
+// ProjectV2SelectOption represents an option in a SINGLE_SELECT or MULTI_SELECT field.
+// It is an alias of ProjectV2SingleSelectOption kept for naming clarity now that
+// options are shared between single- and multi-select fields.
+type ProjectV2SelectOption = ProjectV2SingleSelectOption
 
 // ProjectV2IterationOption represents a single iteration in an ITERATION field.
 type ProjectV2IterationOption struct {
@@ -243,9 +248,9 @@ func (n multiSelectProjectV2FieldConfigNode) toProjectV2Field() ProjectV2Field {
 	if string(n.Typename) != "ProjectV2MultiSelectField" {
 		return n.projectV2FieldConfigNode.toProjectV2Field()
 	}
-	opts := make([]ProjectV2SingleSelectOption, len(n.AsMultiSelectField.Options))
+	opts := make([]ProjectV2SelectOption, len(n.AsMultiSelectField.Options))
 	for i, o := range n.AsMultiSelectField.Options {
-		opts[i] = ProjectV2SingleSelectOption{
+		opts[i] = ProjectV2SelectOption{
 			ID:          string(o.ID),
 			Name:        string(o.Name),
 			Color:       string(o.Color),
@@ -438,21 +443,19 @@ type multiSelectItemFieldValueNode struct {
 }
 
 func (n multiSelectItemFieldValueNode) toFieldValue() (ProjectV2FieldValue, bool) {
-	if len(n.AsMultiSelect.Options) > 0 {
-		if fieldName := n.AsMultiSelect.Field.name(); fieldName != "" {
-			names := make([]string, len(n.AsMultiSelect.Options))
-			ids := make([]string, len(n.AsMultiSelect.Options))
-			for i, o := range n.AsMultiSelect.Options {
-				names[i] = string(o.Name)
-				ids[i] = string(o.ID)
-			}
-			return ProjectV2FieldValue{
-				FieldName:       fieldName,
-				ValueType:       "MULTI_SELECT",
-				SelectNames:     names,
-				SelectOptionIDs: ids,
-			}, true
+	if fieldName := n.AsMultiSelect.Field.name(); fieldName != "" {
+		names := make([]string, len(n.AsMultiSelect.Options))
+		ids := make([]string, len(n.AsMultiSelect.Options))
+		for i, o := range n.AsMultiSelect.Options {
+			names[i] = string(o.Name)
+			ids[i] = string(o.ID)
 		}
+		return ProjectV2FieldValue{
+			FieldName:       fieldName,
+			ValueType:       "MULTI_SELECT",
+			SelectNames:     names,
+			SelectOptionIDs: ids,
+		}, true
 	}
 	return n.projectV2ItemFieldValueNode.toFieldValue()
 }

@@ -40,7 +40,7 @@ func UpdateProjectV2FieldSingleSelectOptions(ctx context.Context, g *GitHubClien
 
 // UpdateProjectV2FieldMultiSelectOptions replaces the options of a MULTI_SELECT field.
 // Options with a non-empty ID are updated; options without an ID are added.
-func UpdateProjectV2FieldMultiSelectOptions(ctx context.Context, g *GitHubClient, fieldID string, options []ProjectV2SingleSelectOption) error {
+func UpdateProjectV2FieldMultiSelectOptions(ctx context.Context, g *GitHubClient, fieldID string, options []ProjectV2SelectOption) error {
 	opts := make([]client.ProjectV2MultiSelectFieldOptionInput, len(options))
 	for i, o := range options {
 		opt := client.ProjectV2MultiSelectFieldOptionInput{

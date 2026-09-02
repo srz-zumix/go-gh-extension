@@ -15,6 +15,9 @@ import (
 type ProjectV2 = client.ProjectV2
 type ProjectV2Field = client.ProjectV2Field
 type ProjectV2SingleSelectOption = client.ProjectV2SingleSelectOption
+
+// ProjectV2SelectOption represents an option in a SINGLE_SELECT or MULTI_SELECT field.
+type ProjectV2SelectOption = client.ProjectV2SelectOption
 type ProjectV2IterationOption = client.ProjectV2IterationOption
 type ProjectV2ItemType = client.ProjectV2ItemType
 type ProjectV2ItemContent = client.ProjectV2ItemContent
@@ -176,7 +179,7 @@ func CreateProjectV2Field(ctx context.Context, g *GitHubClient, projectID string
 }
 
 // CreateProjectV2MultiSelectField creates a MULTI_SELECT custom field in a GitHub Project v2.
-func CreateProjectV2MultiSelectField(ctx context.Context, g *GitHubClient, projectID string, name string, options []ProjectV2SingleSelectOption) error {
+func CreateProjectV2MultiSelectField(ctx context.Context, g *GitHubClient, projectID string, name string, options []ProjectV2SelectOption) error {
 	opts := make([]client.CreateProjectV2FieldMultiSelectOptionInput, len(options))
 	for i, o := range options {
 		opts[i] = client.CreateProjectV2FieldMultiSelectOptionInput{
