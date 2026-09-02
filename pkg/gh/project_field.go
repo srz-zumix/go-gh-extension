@@ -38,6 +38,28 @@ func UpdateProjectV2FieldSingleSelectOptions(ctx context.Context, g *GitHubClien
 	})
 }
 
+// UpdateProjectV2FieldMultiSelectOptions replaces the options of a MULTI_SELECT field.
+// Options with a non-empty ID are updated; options without an ID are added.
+func UpdateProjectV2FieldMultiSelectOptions(ctx context.Context, g *GitHubClient, fieldID string, options []ProjectV2SelectOption) error {
+	opts := make([]client.ProjectV2MultiSelectFieldOptionInput, len(options))
+	for i, o := range options {
+		opt := client.ProjectV2MultiSelectFieldOptionInput{
+			Name:        githubv4.String(o.Name),
+			Color:       githubv4.String(o.Color),
+			Description: githubv4.String(o.Description),
+		}
+		if o.ID != "" {
+			id := githubv4.String(o.ID)
+			opt.ID = &id
+		}
+		opts[i] = opt
+	}
+	return g.UpdateProjectV2Field(ctx, client.UpdateProjectV2FieldInput{
+		FieldID:            githubv4.ID(fieldID),
+		MultiSelectOptions: opts,
+	})
+}
+
 // DeleteProjectV2Field deletes a custom field from a GitHub Project v2.
 func DeleteProjectV2Field(ctx context.Context, g *GitHubClient, fieldID string) error {
 	return g.DeleteProjectV2Field(ctx, client.DeleteProjectV2FieldInput{

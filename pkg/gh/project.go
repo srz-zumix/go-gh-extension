@@ -15,6 +15,9 @@ import (
 type ProjectV2 = client.ProjectV2
 type ProjectV2Field = client.ProjectV2Field
 type ProjectV2SingleSelectOption = client.ProjectV2SingleSelectOption
+
+// ProjectV2SelectOption represents an option in a SINGLE_SELECT or MULTI_SELECT field.
+type ProjectV2SelectOption = client.ProjectV2SelectOption
 type ProjectV2IterationOption = client.ProjectV2IterationOption
 type ProjectV2ItemType = client.ProjectV2ItemType
 type ProjectV2ItemContent = client.ProjectV2ItemContent
@@ -175,6 +178,24 @@ func CreateProjectV2Field(ctx context.Context, g *GitHubClient, projectID string
 	return g.CreateProjectV2Field(ctx, input)
 }
 
+// CreateProjectV2MultiSelectField creates a MULTI_SELECT custom field in a GitHub Project v2.
+func CreateProjectV2MultiSelectField(ctx context.Context, g *GitHubClient, projectID string, name string, options []ProjectV2SelectOption) error {
+	opts := make([]client.CreateProjectV2FieldMultiSelectOptionInput, len(options))
+	for i, o := range options {
+		opts[i] = client.CreateProjectV2FieldMultiSelectOptionInput{
+			Name:        githubv4.String(o.Name),
+			Color:       githubv4.String(o.Color),
+			Description: githubv4.String(o.Description),
+		}
+	}
+	return g.CreateProjectV2Field(ctx, client.CreateProjectV2FieldInput{
+		ProjectID:          githubv4.ID(projectID),
+		DataType:           githubv4.String("MULTI_SELECT"),
+		Name:               githubv4.String(name),
+		MultiSelectOptions: opts,
+	})
+}
+
 // CreateProjectV2IterationField creates an ITERATION custom field in a GitHub Project v2.
 // iterations contains the source iterations to replicate; startDate and duration are taken
 // from the first iteration, or fall back to a sane default if empty or not provided.
@@ -301,6 +322,21 @@ func SetProjectV2ItemSingleSelectValue(ctx context.Context, g *GitHubClient, pro
 		ItemID:    githubv4.ID(itemID),
 		FieldID:   githubv4.ID(fieldID),
 		Value:     client.ProjectV2FieldValueInput{SingleSelectOptionID: &opt},
+	})
+}
+
+// SetProjectV2ItemMultiSelectValue sets a MULTI_SELECT field value for a project item.
+// optionIDs are the destination field option node IDs.
+func SetProjectV2ItemMultiSelectValue(ctx context.Context, g *GitHubClient, projectID, itemID, fieldID string, optionIDs []string) error {
+	opts := make([]githubv4.String, len(optionIDs))
+	for i, id := range optionIDs {
+		opts[i] = githubv4.String(id)
+	}
+	return g.UpdateProjectV2ItemFieldValue(ctx, client.UpdateProjectV2ItemFieldValueInput{
+		ProjectID: githubv4.ID(projectID),
+		ItemID:    githubv4.ID(itemID),
+		FieldID:   githubv4.ID(fieldID),
+		Value:     client.ProjectV2FieldValueInput{MultiSelectOptionIDs: &opts},
 	})
 }
 
