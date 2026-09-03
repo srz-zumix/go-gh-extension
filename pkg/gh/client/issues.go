@@ -107,6 +107,16 @@ func (g *GitHubClient) CreateIssue(ctx context.Context, owner, repo, title, body
 	return issue, err
 }
 
+// UpdateIssueBody replaces the body of an issue. The issues API also serves
+// pull requests, so a pull request number is accepted as well.
+func (g *GitHubClient) UpdateIssueBody(ctx context.Context, owner, repo string, number int, body string) (*github.Issue, error) {
+	issue, _, err := g.client.Issues.Update(ctx, owner, repo, number, github.UpdateIssueRequest{Body: github.Ptr(body)})
+	if err != nil {
+		return nil, err
+	}
+	return issue, nil
+}
+
 func (g *GitHubClient) CreateIssueComment(ctx context.Context, owner string, repo string, number int, body string) (*github.IssueComment, error) {
 	comment, _, err := g.client.Issues.CreateComment(ctx, owner, repo, number, &github.IssueComment{Body: &body})
 	if err != nil {

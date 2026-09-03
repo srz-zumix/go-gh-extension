@@ -202,6 +202,20 @@ func ClearIssueLabels(ctx context.Context, g *GitHubClient, repo repository.Repo
 	return nil
 }
 
+// UpdateIssueBody replaces the body of an issue. The issues API also serves
+// pull requests, so a pull request is accepted as well.
+func UpdateIssueBody(ctx context.Context, g *GitHubClient, repo repository.Repository, issue any, body string) (*github.Issue, error) {
+	number, err := GetIssueNumber(issue)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse issue number from '%v': %w", issue, err)
+	}
+	updated, err := g.UpdateIssueBody(ctx, repo.Owner, repo.Name, number, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update body of issue #%d in repository '%s/%s': %w", number, repo.Owner, repo.Name, err)
+	}
+	return updated, nil
+}
+
 func CreateIssueComment(ctx context.Context, g *GitHubClient, repo repository.Repository, issue any, body string) (*github.IssueComment, error) {
 	number, err := GetIssueNumber(issue)
 	if err != nil {
