@@ -126,6 +126,28 @@ func (e *UserAttachmentRateLimitError) Error() string {
 // attempt: a rate-limited response is returned as *UserAttachmentRateLimitError
 // so the caller decides the retry policy.
 func UploadUserAttachment(ctx context.Context, httpClient *http.Client, up UserAttachmentUpload) (string, error) {
+	if httpClient == nil {
+		return "", errors.New("http client must not be nil")
+	}
+	if up.Open == nil {
+		return "", errors.New("upload body opener (Open) must not be nil")
+	}
+	if up.Host == "" {
+		return "", errors.New("upload host must not be empty")
+	}
+	if up.Name == "" {
+		return "", errors.New("upload name must not be empty")
+	}
+	if up.ContentType == "" {
+		return "", errors.New("upload content type must not be empty")
+	}
+	if up.Size < 0 {
+		return "", errors.New("upload size must not be negative")
+	}
+	if err := CheckUserAttachmentUploadSupported(up.Host, up.RepositoryID); err != nil {
+		return "", err
+	}
+
 	reqURL := &url.URL{
 		Scheme: "https",
 		Host:   "uploads." + up.Host,
@@ -139,7 +161,10 @@ func UploadUserAttachment(ctx context.Context, httpClient *http.Client, up UserA
 
 	f, err := up.Open()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("open upload body: %w", err)
+	}
+	if f == nil {
+		return "", errors.New("open upload body returned a nil reader")
 	}
 	defer f.Close() //nolint:errcheck
 
@@ -160,7 +185,7 @@ func UploadUserAttachment(ctx context.Context, httpClient *http.Client, up UserA
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		if isUserAttachmentRateLimitStatus(resp.StatusCode) {
+		if isUserAttachmentRateLimit(resp) {
 			return "", &UserAttachmentRateLimitError{
 				Status: resp.StatusCode,
 				Header: resp.Header,
@@ -198,8 +223,22 @@ func newUserAttachmentUploadStatusError(status int, body string) error {
 	}
 }
 
-// isUserAttachmentRateLimitStatus reports whether an HTTP status indicates a
-// GitHub rate limit worth retrying with backoff.
-func isUserAttachmentRateLimitStatus(status int) bool {
-	return status == http.StatusTooManyRequests || status == http.StatusForbidden
+// isUserAttachmentRateLimit reports whether resp indicates a GitHub rate limit
+// worth retrying with backoff. 429 always qualifies. A 403 only qualifies when
+// its headers identify a rate limit (Retry-After for a secondary limit, or
+// X-RateLimit-Remaining: 0 for a primary limit); other 403s (SSO enforcement,
+// insufficient scopes, policy blocks, etc.) are not retryable.
+func isUserAttachmentRateLimit(resp *http.Response) bool {
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return true
+	}
+	if resp.StatusCode == http.StatusForbidden {
+		if resp.Header.Get("Retry-After") != "" {
+			return true
+		}
+		if resp.Header.Get("X-RateLimit-Remaining") == "0" {
+			return true
+		}
+	}
+	return false
 }

@@ -198,3 +198,75 @@ func TestUploadUserAttachment_NoAssetURL(t *testing.T) {
 		t.Fatal("UploadUserAttachment() error = nil, want an error")
 	}
 }
+
+func TestUploadUserAttachment_ForbiddenRateLimitHeaders(t *testing.T) {
+	cases := []struct {
+		name       string
+		setHeaders func(http.Header)
+		wantRL     bool
+	}{
+		{
+			name:       "403 with Retry-After is a rate limit",
+			setHeaders: func(h http.Header) { h.Set("Retry-After", "60") },
+			wantRL:     true,
+		},
+		{
+			name:       "403 with X-RateLimit-Remaining 0 is a rate limit",
+			setHeaders: func(h http.Header) { h.Set("X-RateLimit-Remaining", "0") },
+			wantRL:     true,
+		},
+		{
+			name:       "plain 403 is not a rate limit",
+			setHeaders: func(http.Header) {},
+			wantRL:     false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				tc.setHeaders(w.Header())
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"message":"Forbidden"}`))
+			}))
+			defer srv.Close()
+
+			_, err := UploadUserAttachment(context.Background(), redirectingClient(t, srv), testUpload("the bytes"))
+			if err == nil {
+				t.Fatal("UploadUserAttachment() error = nil, want an error")
+			}
+			var rl *UserAttachmentRateLimitError
+			if got := errors.As(err, &rl); got != tc.wantRL {
+				t.Fatalf("errors.As(*UserAttachmentRateLimitError) = %v, want %v (err = %v)", got, tc.wantRL, err)
+			}
+		})
+	}
+}
+
+func TestUploadUserAttachment_InputValidation(t *testing.T) {
+	valid := testUpload("the bytes")
+	client := &http.Client{}
+
+	cases := []struct {
+		name       string
+		httpClient *http.Client
+		mutate     func(*UserAttachmentUpload)
+	}{
+		{"nil http client", nil, func(*UserAttachmentUpload) {}},
+		{"nil Open", client, func(u *UserAttachmentUpload) { u.Open = nil }},
+		{"empty host", client, func(u *UserAttachmentUpload) { u.Host = "" }},
+		{"empty name", client, func(u *UserAttachmentUpload) { u.Name = "" }},
+		{"empty content type", client, func(u *UserAttachmentUpload) { u.ContentType = "" }},
+		{"negative size", client, func(u *UserAttachmentUpload) { u.Size = -1 }},
+		{"zero repository id", client, func(u *UserAttachmentUpload) { u.RepositoryID = 0 }},
+		{"enterprise host", client, func(u *UserAttachmentUpload) { u.Host = "ghe.example.com" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			up := valid
+			tc.mutate(&up)
+			if _, err := UploadUserAttachment(context.Background(), tc.httpClient, up); err == nil {
+				t.Fatal("UploadUserAttachment() error = nil, want a validation error")
+			}
+		})
+	}
+}
