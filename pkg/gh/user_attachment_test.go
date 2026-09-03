@@ -9,6 +9,9 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/google/go-github/v90/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
 func TestUserAttachmentSupported(t *testing.T) {
@@ -56,10 +59,10 @@ func TestCheckUserAttachmentUploadSupported(t *testing.T) {
 	}
 }
 
-// redirectingClient returns an http.Client whose transport rewrites every
+// redirectingClient returns a GitHubClient whose transport rewrites every
 // request's host/scheme to target srv, so tests exercise the real
 // "uploads.<host>" URL-building logic while hitting a local test server.
-func redirectingClient(t *testing.T, srv *httptest.Server) *http.Client {
+func redirectingClient(t *testing.T, srv *httptest.Server) *GitHubClient {
 	t.Helper()
 	target, err := url.Parse(srv.URL)
 	if err != nil {
@@ -73,7 +76,15 @@ func redirectingClient(t *testing.T, srv *httptest.Server) *http.Client {
 		req.Host = target.Host
 		return http.DefaultTransport.RoundTrip(req)
 	})
-	return base
+	gc, err := github.NewClient(github.WithHTTPClient(base))
+	if err != nil {
+		t.Fatalf("new go-github client: %v", err)
+	}
+	g, err := client.NewClient(gc)
+	if err != nil {
+		t.Fatalf("new github client: %v", err)
+	}
+	return g
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -244,27 +255,34 @@ func TestUploadUserAttachment_ForbiddenRateLimitHeaders(t *testing.T) {
 
 func TestUploadUserAttachment_InputValidation(t *testing.T) {
 	valid := testUpload("the bytes")
-	client := &http.Client{}
+	gc, err := github.NewClient()
+	if err != nil {
+		t.Fatalf("new go-github client: %v", err)
+	}
+	validClient, err := client.NewClient(gc)
+	if err != nil {
+		t.Fatalf("new github client: %v", err)
+	}
 
 	cases := []struct {
-		name       string
-		httpClient *http.Client
-		mutate     func(*UserAttachmentUpload)
+		name   string
+		client *GitHubClient
+		mutate func(*UserAttachmentUpload)
 	}{
-		{"nil http client", nil, func(*UserAttachmentUpload) {}},
-		{"nil Open", client, func(u *UserAttachmentUpload) { u.Open = nil }},
-		{"empty host", client, func(u *UserAttachmentUpload) { u.Host = "" }},
-		{"empty name", client, func(u *UserAttachmentUpload) { u.Name = "" }},
-		{"empty content type", client, func(u *UserAttachmentUpload) { u.ContentType = "" }},
-		{"negative size", client, func(u *UserAttachmentUpload) { u.Size = -1 }},
-		{"zero repository id", client, func(u *UserAttachmentUpload) { u.RepositoryID = 0 }},
-		{"enterprise host", client, func(u *UserAttachmentUpload) { u.Host = "ghe.example.com" }},
+		{"nil github client", nil, func(*UserAttachmentUpload) {}},
+		{"nil Open", validClient, func(u *UserAttachmentUpload) { u.Open = nil }},
+		{"empty host", validClient, func(u *UserAttachmentUpload) { u.Host = "" }},
+		{"empty name", validClient, func(u *UserAttachmentUpload) { u.Name = "" }},
+		{"empty content type", validClient, func(u *UserAttachmentUpload) { u.ContentType = "" }},
+		{"negative size", validClient, func(u *UserAttachmentUpload) { u.Size = -1 }},
+		{"zero repository id", validClient, func(u *UserAttachmentUpload) { u.RepositoryID = 0 }},
+		{"enterprise host", validClient, func(u *UserAttachmentUpload) { u.Host = "ghe.example.com" }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			up := valid
 			tc.mutate(&up)
-			if _, err := UploadUserAttachment(context.Background(), tc.httpClient, up); err == nil {
+			if _, err := UploadUserAttachment(context.Background(), tc.client, up); err == nil {
 				t.Fatal("UploadUserAttachment() error = nil, want a validation error")
 			}
 		})

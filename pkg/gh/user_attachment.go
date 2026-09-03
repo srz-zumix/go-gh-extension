@@ -76,15 +76,6 @@ func CheckUserAttachmentUploadSupported(host string, repositoryID int64) error {
 	return nil
 }
 
-// NewUserAttachmentHTTPClient returns a shallow copy of g's authenticated
-// http.Client with timeout applied, so a caller can allow longer than the
-// default for potentially large uploads without mutating the shared client.
-func NewUserAttachmentHTTPClient(g *GitHubClient, timeout time.Duration) *http.Client {
-	base := *g.GetClient().Client()
-	base.Timeout = timeout
-	return &base
-}
-
 // UserAttachmentUpload describes a single asset upload.
 type UserAttachmentUpload struct {
 	// Host is the GitHub host (e.g. "github.com"); the request is sent to
@@ -102,6 +93,9 @@ type UserAttachmentUpload struct {
 	// Open opens the asset bytes; it may be called again to replay the body on
 	// a redirect.
 	Open func() (io.ReadCloser, error)
+	// Timeout bounds this upload. Zero keeps the client's configured timeout,
+	// which is usually too short for a large asset.
+	Timeout time.Duration
 }
 
 // UserAttachmentRateLimitError reports a response that hit a GitHub rate limit
@@ -125,9 +119,9 @@ func (e *UserAttachmentRateLimitError) Error() string {
 // own web/mobile clients use) and returns the new asset URL. It makes a single
 // attempt: a rate-limited response is returned as *UserAttachmentRateLimitError
 // so the caller decides the retry policy.
-func UploadUserAttachment(ctx context.Context, httpClient *http.Client, up UserAttachmentUpload) (string, error) {
-	if httpClient == nil {
-		return "", errors.New("http client must not be nil")
+func UploadUserAttachment(ctx context.Context, g *GitHubClient, up UserAttachmentUpload) (string, error) {
+	if g == nil {
+		return "", errors.New("github client must not be nil")
 	}
 	if up.Open == nil {
 		return "", errors.New("upload body opener (Open) must not be nil")
@@ -176,6 +170,13 @@ func UploadUserAttachment(ctx context.Context, httpClient *http.Client, up UserA
 	req.GetBody = func() (io.ReadCloser, error) { return up.Open() }
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("Accept", "application/vnd.github+json")
+
+	// Client() hands back a copy, so overriding Timeout here leaves the shared
+	// client untouched while still reusing its authenticated transport.
+	httpClient := g.GetClient().Client()
+	if up.Timeout > 0 {
+		httpClient.Timeout = up.Timeout
+	}
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
