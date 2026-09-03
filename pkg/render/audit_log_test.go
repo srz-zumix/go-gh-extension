@@ -18,6 +18,7 @@ func TestAuditEntryFieldGetters(t *testing.T) {
 			"key":              "MY_SECRET",
 			"environment_name": "production",
 			"read_only":        true,
+			"visibility":       false,
 		},
 	}
 
@@ -28,7 +29,9 @@ func TestAuditEntryFieldGetters(t *testing.T) {
 	assert.Equal(t, "octo/hello", getter.getField(entry, "REPO"))
 	assert.Equal(t, "MY_SECRET", getter.getField(entry, "KEY"))
 	assert.Equal(t, "production", getter.getField(entry, "ENVIRONMENT_NAME"))
-	assert.Equal(t, "true", getter.getField(entry, "READ_ONLY"))
+	// Booleans are rendered as YES/NO for consistency with the rest of the package.
+	assert.Equal(t, "YES", getter.getField(entry, "READ_ONLY"))
+	assert.Equal(t, "NO", getter.getField(entry, "VISIBILITY"))
 	assert.Equal(t, "", getter.getField(entry, "UNKNOWN"))
 }
 

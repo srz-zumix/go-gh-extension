@@ -74,7 +74,7 @@ func AuditEntryAdditionalField(entry *github.AuditEntry, key string) string {
 		case string:
 			return v
 		case bool:
-			return strconv.FormatBool(v)
+			return toString(v)
 		case float64:
 			return strconv.FormatFloat(v, 'f', -1, 64)
 		default:
