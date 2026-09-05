@@ -30,6 +30,9 @@ func NewRunnerFieldGetters() *runnerFieldGetters {
 			"BUSY": func(r *github.Runner) string {
 				return ToString(r.Busy)
 			},
+			"GROUP": func(r *github.Runner) string {
+				return ToString(r.RunnerGroupID)
+			},
 			"LABELS": func(r *github.Runner) string {
 				if r.Labels == nil {
 					return ""
@@ -39,6 +42,14 @@ func NewRunnerFieldGetters() *runnerFieldGetters {
 					labels[i] = ToString(l.Name)
 				}
 				return strings.Join(labels, ", ")
+			},
+			"CORDONED": func(r *github.Runner) string {
+				for _, l := range r.Labels {
+					if strings.EqualFold(l.GetName(), "cordoned") {
+						return "true"
+					}
+				}
+				return "false"
 			},
 		},
 	}
