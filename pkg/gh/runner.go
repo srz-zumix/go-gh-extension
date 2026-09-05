@@ -44,6 +44,9 @@ func FindRunnersByLabel(ctx context.Context, g *GitHubClient, repo repository.Re
 
 // HasRunnerLabel reports whether runner has a label matching name (case-insensitive)
 func HasRunnerLabel(runner *github.Runner, name string) bool {
+	if runner == nil {
+		return false
+	}
 	for _, label := range runner.Labels {
 		if strings.EqualFold(label.GetName(), name) {
 			return true

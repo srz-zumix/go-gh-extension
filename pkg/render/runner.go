@@ -94,6 +94,10 @@ func (r *Renderer) RenderRunnersWithFieldGetters(runners []*github.Runner, heade
 		headers = []string{"ID", "NAME", "OS", "STATUS", "LABELS"}
 	}
 
+	if getter == nil {
+		getter = NewRunnerFieldGetters()
+	}
+
 	table := r.newTableWriter(headers)
 
 	for _, runner := range runners {
