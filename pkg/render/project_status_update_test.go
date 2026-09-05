@@ -1,6 +1,7 @@
 package render
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
@@ -43,6 +44,34 @@ func TestRenderProjectV2StatusUpdates(t *testing.T) {
 	assert.Contains(t, out, "octocat")
 	assert.Contains(t, out, "Everything is fine")
 	assert.NotContains(t, out, "more details")
+}
+
+func TestRenderProjectV2StatusUpdatesNewestFirst(t *testing.T) {
+	r := NewStringRenderer(nil)
+	// Deliberately shuffled input so neither forward nor reverse traversal of
+	// the input yields newest-first; only sorting by CreatedAt does.
+	updates := []client.ProjectV2StatusUpdate{
+		{Creator: "middle", CreatedAt: "2026-06-15T12:00:00Z"},
+		{Creator: "newest", CreatedAt: "2026-07-01T09:00:00Z"},
+		{Creator: "oldest", CreatedAt: "2026-05-01T08:00:00Z"},
+	}
+	original := make([]client.ProjectV2StatusUpdate, len(updates))
+	copy(original, updates)
+
+	assert.NoError(t, r.Renderer.RenderProjectV2StatusUpdates(updates))
+
+	out := r.Stdout.String()
+	iNewest := strings.Index(out, "newest")
+	iMiddle := strings.Index(out, "middle")
+	iOldest := strings.Index(out, "oldest")
+	assert.NotEqual(t, -1, iNewest)
+	assert.NotEqual(t, -1, iMiddle)
+	assert.NotEqual(t, -1, iOldest)
+	assert.Less(t, iNewest, iMiddle, "newest should appear before middle")
+	assert.Less(t, iMiddle, iOldest, "middle should appear before oldest")
+
+	// The renderer must not mutate the caller's slice.
+	assert.Equal(t, original, updates)
 }
 
 func TestRenderProjectV2StatusUpdatesEmpty(t *testing.T) {

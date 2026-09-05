@@ -1,6 +1,7 @@
 package render
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -10,13 +11,19 @@ import (
 )
 
 // RenderProjectV2StatusUpdates renders a table of project v2 status updates,
-// newest first.
+// ordered by CreatedAt descending (newest first).
 func (r *Renderer) RenderProjectV2StatusUpdates(updates []client.ProjectV2StatusUpdate) error {
+	sorted := make([]client.ProjectV2StatusUpdate, len(updates))
+	copy(sorted, updates)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return statusUpdateCreatedAt(sorted[i].CreatedAt).After(statusUpdateCreatedAt(sorted[j].CreatedAt))
+	})
+
 	if r.exporter != nil {
-		return r.RenderExportedData(updates)
+		return r.RenderExportedData(sorted)
 	}
 
-	if len(updates) == 0 {
+	if len(sorted) == 0 {
 		r.writeLine("No status updates.")
 		return nil
 	}
@@ -26,8 +33,8 @@ func (r *Renderer) RenderProjectV2StatusUpdates(updates []client.ProjectV2Status
 		cfg.Row.Formatting.AutoWrap = tw.WrapNone
 	})
 
-	for i := len(updates) - 1; i >= 0; i-- {
-		u := &updates[i]
+	for i := range sorted {
+		u := &sorted[i]
 		table.Append([]string{
 			formatRFC3339(u.CreatedAt),
 			string(u.Status),
@@ -38,6 +45,16 @@ func (r *Renderer) RenderProjectV2StatusUpdates(updates []client.ProjectV2Status
 		})
 	}
 	return table.Render()
+}
+
+// statusUpdateCreatedAt parses an RFC3339 CreatedAt value for ordering.
+// Unparsable or empty values sort last, represented by the zero time.
+func statusUpdateCreatedAt(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
 }
 
 // formatRFC3339 renders an RFC3339 timestamp using TimeFormat, falling back to the raw value.
