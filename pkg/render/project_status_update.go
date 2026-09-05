@@ -13,11 +13,20 @@ import (
 // RenderProjectV2StatusUpdates renders a table of project v2 status updates,
 // ordered by CreatedAt descending (newest first).
 func (r *Renderer) RenderProjectV2StatusUpdates(updates []client.ProjectV2StatusUpdate) error {
-	sorted := make([]client.ProjectV2StatusUpdate, len(updates))
-	copy(sorted, updates)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		return statusUpdateCreatedAt(sorted[i].CreatedAt).After(statusUpdateCreatedAt(sorted[j].CreatedAt))
+	// Decorate each update with its parsed CreatedAt so the timestamp is parsed
+	// once per element instead of on every sort comparison, then sort a copy so
+	// the caller's slice is not mutated.
+	items := make([]sortableStatusUpdate, len(updates))
+	for i, u := range updates {
+		items[i] = sortableStatusUpdate{update: u, createdAt: statusUpdateCreatedAt(u.CreatedAt)}
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i].createdAt.After(items[j].createdAt)
 	})
+	sorted := make([]client.ProjectV2StatusUpdate, len(items))
+	for i := range items {
+		sorted[i] = items[i].update
+	}
 
 	if r.exporter != nil {
 		return r.RenderExportedData(sorted)
@@ -45,6 +54,13 @@ func (r *Renderer) RenderProjectV2StatusUpdates(updates []client.ProjectV2Status
 		})
 	}
 	return table.Render()
+}
+
+// sortableStatusUpdate pairs a status update with its parsed CreatedAt so the
+// value is parsed once and reused during sorting.
+type sortableStatusUpdate struct {
+	update    client.ProjectV2StatusUpdate
+	createdAt time.Time
 }
 
 // statusUpdateCreatedAt parses an RFC3339 CreatedAt value for ordering.

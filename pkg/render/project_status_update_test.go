@@ -74,6 +74,27 @@ func TestRenderProjectV2StatusUpdatesNewestFirst(t *testing.T) {
 	assert.Equal(t, original, updates)
 }
 
+func TestRenderProjectV2StatusUpdatesMalformedSortsLast(t *testing.T) {
+	r := NewStringRenderer(nil)
+	// Unparsable CreatedAt values sort last and keep their relative order.
+	updates := []client.ProjectV2StatusUpdate{
+		{Creator: "bad-first", CreatedAt: "not-a-time"},
+		{Creator: "valid", CreatedAt: "2026-07-01T09:00:00Z"},
+		{Creator: "bad-second", CreatedAt: ""},
+	}
+	assert.NoError(t, r.Renderer.RenderProjectV2StatusUpdates(updates))
+
+	out := r.Stdout.String()
+	iValid := strings.Index(out, "valid")
+	iBadFirst := strings.Index(out, "bad-first")
+	iBadSecond := strings.Index(out, "bad-second")
+	assert.NotEqual(t, -1, iValid)
+	assert.NotEqual(t, -1, iBadFirst)
+	assert.NotEqual(t, -1, iBadSecond)
+	assert.Less(t, iValid, iBadFirst, "valid timestamp should sort before malformed ones")
+	assert.Less(t, iBadFirst, iBadSecond, "malformed values should keep their relative order")
+}
+
 func TestRenderProjectV2StatusUpdatesEmpty(t *testing.T) {
 	r := NewStringRenderer(nil)
 	assert.NoError(t, r.Renderer.RenderProjectV2StatusUpdates(nil))
