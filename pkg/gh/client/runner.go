@@ -134,9 +134,15 @@ func (g *GitHubClient) GetOrgRunnerGroup(ctx context.Context, owner string, grou
 
 // CreateOrgRunnerGroup creates a new organization runner group
 func (g *GitHubClient) CreateOrgRunnerGroup(ctx context.Context, owner string, name string) (*github.RunnerGroup, error) {
-	group, _, err := g.client.Actions.CreateOrganizationRunnerGroup(ctx, owner, github.CreateRunnerGroupRequest{
+	return g.CreateOrgRunnerGroupWithRequest(ctx, owner, github.CreateRunnerGroupRequest{
 		Name: github.Ptr(name),
 	})
+}
+
+// CreateOrgRunnerGroupWithRequest creates a new organization runner group using the given request,
+// allowing callers to control visibility and repository/runner access.
+func (g *GitHubClient) CreateOrgRunnerGroupWithRequest(ctx context.Context, owner string, request github.CreateRunnerGroupRequest) (*github.RunnerGroup, error) {
+	group, _, err := g.client.Actions.CreateOrganizationRunnerGroup(ctx, owner, request)
 	if err != nil {
 		return nil, err
 	}
@@ -181,8 +187,39 @@ func (g *GitHubClient) ListOrgRunnerGroupRunners(ctx context.Context, owner stri
 	return allRunners, nil
 }
 
+// ListOrgRunnerGroupRepositories lists all repositories that have access to an organization runner group
+func (g *GitHubClient) ListOrgRunnerGroupRepositories(ctx context.Context, owner string, groupID int64) ([]*github.Repository, error) {
+	allRepos := []*github.Repository{}
+	opt := &github.ListOptions{PerPage: defaultPerPage}
+	for {
+		repos, resp, err := g.client.Actions.ListRepositoryAccessRunnerGroup(ctx, owner, groupID, opt)
+		if err != nil {
+			return nil, err
+		}
+		allRepos = append(allRepos, repos.Repositories...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return allRepos, nil
+}
+
 // DeleteOrgRunnerGroup deletes an organization runner group by ID
 func (g *GitHubClient) DeleteOrgRunnerGroup(ctx context.Context, owner string, groupID int64) error {
 	_, err := g.client.Actions.DeleteOrganizationRunnerGroup(ctx, owner, groupID)
+	return err
+}
+
+// AddOrgRunnerGroupRunner adds a self-hosted runner to an organization runner group
+func (g *GitHubClient) AddOrgRunnerGroupRunner(ctx context.Context, owner string, groupID, runnerID int64) error {
+	_, err := g.client.Actions.AddRunnerGroupRunners(ctx, owner, groupID, runnerID)
+	return err
+}
+
+// RemoveOrgRunnerGroupRunner removes a self-hosted runner from an organization runner group,
+// returning it to the default group.
+func (g *GitHubClient) RemoveOrgRunnerGroupRunner(ctx context.Context, owner string, groupID, runnerID int64) error {
+	_, err := g.client.Actions.RemoveRunnerGroupRunners(ctx, owner, groupID, runnerID)
 	return err
 }
