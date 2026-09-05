@@ -1,20 +1,23 @@
 package render
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/google/go-github/v90/github"
 )
 
-type runnerFieldGetter func(runner *github.Runner) string
-type runnerFieldGetters struct {
-	Func map[string]runnerFieldGetter
+// RunnerFieldGetter renders a single field of a runner
+type RunnerFieldGetter func(runner *github.Runner) string
+
+type RunnerFieldGetters struct {
+	Func map[string]RunnerFieldGetter
 }
 
 // NewRunnerFieldGetters returns field getter functions for github.Runner
-func NewRunnerFieldGetters() *runnerFieldGetters {
-	return &runnerFieldGetters{
-		Func: map[string]runnerFieldGetter{
+func NewRunnerFieldGetters() *RunnerFieldGetters {
+	return &RunnerFieldGetters{
+		Func: map[string]RunnerFieldGetter{
 			"ID": func(r *github.Runner) string {
 				return ToString(r.ID)
 			},
@@ -43,19 +46,11 @@ func NewRunnerFieldGetters() *runnerFieldGetters {
 				}
 				return strings.Join(labels, ", ")
 			},
-			"CORDONED": func(r *github.Runner) string {
-				for _, l := range r.Labels {
-					if strings.EqualFold(l.GetName(), "cordoned") {
-						return "true"
-					}
-				}
-				return "false"
-			},
 		},
 	}
 }
 
-func (g *runnerFieldGetters) GetField(runner *github.Runner, field string) string {
+func (g *RunnerFieldGetters) GetField(runner *github.Runner, field string) string {
 	field = strings.ToUpper(field)
 	if getter, ok := g.Func[field]; ok {
 		return getter(runner)
@@ -63,8 +58,29 @@ func (g *runnerFieldGetters) GetField(runner *github.Runner, field string) strin
 	return ""
 }
 
+// Fields returns the sorted field names handled by g
+func (g *RunnerFieldGetters) Fields() []string {
+	fields := make([]string, 0, len(g.Func))
+	for field := range g.Func {
+		fields = append(fields, field)
+	}
+	sort.Strings(fields)
+	return fields
+}
+
+// RunnerFields returns the sorted field names accepted as RenderRunners headers
+func RunnerFields() []string {
+	return NewRunnerFieldGetters().Fields()
+}
+
 // RenderRunners renders a table of runners with the specified headers
 func (r *Renderer) RenderRunners(runners []*github.Runner, headers []string) error {
+	return r.RenderRunnersWithFieldGetters(runners, headers, NewRunnerFieldGetters())
+}
+
+// RenderRunnersWithFieldGetters renders a table of runners with the specified headers,
+// resolving each column through getter so callers can add their own fields
+func (r *Renderer) RenderRunnersWithFieldGetters(runners []*github.Runner, headers []string, getter *RunnerFieldGetters) error {
 	if r.exporter != nil {
 		return r.RenderExportedData(runners)
 	}
@@ -78,7 +94,6 @@ func (r *Renderer) RenderRunners(runners []*github.Runner, headers []string) err
 		headers = []string{"ID", "NAME", "OS", "STATUS", "LABELS"}
 	}
 
-	getter := NewRunnerFieldGetters()
 	table := r.newTableWriter(headers)
 
 	for _, runner := range runners {

@@ -111,6 +111,24 @@ func (g *GitHubClient) CreateOrgRegistrationToken(ctx context.Context, owner str
 	return token, nil
 }
 
+// CreateRemoveToken creates a remove token for a repository
+func (g *GitHubClient) CreateRemoveToken(ctx context.Context, owner, repo string) (*github.RemoveToken, error) {
+	token, _, err := g.client.Actions.CreateRemoveToken(ctx, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
+// CreateOrgRemoveToken creates a remove token for an organization
+func (g *GitHubClient) CreateOrgRemoveToken(ctx context.Context, owner string) (*github.RemoveToken, error) {
+	token, _, err := g.client.Actions.CreateOrganizationRemoveToken(ctx, owner)
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
 // RemoveRunner removes a self-hosted runner from a repository
 func (g *GitHubClient) RemoveRunner(ctx context.Context, owner, repo string, runnerID int64) error {
 	_, err := g.client.Actions.RemoveRunner(ctx, owner, repo, runnerID)
@@ -143,6 +161,15 @@ func (g *GitHubClient) CreateOrgRunnerGroup(ctx context.Context, owner string, n
 // allowing callers to control visibility and repository/runner access.
 func (g *GitHubClient) CreateOrgRunnerGroupWithRequest(ctx context.Context, owner string, request github.CreateRunnerGroupRequest) (*github.RunnerGroup, error) {
 	group, _, err := g.client.Actions.CreateOrganizationRunnerGroup(ctx, owner, request)
+	if err != nil {
+		return nil, err
+	}
+	return group, nil
+}
+
+// UpdateOrgRunnerGroup updates an organization runner group using the given request
+func (g *GitHubClient) UpdateOrgRunnerGroup(ctx context.Context, owner string, groupID int64, request github.UpdateRunnerGroupRequest) (*github.RunnerGroup, error) {
+	group, _, err := g.client.Actions.UpdateOrganizationRunnerGroup(ctx, owner, groupID, request)
 	if err != nil {
 		return nil, err
 	}

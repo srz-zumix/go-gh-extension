@@ -20,7 +20,7 @@ func (r *Renderer) RenderNames(items any) error {
 		return r.RenderExportedData(names)
 	}
 
-	if names == nil {
+	if len(names) == 0 {
 		return nil
 	}
 
