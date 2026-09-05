@@ -18,7 +18,7 @@ func TestFormatRFC3339(t *testing.T) {
 	assert.Equal(t, "", formatRFC3339(""))
 	// Unparsable values are passed through unchanged.
 	assert.Equal(t, "not-a-time", formatRFC3339("not-a-time"))
-	assert.Contains(t, formatRFC3339("2026-06-15T12:00:00Z"), "2026-06-15")
+	assert.Equal(t, "2026-06-15 12:00:00", formatRFC3339("2026-06-15T12:00:00Z"))
 }
 
 func TestRenderProjectV2StatusUpdates(t *testing.T) {

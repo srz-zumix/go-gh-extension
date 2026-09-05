@@ -49,7 +49,7 @@ func formatRFC3339(s string) string {
 	if err != nil {
 		return s
 	}
-	return t.Local().Format(TimeFormat)
+	return t.Format(TimeFormat)
 }
 
 // firstLine returns the first non-empty line of s with surrounding whitespace removed.
