@@ -10,7 +10,11 @@ import (
 )
 
 // ProjectV2ItemFields lists the built-in field names available for --field flag completion.
-var ProjectV2ItemFields = []string{"ID", "TYPE", "NUMBER", "TITLE", "AUTHOR", "URL", "ARCHIVED"}
+var ProjectV2ItemFields = []string{
+	"ID", "TYPE", "NUMBER", "TITLE", "AUTHOR", "URL", "ARCHIVED",
+	"STATE", "REPOSITORY", "ASSIGNEES", "LABELS", "MILESTONE",
+	"CREATED_AT", "UPDATED_AT", "CLOSED_AT",
+}
 
 type projectV2ItemFieldGetter func(item *client.ProjectV2Item) string
 type projectV2ItemFieldGetters struct {
@@ -44,6 +48,33 @@ func NewProjectV2ItemFieldGetters() *projectV2ItemFieldGetters {
 			},
 			"ARCHIVED": func(item *client.ProjectV2Item) string {
 				return ToString(item.IsArchived)
+			},
+			"STATE": func(item *client.ProjectV2Item) string {
+				return item.Content.State
+			},
+			"REPOSITORY": func(item *client.ProjectV2Item) string {
+				if item.Content.RepoOwner == "" {
+					return ""
+				}
+				return item.Content.RepoOwner + "/" + item.Content.RepoName
+			},
+			"ASSIGNEES": func(item *client.ProjectV2Item) string {
+				return strings.Join(item.Content.Assignees, ", ")
+			},
+			"LABELS": func(item *client.ProjectV2Item) string {
+				return strings.Join(item.Content.Labels, ", ")
+			},
+			"MILESTONE": func(item *client.ProjectV2Item) string {
+				return item.Content.Milestone
+			},
+			"CREATED_AT": func(item *client.ProjectV2Item) string {
+				return formatRFC3339(item.Content.CreatedAt)
+			},
+			"UPDATED_AT": func(item *client.ProjectV2Item) string {
+				return formatRFC3339(item.Content.UpdatedAt)
+			},
+			"CLOSED_AT": func(item *client.ProjectV2Item) string {
+				return formatRFC3339(item.Content.ClosedAt)
 			},
 		},
 	}

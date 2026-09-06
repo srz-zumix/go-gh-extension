@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/shurcooL/githubv4"
 )
@@ -91,6 +92,22 @@ type ProjectV2ItemContent struct {
 	Author    string // empty for DraftIssue
 	RepoOwner string // owner login of the issue/PR repository, empty for DraftIssue
 	RepoName  string // name of the issue/PR repository, empty for DraftIssue
+	// State is OPEN or CLOSED for issues, OPEN, CLOSED or MERGED for pull requests,
+	// and empty for DraftIssue.
+	State     string
+	CreatedAt string // RFC3339
+	UpdatedAt string // RFC3339
+	ClosedAt  string // RFC3339, empty while open and for DraftIssue
+	// Assignees, Labels and Milestone are empty for DraftIssue.
+	Assignees []string
+	Labels    []string
+	Milestone string
+}
+
+// IsOpen reports whether the linked issue or pull request is still open.
+// Draft issues have no state and are never reported as open.
+func (c *ProjectV2ItemContent) IsOpen() bool {
+	return c.State == "OPEN"
 }
 
 // ProjectV2FieldValue represents a resolved custom-field value for a project item.
@@ -313,9 +330,11 @@ type nameRef interface {
 // projectV2ItemContentNode is the inline-fragment representation of ProjectV2ItemContent.
 type projectV2ItemContentNode struct {
 	AsDraftIssue struct {
-		ID    githubv4.String
-		Title githubv4.String
-		Body  githubv4.String
+		ID        githubv4.String
+		Title     githubv4.String
+		Body      githubv4.String
+		CreatedAt githubv4.DateTime
+		UpdatedAt githubv4.DateTime
 	} `graphql:"... on DraftIssue"`
 	AsIssue struct {
 		ID         githubv4.String
@@ -323,8 +342,15 @@ type projectV2ItemContentNode struct {
 		Title      githubv4.String
 		Body       githubv4.String
 		URL        githubv4.String
+		State      githubv4.String
+		CreatedAt  githubv4.DateTime
+		UpdatedAt  githubv4.DateTime
+		ClosedAt   *githubv4.DateTime
 		Author     struct{ Login githubv4.String }
 		Repository repositoryNameRef
+		Assignees  loginRefs     `graphql:"assignees(first: 10)"`
+		Labels     labelNameRefs `graphql:"labels(first: 20)"`
+		Milestone  *milestoneTitleRef
 	} `graphql:"... on Issue"`
 	AsPullRequest struct {
 		ID         githubv4.String
@@ -332,8 +358,15 @@ type projectV2ItemContentNode struct {
 		Title      githubv4.String
 		Body       githubv4.String
 		URL        githubv4.String
+		State      githubv4.String
+		CreatedAt  githubv4.DateTime
+		UpdatedAt  githubv4.DateTime
+		ClosedAt   *githubv4.DateTime
 		Author     struct{ Login githubv4.String }
 		Repository repositoryNameRef
+		Assignees  loginRefs     `graphql:"assignees(first: 10)"`
+		Labels     labelNameRefs `graphql:"labels(first: 20)"`
+		Milestone  *milestoneTitleRef
 	} `graphql:"... on PullRequest"`
 }
 
@@ -341,6 +374,67 @@ type projectV2ItemContentNode struct {
 type repositoryNameRef struct {
 	Name  githubv4.String
 	Owner struct{ Login githubv4.String }
+}
+
+// milestoneTitleRef identifies the milestone of an issue or pull request.
+type milestoneTitleRef struct {
+	Title githubv4.String
+}
+
+// loginRefs is a user connection reduced to logins.
+type loginRefs struct {
+	Nodes []struct{ Login githubv4.String }
+}
+
+func (c loginRefs) logins() []string {
+	if len(c.Nodes) == 0 {
+		return nil
+	}
+	logins := make([]string, len(c.Nodes))
+	for i := range c.Nodes {
+		logins[i] = string(c.Nodes[i].Login)
+	}
+	return logins
+}
+
+// labelNameRefs is a label connection reduced to names.
+type labelNameRefs struct {
+	Nodes []struct{ Name githubv4.String }
+}
+
+func (c labelNameRefs) names() []string {
+	if len(c.Nodes) == 0 {
+		return nil
+	}
+	names := make([]string, len(c.Nodes))
+	for i := range c.Nodes {
+		names[i] = string(c.Nodes[i].Name)
+	}
+	return names
+}
+
+// milestoneTitle returns the milestone title, or an empty string when unset.
+func milestoneTitle(m *milestoneTitleRef) string {
+	if m == nil {
+		return ""
+	}
+	return string(m.Title)
+}
+
+// formatDateTime renders a GraphQL DateTime as RFC3339.
+func formatDateTime(t githubv4.DateTime) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
+}
+
+// formatOptionalDateTime renders a nullable GraphQL DateTime as RFC3339.
+func formatOptionalDateTime(t *githubv4.DateTime) string {
+	if t == nil {
+		return ""
+	}
+	return formatDateTime(*t)
 }
 
 // projectV2ItemFieldValueNode is the inline-fragment representation of
@@ -485,10 +579,12 @@ func (n projectV2ItemNode[FV]) toProjectV2Item() ProjectV2Item {
 	switch ProjectV2ItemType(n.Type) {
 	case ProjectV2ItemTypeDraftIssue:
 		item.Content = ProjectV2ItemContent{
-			Type:  ProjectV2ItemTypeDraftIssue,
-			ID:    string(n.Content.AsDraftIssue.ID),
-			Title: string(n.Content.AsDraftIssue.Title),
-			Body:  string(n.Content.AsDraftIssue.Body),
+			Type:      ProjectV2ItemTypeDraftIssue,
+			ID:        string(n.Content.AsDraftIssue.ID),
+			Title:     string(n.Content.AsDraftIssue.Title),
+			Body:      string(n.Content.AsDraftIssue.Body),
+			CreatedAt: formatDateTime(n.Content.AsDraftIssue.CreatedAt),
+			UpdatedAt: formatDateTime(n.Content.AsDraftIssue.UpdatedAt),
 		}
 	case ProjectV2ItemTypeIssue:
 		item.Content = ProjectV2ItemContent{
@@ -501,6 +597,13 @@ func (n projectV2ItemNode[FV]) toProjectV2Item() ProjectV2Item {
 			Author:    string(n.Content.AsIssue.Author.Login),
 			RepoOwner: string(n.Content.AsIssue.Repository.Owner.Login),
 			RepoName:  string(n.Content.AsIssue.Repository.Name),
+			State:     string(n.Content.AsIssue.State),
+			CreatedAt: formatDateTime(n.Content.AsIssue.CreatedAt),
+			UpdatedAt: formatDateTime(n.Content.AsIssue.UpdatedAt),
+			ClosedAt:  formatOptionalDateTime(n.Content.AsIssue.ClosedAt),
+			Assignees: n.Content.AsIssue.Assignees.logins(),
+			Labels:    n.Content.AsIssue.Labels.names(),
+			Milestone: milestoneTitle(n.Content.AsIssue.Milestone),
 		}
 	case ProjectV2ItemTypePullRequest:
 		item.Content = ProjectV2ItemContent{
@@ -513,6 +616,13 @@ func (n projectV2ItemNode[FV]) toProjectV2Item() ProjectV2Item {
 			Author:    string(n.Content.AsPullRequest.Author.Login),
 			RepoOwner: string(n.Content.AsPullRequest.Repository.Owner.Login),
 			RepoName:  string(n.Content.AsPullRequest.Repository.Name),
+			State:     string(n.Content.AsPullRequest.State),
+			CreatedAt: formatDateTime(n.Content.AsPullRequest.CreatedAt),
+			UpdatedAt: formatDateTime(n.Content.AsPullRequest.UpdatedAt),
+			ClosedAt:  formatOptionalDateTime(n.Content.AsPullRequest.ClosedAt),
+			Assignees: n.Content.AsPullRequest.Assignees.logins(),
+			Labels:    n.Content.AsPullRequest.Labels.names(),
+			Milestone: milestoneTitle(n.Content.AsPullRequest.Milestone),
 		}
 	default:
 		item.Content = ProjectV2ItemContent{Type: ProjectV2ItemTypeRedacted}
