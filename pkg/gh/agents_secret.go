@@ -27,6 +27,11 @@ func DeleteAgentsRepoSecret(ctx context.Context, g *GitHubClient, repo repositor
 	return g.DeleteAgentsRepoSecret(ctx, repo.Owner, repo.Name, name)
 }
 
+// CreateOrUpdateAgentsRepoSecret creates or updates an Agents secret in a repository (wrapper).
+func CreateOrUpdateAgentsRepoSecret(ctx context.Context, g *GitHubClient, repo repository.Repository, eSecret *github.EncryptedSecret) error {
+	return g.CreateOrUpdateAgentsRepoSecret(ctx, repo.Owner, repo.Name, eSecret)
+}
+
 // SetAgentsRepoSecret encrypts a plaintext value with the repository Agents
 // public key and stores it as a repository Agents secret.
 func SetAgentsRepoSecret(ctx context.Context, g *GitHubClient, repo repository.Repository, name, value string) error {
@@ -38,5 +43,5 @@ func SetAgentsRepoSecret(ctx context.Context, g *GitHubClient, repo repository.R
 	if err != nil {
 		return err
 	}
-	return g.CreateOrUpdateAgentsRepoSecret(ctx, repo.Owner, repo.Name, eSecret)
+	return CreateOrUpdateAgentsRepoSecret(ctx, g, repo, eSecret)
 }

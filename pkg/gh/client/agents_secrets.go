@@ -66,7 +66,8 @@ func (g *GitHubClient) GetAgentsRepoPublicKey(ctx context.Context, owner, repo s
 // CreateOrUpdateAgentsRepoSecret creates or updates an Agents secret of a repository.
 func (g *GitHubClient) CreateOrUpdateAgentsRepoSecret(ctx context.Context, owner, repo string, eSecret *github.EncryptedSecret) error {
 	u := fmt.Sprintf("repos/%s/%s/agents/secrets/%s", owner, repo, eSecret.Name)
-	req, err := g.client.NewRequest(ctx, "PUT", u, eSecret)
+	body := github.SecretRequest{KeyID: eSecret.KeyID, EncryptedValue: eSecret.EncryptedValue}
+	req, err := g.client.NewRequest(ctx, "PUT", u, body)
 	if err != nil {
 		return err
 	}
