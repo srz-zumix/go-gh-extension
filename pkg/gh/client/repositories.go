@@ -7,7 +7,7 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-// getBranchMaxRedirects is how many redirects Repositories.GetBranch follows;
+// getBranchMaxRedirects is the maximum number of redirects that Repositories.GetBranch follows.
 // go-github only follows redirects to the client's own host.
 const getBranchMaxRedirects = 3
 
