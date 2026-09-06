@@ -13,9 +13,9 @@ import (
 )
 
 // Run executes the gh CLI and returns its standard output. GH_HOST and GH_REPO
-// are dropped from the environment because the features that need this helper
-// only exist on github.com and an inherited override would target the wrong
-// host.
+// are removed from the environment to prevent an inherited host or repository
+// override from retargeting the command; the features that need this helper are
+// expected to run against github.com.
 func Run(ctx context.Context, args ...string) (string, error) {
 	path, err := ghcli.Path()
 	if err != nil {
@@ -35,7 +35,8 @@ func Run(ctx context.Context, args ...string) (string, error) {
 	return stdout.String(), nil
 }
 
-// env returns the current environment without the host overrides.
+// env returns the current environment without the gh host (GH_HOST) and
+// repository (GH_REPO) overrides.
 func env() []string {
 	current := os.Environ()
 	filtered := make([]string, 0, len(current))
