@@ -56,6 +56,8 @@ func HasRunnerLabel(runner *github.Runner, name string) bool {
 }
 
 // FilterRunnersByStatus returns the runners whose status matches status.
+// Besides the "online" and "offline" values reported by the API, "active" and
+// "idle" select the online runners that are running a job and the ones that are not.
 // Runners are returned unchanged when status is empty.
 func FilterRunnersByStatus(runners []*github.Runner, status string) []*github.Runner {
 	if status == "" {
@@ -64,11 +66,23 @@ func FilterRunnersByStatus(runners []*github.Runner, status string) []*github.Ru
 
 	matched := make([]*github.Runner, 0, len(runners))
 	for _, runner := range runners {
-		if strings.EqualFold(runner.GetStatus(), status) {
+		if matchRunnerStatus(runner, status) {
 			matched = append(matched, runner)
 		}
 	}
 	return matched
+}
+
+func matchRunnerStatus(runner *github.Runner, status string) bool {
+	const online = "online"
+	switch {
+	case strings.EqualFold(status, "active"):
+		return strings.EqualFold(runner.GetStatus(), online) && runner.GetBusy()
+	case strings.EqualFold(status, "idle"):
+		return strings.EqualFold(runner.GetStatus(), online) && !runner.GetBusy()
+	default:
+		return strings.EqualFold(runner.GetStatus(), status)
+	}
 }
 
 // GetRunner gets a single self-hosted runner for a repository or organization (wrapper)
