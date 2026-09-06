@@ -28,7 +28,8 @@ func (g *GitHubClient) ListAgentsOrgSecrets(ctx context.Context, org string) ([]
 
 func (g *GitHubClient) listAgentsSecrets(ctx context.Context, path string) ([]*github.Secret, error) {
 	var allSecrets []*github.Secret
-	for page := 1; ; page++ {
+	page := 1
+	for {
 		u := fmt.Sprintf("%s?per_page=%d&page=%d", path, defaultPerPage, page)
 		req, err := g.client.NewRequest(ctx, "GET", u, nil)
 		if err != nil {
@@ -43,6 +44,7 @@ func (g *GitHubClient) listAgentsSecrets(ctx context.Context, path string) ([]*g
 		if resp.NextPage == 0 {
 			break
 		}
+		page = resp.NextPage
 	}
 	return allSecrets, nil
 }
