@@ -101,6 +101,10 @@ func (r *Renderer) RenderRunnerGroup(group *github.RunnerGroup, fields []string)
 		return r.RenderExportedData(group)
 	}
 
+	if group == nil {
+		return nil
+	}
+
 	if len(fields) == 0 {
 		fields = RunnerGroupFields()
 	}

@@ -70,6 +70,17 @@ func TestRenderRunnerGroupsDefaultHeaders(t *testing.T) {
 	assert.Contains(t, out, "NO")
 }
 
+func TestRenderRunnerGroupNil(t *testing.T) {
+	r := NewStringRenderer(nil)
+
+	var err error
+	assert.NotPanics(t, func() {
+		err = r.Renderer.RenderRunnerGroup(nil, nil)
+	})
+	assert.NoError(t, err)
+	assert.Empty(t, r.Stdout.String())
+}
+
 func TestRenderRunnerGroupsEmpty(t *testing.T) {
 	r := NewStringRenderer(nil)
 	assert.NoError(t, r.Renderer.RenderRunnerGroups(nil, nil))
