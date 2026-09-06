@@ -91,7 +91,7 @@ func (r *Renderer) RenderRunnersWithFieldGetters(runners []*github.Runner, heade
 	}
 
 	if len(headers) == 0 {
-		headers = []string{"ID", "NAME", "OS", "STATUS", "LABELS"}
+		headers = []string{"ID", "NAME", "OS", "STATUS", "BUSY", "LABELS"}
 	}
 
 	if getter == nil {
