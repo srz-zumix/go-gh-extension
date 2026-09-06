@@ -13,7 +13,7 @@ import (
 var ProjectV2ItemFields = []string{
 	"ID", "TYPE", "NUMBER", "TITLE", "AUTHOR", "URL", "ARCHIVED",
 	"STATE", "REPOSITORY", "ASSIGNEES", "LABELS", "MILESTONE",
-	"CREATEDAT", "UPDATEDAT", "CLOSEDAT",
+	"CREATED_AT", "UPDATED_AT", "CLOSED_AT",
 }
 
 type projectV2ItemFieldGetter func(item *client.ProjectV2Item) string
@@ -67,13 +67,13 @@ func NewProjectV2ItemFieldGetters() *projectV2ItemFieldGetters {
 			"MILESTONE": func(item *client.ProjectV2Item) string {
 				return item.Content.Milestone
 			},
-			"CREATEDAT": func(item *client.ProjectV2Item) string {
+			"CREATED_AT": func(item *client.ProjectV2Item) string {
 				return formatRFC3339(item.Content.CreatedAt)
 			},
-			"UPDATEDAT": func(item *client.ProjectV2Item) string {
+			"UPDATED_AT": func(item *client.ProjectV2Item) string {
 				return formatRFC3339(item.Content.UpdatedAt)
 			},
-			"CLOSEDAT": func(item *client.ProjectV2Item) string {
+			"CLOSED_AT": func(item *client.ProjectV2Item) string {
 				return formatRFC3339(item.Content.ClosedAt)
 			},
 		},

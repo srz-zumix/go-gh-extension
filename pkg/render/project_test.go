@@ -30,10 +30,10 @@ func TestProjectV2ItemFieldGettersContentFields(t *testing.T) {
 	assert.Equal(t, "alice, bob", getter.GetField(item, "ASSIGNEES"))
 	assert.Equal(t, "bug, urgent", getter.GetField(item, "LABELS"))
 	assert.Equal(t, "v1.0", getter.GetField(item, "MILESTONE"))
-	assert.Contains(t, getter.GetField(item, "CREATEDAT"), "2026-01-02")
-	assert.Contains(t, getter.GetField(item, "CLOSEDAT"), "2026-03-04")
+	assert.Contains(t, getter.GetField(item, "CREATED_AT"), "2026-01-02")
+	assert.Contains(t, getter.GetField(item, "CLOSED_AT"), "2026-03-04")
 	// Timestamps that were never set render as empty rather than as a zero time.
-	assert.Equal(t, "", getter.GetField(item, "UPDATEDAT"))
+	assert.Equal(t, "", getter.GetField(item, "UPDATED_AT"))
 }
 
 func TestProjectV2ItemFieldGettersDraftIssue(t *testing.T) {
