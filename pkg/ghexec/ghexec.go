@@ -41,7 +41,9 @@ func env() []string {
 	filtered := make([]string, 0, len(current))
 	for _, kv := range current {
 		key, _, _ := strings.Cut(kv, "=")
-		if key == "GH_HOST" || key == "GH_REPO" {
+		// Match case-insensitively so variant-case keys (e.g. gh_host on
+		// Windows, where env names are case-insensitive) are also stripped.
+		if strings.EqualFold(key, "GH_HOST") || strings.EqualFold(key, "GH_REPO") {
 			continue
 		}
 		filtered = append(filtered, kv)
