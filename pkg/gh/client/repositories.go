@@ -7,6 +7,10 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// getBranchMaxRedirects is the maximum number of redirects that Repositories.GetBranch follows.
+// go-github only follows redirects to the client's own host.
+const getBranchMaxRedirects = 3
+
 func (g *GitHubClient) GetRepository(ctx context.Context, owner string, repo string) (*github.Repository, error) {
 	repository, _, err := g.client.Repositories.Get(ctx, owner, repo)
 	if err != nil {
@@ -234,7 +238,9 @@ func (g *GitHubClient) DeleteFile(ctx context.Context, owner, repo, path string,
 
 // GetBranch retrieves a branch by name.
 func (g *GitHubClient) GetBranch(ctx context.Context, owner, repo, branch string) (*github.Branch, error) {
-	b, resp, err := g.client.Repositories.GetBranch(ctx, owner, repo, branch, 0)
+	// A branch name containing a slash is percent-encoded, which GitHub answers
+	// with a redirect to the decoded path, so redirects have to be followed.
+	b, resp, err := g.client.Repositories.GetBranch(ctx, owner, repo, branch, getBranchMaxRedirects)
 	if err != nil {
 		// Repositories.GetBranch uses roundTripWithOptionalFollowRedirect and returns a
 		// plain "unexpected status code: NNN" error instead of *github.ErrorResponse for
