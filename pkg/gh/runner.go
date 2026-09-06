@@ -286,6 +286,11 @@ func ListAvailableRunners(ctx context.Context, g *GitHubClient, repo repository.
 		return nil, err
 	}
 
+	// Runner groups are an organization feature, so a user-owned repository has no organization runners.
+	if target.GetOwner().GetType() != string(OwnerTypeOrg) {
+		return runners, nil
+	}
+
 	groups, err := ListOrgRunnerGroups(ctx, g, repo)
 	if err != nil {
 		return nil, err
