@@ -1,0 +1,52 @@
+// Package ghexec runs the gh CLI for the features that have no API wrapper.
+package ghexec
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+
+	ghcli "github.com/cli/go-gh/v2"
+)
+
+// Run executes the gh CLI and returns its standard output. It removes GH_HOST
+// and GH_REPO from the environment so inherited overrides do not retarget the
+// command.
+func Run(ctx context.Context, args ...string) (string, error) {
+	path, err := ghcli.Path()
+	if err != nil {
+		return "", fmt.Errorf("failed to locate the gh CLI: %w", err)
+	}
+	cmd := exec.CommandContext(ctx, path, args...)
+	cmd.Env = env()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return stdout.String(), fmt.Errorf("%w: %s", err, msg)
+		}
+		return stdout.String(), err
+	}
+	return stdout.String(), nil
+}
+
+// env returns the current environment without the gh host (GH_HOST) and
+// repository (GH_REPO) overrides.
+func env() []string {
+	current := os.Environ()
+	filtered := make([]string, 0, len(current))
+	for _, kv := range current {
+		key, _, _ := strings.Cut(kv, "=")
+		// Match case-insensitively so variant-case keys (e.g. gh_host on
+		// Windows, where env names are case-insensitive) are also stripped.
+		if strings.EqualFold(key, "GH_HOST") || strings.EqualFold(key, "GH_REPO") {
+			continue
+		}
+		filtered = append(filtered, kv)
+	}
+	return filtered
+}
