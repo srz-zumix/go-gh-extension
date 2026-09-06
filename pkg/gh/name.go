@@ -83,6 +83,16 @@ func GetObjectName(item any) string {
 		return parser.GetRepositoryFullName(v.Repository)
 	case RepositorySubmodule:
 		return parser.GetRepositoryFullName(v.Repository)
+	case *github.Runner:
+		if v == nil {
+			return ""
+		}
+		return v.GetName()
+	case *github.RunnerGroup:
+		if v == nil {
+			return ""
+		}
+		return v.GetName()
 	case *github.SBOM:
 		if v == nil {
 			return ""
@@ -190,6 +200,18 @@ func GetObjectNames(items any) []string {
 		}
 		return names
 	case []RepositorySubmodule:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*github.Runner:
+		names := make([]string, len(v))
+		for i, item := range v {
+			names[i] = GetObjectName(item)
+		}
+		return names
+	case []*github.RunnerGroup:
 		names := make([]string, len(v))
 		for i, item := range v {
 			names[i] = GetObjectName(item)
