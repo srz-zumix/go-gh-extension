@@ -12,10 +12,9 @@ import (
 	ghcli "github.com/cli/go-gh/v2"
 )
 
-// Run executes the gh CLI and returns its standard output. GH_HOST and GH_REPO
-// are removed from the environment to prevent an inherited host or repository
-// override from retargeting the command; the features that need this helper are
-// expected to run against github.com.
+// Run executes the gh CLI and returns its standard output. It removes GH_HOST
+// and GH_REPO from the environment so inherited overrides do not retarget the
+// command.
 func Run(ctx context.Context, args ...string) (string, error) {
 	path, err := ghcli.Path()
 	if err != nil {
