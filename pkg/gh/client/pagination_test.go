@@ -126,18 +126,35 @@ func TestListRepositoryWorkflowRunsKeepsFilters(t *testing.T) {
 	assert.Contains(t, gotQuery, "per_page=100")
 }
 
+// jobsPage renders a workflow jobs response body holding jobs with the given IDs.
+func jobsPage(totalCount int, ids ...int64) string {
+	items := make([]string, 0, len(ids))
+	for _, id := range ids {
+		items = append(items, fmt.Sprintf(`{"id":%d}`, id))
+	}
+	return fmt.Sprintf(`{"total_count":%d,"jobs":[%s]}`, totalCount, strings.Join(items, ","))
+}
+
 func TestListWorkflowJobsLimit(t *testing.T) {
+	// Two pages with distinct jobs and a consistent total_count so the fixture
+	// stays realistic; limit=3 must accumulate across pages and truncate.
+	pages := []string{
+		jobsPage(4, 1, 2),
+		jobsPage(4, 3, 4),
+	}
 	call := 0
 	tr := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		require.Less(t, call, len(pages), "unexpected extra request")
+		body := pages[call]
 		call++
 		header := make(http.Header)
-		if call == 1 {
-			header.Set("Link", fmt.Sprintf(`<%s?page=2>; rel="next"`, r.URL.Path))
+		if call < len(pages) {
+			header.Set("Link", fmt.Sprintf(`<%s?page=%d>; rel="next"`, r.URL.Path, call+1))
 		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     header,
-			Body:       io.NopCloser(strings.NewReader(`{"total_count":2,"jobs":[{"id":1},{"id":2}]}`)),
+			Body:       io.NopCloser(strings.NewReader(body)),
 			Request:    r,
 		}, nil
 	})
@@ -145,6 +162,11 @@ func TestListWorkflowJobsLimit(t *testing.T) {
 
 	jobs, err := g.ListWorkflowJobs(t.Context(), "owner", "repo", 7, nil, 3)
 	require.NoError(t, err)
-	assert.Len(t, jobs, 3)
 	assert.Equal(t, 2, call)
+
+	gotIDs := make([]int64, 0, len(jobs))
+	for _, job := range jobs {
+		gotIDs = append(gotIDs, job.GetID())
+	}
+	assert.Equal(t, []int64{1, 2, 3}, gotIDs)
 }
