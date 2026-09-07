@@ -61,73 +61,55 @@ func (g *GitHubClient) GetWorkflowRunAttempt(ctx context.Context, owner string, 
 	return run, nil
 }
 
-// ListRepositoryWorkflowRuns retrieves all workflow runs for a repository.
-func (g *GitHubClient) ListRepositoryWorkflowRuns(ctx context.Context, owner string, repo string, options *github.ListWorkflowRunsOptions) ([]*github.WorkflowRun, error) {
-	opt := github.ListWorkflowRunsOptions{ListOptions: github.ListOptions{PerPage: defaultPerPage}}
+// ListRepositoryWorkflowRuns retrieves workflow runs for a repository.
+// A limit of 0 or less retrieves every run.
+func (g *GitHubClient) ListRepositoryWorkflowRuns(ctx context.Context, owner string, repo string, options *github.ListWorkflowRunsOptions, limit int) ([]*github.WorkflowRun, error) {
+	opt := github.ListWorkflowRunsOptions{}
 	if options != nil {
 		opt = *options
-		opt.PerPage = defaultPerPage
 	}
 
-	var allRuns []*github.WorkflowRun
-	for {
+	return paginate(ctx, &opt.ListOptions, limit, func(ctx context.Context) ([]*github.WorkflowRun, *github.Response, error) {
 		runs, resp, err := g.client.Actions.ListRepositoryWorkflowRuns(ctx, owner, repo, &opt)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		allRuns = append(allRuns, runs.WorkflowRuns...)
-		if resp.NextPage == 0 {
-			break
-		}
-		opt.Page = resp.NextPage
-	}
-	return allRuns, nil
+		return runs.WorkflowRuns, resp, nil
+	})
 }
 
-// ListWorkflowRunsByID retrieves all workflow runs for a specific workflow by workflow ID.
-func (g *GitHubClient) ListWorkflowRunsByID(ctx context.Context, owner string, repo string, workflowID int64, options *github.ListWorkflowRunsOptions) ([]*github.WorkflowRun, error) {
-	opt := github.ListWorkflowRunsOptions{ListOptions: github.ListOptions{PerPage: defaultPerPage}}
+// ListWorkflowRunsByID retrieves workflow runs for a specific workflow by workflow ID.
+// A limit of 0 or less retrieves every run.
+func (g *GitHubClient) ListWorkflowRunsByID(ctx context.Context, owner string, repo string, workflowID int64, options *github.ListWorkflowRunsOptions, limit int) ([]*github.WorkflowRun, error) {
+	opt := github.ListWorkflowRunsOptions{}
 	if options != nil {
 		opt = *options
-		opt.PerPage = defaultPerPage
 	}
 
-	var allRuns []*github.WorkflowRun
-	for {
+	return paginate(ctx, &opt.ListOptions, limit, func(ctx context.Context) ([]*github.WorkflowRun, *github.Response, error) {
 		runs, resp, err := g.client.Actions.ListWorkflowRunsByID(ctx, owner, repo, workflowID, &opt)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		allRuns = append(allRuns, runs.WorkflowRuns...)
-		if resp.NextPage == 0 {
-			break
-		}
-		opt.Page = resp.NextPage
-	}
-	return allRuns, nil
+		return runs.WorkflowRuns, resp, nil
+	})
 }
 
-// ListWorkflowRunsByFileName retrieves all workflow runs for a specific workflow by file name.
-func (g *GitHubClient) ListWorkflowRunsByFileName(ctx context.Context, owner string, repo string, workflowFileName string, options *github.ListWorkflowRunsOptions) ([]*github.WorkflowRun, error) {
-	opt := github.ListWorkflowRunsOptions{ListOptions: github.ListOptions{PerPage: defaultPerPage}}
+// ListWorkflowRunsByFileName retrieves workflow runs for a specific workflow by file name.
+// A limit of 0 or less retrieves every run.
+func (g *GitHubClient) ListWorkflowRunsByFileName(ctx context.Context, owner string, repo string, workflowFileName string, options *github.ListWorkflowRunsOptions, limit int) ([]*github.WorkflowRun, error) {
+	opt := github.ListWorkflowRunsOptions{}
 	if options != nil {
 		opt = *options
-		opt.PerPage = defaultPerPage
 	}
 
-	var allRuns []*github.WorkflowRun
-	for {
+	return paginate(ctx, &opt.ListOptions, limit, func(ctx context.Context) ([]*github.WorkflowRun, *github.Response, error) {
 		runs, resp, err := g.client.Actions.ListWorkflowRunsByFileName(ctx, owner, repo, workflowFileName, &opt)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		allRuns = append(allRuns, runs.WorkflowRuns...)
-		if resp.NextPage == 0 {
-			break
-		}
-		opt.Page = resp.NextPage
-	}
-	return allRuns, nil
+		return runs.WorkflowRuns, resp, nil
+	})
 }
 
 // GetWorkflowRunUsageByID retrieves the usage statistics for a specific workflow run.

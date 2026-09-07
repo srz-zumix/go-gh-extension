@@ -16,6 +16,8 @@ type ListWorkflowRunsOptions struct {
 	HeadSHA             string
 	ExcludePullRequests bool
 	CheckSuiteID        int64
+	// Limit caps the number of runs to retrieve. 0 or less retrieves every run.
+	Limit int
 }
 
 // toGitHubListWorkflowRunsOptions converts gh.ListWorkflowRunsOptions to github.ListWorkflowRunsOptions
@@ -36,6 +38,14 @@ func toGitHubListWorkflowRunsOptions(options *ListWorkflowRunsOptions) *github.L
 	return opt
 }
 
+// workflowRunsLimit returns the run limit carried by options, or 0 when unset.
+func workflowRunsLimit(options *ListWorkflowRunsOptions) int {
+	if options == nil {
+		return 0
+	}
+	return options.Limit
+}
+
 // GetWorkflowRunByID retrieves a specific workflow run by its ID.
 func GetWorkflowRunByID(ctx context.Context, g *GitHubClient, repo repository.Repository, runID int64) (*github.WorkflowRun, error) {
 	return g.GetWorkflowRunByID(ctx, repo.Owner, repo.Name, runID)
@@ -46,14 +56,14 @@ func GetWorkflowRunAttempt(ctx context.Context, g *GitHubClient, repo repository
 	return g.GetWorkflowRunAttempt(ctx, repo.Owner, repo.Name, runID, attemptNumber, options)
 }
 
-// ListRepositoryWorkflowRuns retrieves all workflow runs for a repository.
+// ListRepositoryWorkflowRuns retrieves workflow runs for a repository.
 func ListRepositoryWorkflowRuns(ctx context.Context, g *GitHubClient, repo repository.Repository, options *ListWorkflowRunsOptions) ([]*github.WorkflowRun, error) {
-	return g.ListRepositoryWorkflowRuns(ctx, repo.Owner, repo.Name, toGitHubListWorkflowRunsOptions(options))
+	return g.ListRepositoryWorkflowRuns(ctx, repo.Owner, repo.Name, toGitHubListWorkflowRunsOptions(options), workflowRunsLimit(options))
 }
 
-// ListWorkflowRunsByID retrieves all workflow runs for a specific workflow by workflow ID.
+// ListWorkflowRunsByID retrieves workflow runs for a specific workflow by workflow ID.
 func ListWorkflowRunsByID(ctx context.Context, g *GitHubClient, repo repository.Repository, workflowID int64, options *ListWorkflowRunsOptions) ([]*github.WorkflowRun, error) {
-	return g.ListWorkflowRunsByID(ctx, repo.Owner, repo.Name, workflowID, toGitHubListWorkflowRunsOptions(options))
+	return g.ListWorkflowRunsByID(ctx, repo.Owner, repo.Name, workflowID, toGitHubListWorkflowRunsOptions(options), workflowRunsLimit(options))
 }
 
 // GetWorkflowByFileName retrieves a workflow definition by its file name.
@@ -61,9 +71,9 @@ func GetWorkflowByFileName(ctx context.Context, g *GitHubClient, repo repository
 	return g.GetWorkflowByFileName(ctx, repo.Owner, repo.Name, workflowFileName)
 }
 
-// ListWorkflowRunsByFileName retrieves all workflow runs for a specific workflow by file name.
+// ListWorkflowRunsByFileName retrieves workflow runs for a specific workflow by file name.
 func ListWorkflowRunsByFileName(ctx context.Context, g *GitHubClient, repo repository.Repository, workflowFileName string, options *ListWorkflowRunsOptions) ([]*github.WorkflowRun, error) {
-	return g.ListWorkflowRunsByFileName(ctx, repo.Owner, repo.Name, workflowFileName, toGitHubListWorkflowRunsOptions(options))
+	return g.ListWorkflowRunsByFileName(ctx, repo.Owner, repo.Name, workflowFileName, toGitHubListWorkflowRunsOptions(options), workflowRunsLimit(options))
 }
 
 // GetWorkflowRunUsageByID retrieves the usage statistics for a specific workflow run.
