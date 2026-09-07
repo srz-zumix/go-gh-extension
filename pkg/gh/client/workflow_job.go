@@ -18,50 +18,38 @@ func (g *GitHubClient) GetWorkflowJobByID(ctx context.Context, owner string, rep
 	return job, nil
 }
 
-// ListWorkflowJobs retrieves all workflow jobs for a specific workflow run.
-func (g *GitHubClient) ListWorkflowJobs(ctx context.Context, owner string, repo string, runID int64, options *github.ListWorkflowJobsOptions) ([]*github.WorkflowJob, error) {
-	opt := github.ListWorkflowJobsOptions{ListOptions: github.ListOptions{PerPage: defaultPerPage}}
+// ListWorkflowJobs retrieves workflow jobs for a specific workflow run.
+// A limit of 0 or less retrieves every job.
+func (g *GitHubClient) ListWorkflowJobs(ctx context.Context, owner string, repo string, runID int64, options *github.ListWorkflowJobsOptions, limit int) ([]*github.WorkflowJob, error) {
+	opt := github.ListWorkflowJobsOptions{}
 	if options != nil {
 		opt = *options
-		opt.PerPage = defaultPerPage
 	}
 
-	var allJobs []*github.WorkflowJob
-	for {
+	return paginate(ctx, &opt.ListOptions, limit, func(ctx context.Context) ([]*github.WorkflowJob, *github.Response, error) {
 		jobs, resp, err := g.client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &opt)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		allJobs = append(allJobs, jobs.Jobs...)
-		if resp.NextPage == 0 {
-			break
-		}
-		opt.Page = resp.NextPage
-	}
-	return allJobs, nil
+		return jobs.Jobs, resp, nil
+	})
 }
 
-// ListWorkflowJobsAttempt retrieves all workflow jobs for a specific workflow run attempt.
-func (g *GitHubClient) ListWorkflowJobsAttempt(ctx context.Context, owner string, repo string, runID int64, attemptNumber int64, options *github.ListOptions) ([]*github.WorkflowJob, error) {
-	opt := github.ListOptions{PerPage: defaultPerPage}
+// ListWorkflowJobsAttempt retrieves workflow jobs for a specific workflow run attempt.
+// A limit of 0 or less retrieves every job.
+func (g *GitHubClient) ListWorkflowJobsAttempt(ctx context.Context, owner string, repo string, runID int64, attemptNumber int64, options *github.ListOptions, limit int) ([]*github.WorkflowJob, error) {
+	opt := github.ListOptions{}
 	if options != nil {
 		opt = *options
-		opt.PerPage = defaultPerPage
 	}
 
-	var allJobs []*github.WorkflowJob
-	for {
+	return paginate(ctx, &opt, limit, func(ctx context.Context) ([]*github.WorkflowJob, *github.Response, error) {
 		jobs, resp, err := g.client.Actions.ListWorkflowJobsAttempt(ctx, owner, repo, runID, attemptNumber, &opt)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		allJobs = append(allJobs, jobs.Jobs...)
-		if resp.NextPage == 0 {
-			break
-		}
-		opt.Page = resp.NextPage
-	}
-	return allJobs, nil
+		return jobs.Jobs, resp, nil
+	})
 }
 
 // RerunJobByID re-runs a specific workflow job.

@@ -18,12 +18,12 @@ func ListWorkflowJobs(ctx context.Context, g *GitHubClient, repo repository.Repo
 	if filter != nil {
 		options.Filter = *filter
 	}
-	return g.ListWorkflowJobs(ctx, repo.Owner, repo.Name, runID, options)
+	return g.ListWorkflowJobs(ctx, repo.Owner, repo.Name, runID, options, 0)
 }
 
 // ListWorkflowJobsAttempt retrieves all workflow jobs for a specific workflow run attempt.
 func ListWorkflowJobsAttempt(ctx context.Context, g *GitHubClient, repo repository.Repository, runID int64, attemptNumber int64) ([]*github.WorkflowJob, error) {
-	return g.ListWorkflowJobsAttempt(ctx, repo.Owner, repo.Name, runID, attemptNumber, nil)
+	return g.ListWorkflowJobsAttempt(ctx, repo.Owner, repo.Name, runID, attemptNumber, nil, 0)
 }
 
 // RerunJobByID re-runs a specific workflow job.
