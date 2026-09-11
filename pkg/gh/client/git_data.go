@@ -41,18 +41,27 @@ func (g *GitHubClient) GetGitTree(ctx context.Context, owner, repo, sha string, 
 	return tree, nil
 }
 
-// GetGitTreeRecursive fetches a tree non-recursively and then manually
-// traverses into each subtree entry, prefixing child paths with the parent
-// directory so that every entry in the returned slice carries a full path
-// relative to the root tree (e.g. "dir/file.txt" instead of "file.txt").
-// This avoids the GitHub 100,000-entry truncation limit of recursive fetches.
+// GetGitTreeRecursive fetches the full tree in a single recursive API call.
+// If GitHub truncates the response (more than 100,000 entries), it falls back
+// to a manual per-directory walk that has no such limit but costs one API call
+// per subtree.
 func (g *GitHubClient) GetGitTreeRecursive(ctx context.Context, owner, repo, sha string) (*github.Tree, error) {
-	return g.getGitTreeRecursive(ctx, owner, repo, sha, "")
+	tree, _, err := g.client.Git.GetTree(ctx, owner, repo, sha, true)
+	if err != nil {
+		return nil, err
+	}
+	if !tree.GetTruncated() {
+		return tree, nil
+	}
+	return g.getGitTreeRecursiveWalk(ctx, owner, repo, sha, "")
 }
 
-// getGitTreeRecursive is the internal implementation that carries the path
-// prefix accumulated from parent tree entries.
-func (g *GitHubClient) getGitTreeRecursive(ctx context.Context, owner, repo, sha, prefix string) (*github.Tree, error) {
+// getGitTreeRecursiveWalk is the fallback implementation used when the
+// single-call recursive fetch is truncated. It carries the path prefix
+// accumulated from parent tree entries so that every entry in the returned
+// slice carries a full path relative to the root tree (e.g. "dir/file.txt"
+// instead of "file.txt").
+func (g *GitHubClient) getGitTreeRecursiveWalk(ctx context.Context, owner, repo, sha, prefix string) (*github.Tree, error) {
 	tree, _, err := g.client.Git.GetTree(ctx, owner, repo, sha, false)
 	if err != nil {
 		return nil, err
@@ -71,7 +80,7 @@ func (g *GitHubClient) getGitTreeRecursive(ctx context.Context, owner, repo, sha
 		entries = append(entries, &e)
 
 		if entry.GetType() == "tree" {
-			subtree, err := g.getGitTreeRecursive(ctx, owner, repo, entry.GetSHA(), fullPath)
+			subtree, err := g.getGitTreeRecursiveWalk(ctx, owner, repo, entry.GetSHA(), fullPath)
 			if err != nil {
 				return nil, err
 			}
