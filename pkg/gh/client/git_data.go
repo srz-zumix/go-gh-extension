@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/go-github/v90/github"
 )
@@ -41,10 +42,13 @@ func (g *GitHubClient) GetGitTree(ctx context.Context, owner, repo, sha string, 
 	return tree, nil
 }
 
-// GetGitTreeRecursive fetches the full tree in a single recursive API call.
-// If GitHub truncates the response (more than 100,000 entries), it falls back
-// to a manual per-directory walk that has no such limit but costs one API call
-// per subtree.
+// GetGitTreeRecursive first attempts to fetch the full tree in a single
+// recursive API call. If GitHub truncates the response (more than 100,000
+// entries or exceeding the response size limit), it falls back to a manual
+// per-directory walk. The walk fetches each directory non-recursively, which
+// lowers the chance of truncation, but a single oversized directory whose
+// direct children still exceed the limit is reported as an error because the
+// Trees API cannot page through it.
 func (g *GitHubClient) GetGitTreeRecursive(ctx context.Context, owner, repo, sha string) (*github.Tree, error) {
 	tree, _, err := g.client.Git.GetTree(ctx, owner, repo, sha, true)
 	if err != nil {
@@ -65,6 +69,9 @@ func (g *GitHubClient) getGitTreeRecursiveWalk(ctx context.Context, owner, repo,
 	tree, _, err := g.client.Git.GetTree(ctx, owner, repo, sha, false)
 	if err != nil {
 		return nil, err
+	}
+	if tree.GetTruncated() {
+		return nil, fmt.Errorf("git tree %s is truncated and cannot be listed completely via the trees API", sha)
 	}
 
 	// Build a new entry slice with corrected paths.

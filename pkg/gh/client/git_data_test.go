@@ -105,3 +105,53 @@ func TestGetGitTreeRecursive_FallsBackToWalkWhenTruncated(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []string{"file.txt", "dir", "dir/nested.txt"}, paths)
 }
+
+func TestGetGitTreeRecursive_ErrorsWhenWalkedDirectoryTruncated(t *testing.T) {
+	var gotWalkRecursive bool
+	tr := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		path := r.URL.EscapedPath()
+		var body []byte
+		switch path {
+		case "/repos/owner/repo/git/trees/root-sha":
+			if r.URL.RawQuery == "recursive=1" {
+				// Single-call attempt reports truncation, forcing the walk.
+				body, _ = json.Marshal(map[string]any{
+					"sha":       "root-sha",
+					"tree":      []map[string]any{},
+					"truncated": true,
+				})
+			} else {
+				gotWalkRecursive = gotWalkRecursive || strings.Contains(r.URL.RawQuery, "recursive")
+				body, _ = json.Marshal(map[string]any{
+					"sha": "root-sha",
+					"tree": []map[string]any{
+						{"path": "dir", "type": "tree", "sha": "dir-sha"},
+					},
+					"truncated": false,
+				})
+			}
+		case "/repos/owner/repo/git/trees/dir-sha":
+			// An oversized directory whose own listing is truncated.
+			body, _ = json.Marshal(map[string]any{
+				"sha":       "dir-sha",
+				"tree":      []map[string]any{},
+				"truncated": true,
+			})
+		default:
+			t.Fatalf("unexpected request path %q", path)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(string(body))),
+			Request:    r,
+		}, nil
+	})
+	g := newTestClient(t, "https://api.github.com/", tr)
+
+	tree, err := g.GetGitTreeRecursive(t.Context(), "owner", "repo", "root-sha")
+	require.Error(t, err)
+	assert.Nil(t, tree)
+	assert.Contains(t, err.Error(), "dir-sha")
+	assert.False(t, gotWalkRecursive, "walk requests must not use the recursive parameter")
+}
