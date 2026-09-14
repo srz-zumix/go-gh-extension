@@ -359,6 +359,123 @@ func (g *GitHubClient) GetPullRequestCommentThreadID(ctx context.Context, owner 
 	return "", fmt.Errorf("failed to find thread ID for comment %d", commentID)
 }
 
+// PullRequestReviewThreadComment is a single inline comment within a review thread.
+type PullRequestReviewThreadComment struct {
+	DatabaseID int64
+	Author     string
+	AuthorBot  bool
+	Body       string
+	URL        string
+	DiffHunk   string
+	Path       string
+	Line       int
+	CreatedAt  time.Time
+}
+
+// PullRequestReviewThread is a GraphQL review thread on a pull request, including
+// resolution state that is not exposed by the REST review comments API.
+type PullRequestReviewThread struct {
+	ID         string
+	IsResolved bool
+	IsOutdated bool
+	Path       string
+	Line       int
+	Comments   []PullRequestReviewThreadComment
+}
+
+// ListPullRequestReviewThreads lists all review threads for a pull request, including
+// each thread's resolution state and its inline comments.
+func (g *GitHubClient) ListPullRequestReviewThreads(ctx context.Context, owner string, repo string, number int) ([]*PullRequestReviewThread, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var query struct {
+		Repository struct {
+			PullRequest struct {
+				ReviewThreads struct {
+					Nodes []struct {
+						ID         githubv4.String
+						IsResolved githubv4.Boolean
+						IsOutdated githubv4.Boolean
+						Path       githubv4.String
+						Line       *githubv4.Int
+						Comments   struct {
+							Nodes []struct {
+								DatabaseID githubv4.Float
+								Body       githubv4.String
+								URL        githubv4.URI
+								DiffHunk   githubv4.String
+								Path       githubv4.String
+								Line       *githubv4.Int
+								CreatedAt  githubv4.DateTime
+								Author     struct {
+									Login    githubv4.String
+									Typename githubv4.String `graphql:"__typename"`
+								}
+							}
+						} `graphql:"comments(first: 100)"`
+					}
+					PageInfo struct {
+						HasNextPage githubv4.Boolean
+						EndCursor   githubv4.String
+					}
+				} `graphql:"reviewThreads(first: 50, after: $cursor)"`
+			} `graphql:"pullRequest(number: $pr)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	vars := map[string]any{
+		"owner":  githubv4.String(owner),
+		"repo":   githubv4.String(repo),
+		"pr":     githubv4.Int(number),
+		"cursor": (*githubv4.String)(nil),
+	}
+
+	var threads []*PullRequestReviewThread
+	for {
+		if err := graphql.Query(ctx, &query, vars); err != nil {
+			return nil, err
+		}
+		for _, t := range query.Repository.PullRequest.ReviewThreads.Nodes {
+			thread := &PullRequestReviewThread{
+				ID:         string(t.ID),
+				IsResolved: bool(t.IsResolved),
+				IsOutdated: bool(t.IsOutdated),
+				Path:       string(t.Path),
+			}
+			if t.Line != nil {
+				thread.Line = int(*t.Line)
+			}
+			for _, c := range t.Comments.Nodes {
+				comment := PullRequestReviewThreadComment{
+					DatabaseID: int64(c.DatabaseID),
+					Author:     string(c.Author.Login),
+					AuthorBot:  string(c.Author.Typename) == "Bot",
+					Body:       string(c.Body),
+					DiffHunk:   string(c.DiffHunk),
+					Path:       string(c.Path),
+					CreatedAt:  c.CreatedAt.Time,
+				}
+				if c.URL.URL != nil {
+					comment.URL = c.URL.String()
+				}
+				if c.Line != nil {
+					comment.Line = int(*c.Line)
+				}
+				thread.Comments = append(thread.Comments, comment)
+			}
+			threads = append(threads, thread)
+		}
+		if !query.Repository.PullRequest.ReviewThreads.PageInfo.HasNextPage {
+			break
+		}
+		vars["cursor"] = githubv4.NewString(query.Repository.PullRequest.ReviewThreads.PageInfo.EndCursor)
+	}
+	return threads, nil
+}
+
 // ListPullRequests retrieves pull requests for a specific repository. When
 // maxCount is positive, at most maxCount pull requests are returned; a
 // non-positive maxCount retrieves all pull requests across every page.

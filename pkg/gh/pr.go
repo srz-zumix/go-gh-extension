@@ -483,6 +483,34 @@ func GetPullRequestCommentThreadID(ctx context.Context, g *GitHubClient, repo re
 	return g.GetPullRequestCommentThreadID(ctx, repo.Owner, repo.Name, number, commentID)
 }
 
+// ListPullRequestReviewThreads lists all review threads, including resolution state, for a pull request.
+func ListPullRequestReviewThreads(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) ([]*client.PullRequestReviewThread, error) {
+	number, err := GetPullRequestNumber(pull_request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse pull request number from '%s': %w", pull_request, err)
+	}
+	threads, err := g.ListPullRequestReviewThreads(ctx, repo.Owner, repo.Name, number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list review threads for pull request #%d in repository '%s/%s': %w", number, repo.Owner, repo.Name, err)
+	}
+	return threads, nil
+}
+
+// AddPullRequestReviewCommentReaction adds a reaction to a pull request review comment.
+// The content should have one of the following values: "+1", "-1", "laugh",
+// "confused", "heart", "hooray", "rocket", or "eyes".
+func AddPullRequestReviewCommentReaction(ctx context.Context, g *GitHubClient, repo repository.Repository, comment any, content string) (*github.Reaction, error) {
+	commentID, err := GetCommentID(comment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse comment ID from '%s': %w", comment, err)
+	}
+	reaction, err := g.CreatePullRequestCommentReaction(ctx, repo.Owner, repo.Name, commentID, content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add reaction '%s' to comment %d in repository '%s/%s': %w", content, commentID, repo.Owner, repo.Name, err)
+	}
+	return reaction, nil
+}
+
 // AssociatedPullRequestsOption is an interface for specifying options when querying associated pull requests.
 type AssociatedPullRequestsOption interface {
 	apply(*client.AssociatedPullRequestsOption)
