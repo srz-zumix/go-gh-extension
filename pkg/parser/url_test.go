@@ -308,6 +308,104 @@ func TestParsePullRequestURL(t *testing.T) {
 
 // Helper functions
 
+func TestParsePullRequestReviewCommentURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    *PullRequestReviewCommentURL
+		wantErr bool
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "not a URL",
+			input: "feature-branch",
+			want:  nil,
+		},
+		{
+			name:  "valid review comment URL",
+			input: "https://github.com/owner/repo/pull/123#discussion_r456789",
+			want: &PullRequestReviewCommentURL{
+				Url:       mustParseURL("https://github.com/owner/repo/pull/123#discussion_r456789"),
+				PRNumber:  intPtr(123),
+				CommentID: 456789,
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			name:    "PR URL without a fragment",
+			input:   "https://github.com/owner/repo/pull/123",
+			wantErr: true,
+		},
+		{
+			name:    "PR URL with an unrelated fragment",
+			input:   "https://github.com/owner/repo/pull/123#pullrequestreview-456789",
+			wantErr: true,
+		},
+		{
+			name:    "PR URL with a non-numeric comment ID",
+			input:   "https://github.com/owner/repo/pull/123#discussion_rabc",
+			wantErr: true,
+		},
+		{
+			name:    "PR URL with a zero comment ID",
+			input:   "https://github.com/owner/repo/pull/123#discussion_r0",
+			wantErr: true,
+		},
+		{
+			name:    "PR URL with a negative comment ID",
+			input:   "https://github.com/owner/repo/pull/123#discussion_r-5",
+			wantErr: true,
+		},
+		{
+			name:    "not a pull request URL",
+			input:   "https://github.com/owner/repo/issues/123",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParsePullRequestReviewCommentURL(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParsePullRequestReviewCommentURL() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil {
+				return
+			}
+
+			if (got == nil) != (tt.want == nil) {
+				t.Errorf("ParsePullRequestReviewCommentURL() = %v, want %v", got, tt.want)
+				return
+			}
+			if got == nil {
+				return
+			}
+
+			if got.Url.String() != tt.want.Url.String() {
+				t.Errorf("ParsePullRequestReviewCommentURL() Url = %v, want %v", got.Url, tt.want.Url)
+			}
+			if !compareIntPtr(got.PRNumber, tt.want.PRNumber) {
+				t.Errorf("ParsePullRequestReviewCommentURL() PRNumber = %v, want %v", ptrValue(got.PRNumber), ptrValue(tt.want.PRNumber))
+			}
+			if got.CommentID != tt.want.CommentID {
+				t.Errorf("ParsePullRequestReviewCommentURL() CommentID = %v, want %v", got.CommentID, tt.want.CommentID)
+			}
+			if !compareRepo(got.Repo, tt.want.Repo) {
+				t.Errorf("ParsePullRequestReviewCommentURL() Repo = %v, want %v", got.Repo, tt.want.Repo)
+			}
+		})
+	}
+}
+
 func intPtr(i int) *int {
 	return &i
 }

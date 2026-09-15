@@ -132,8 +132,9 @@ type PullRequestReviewCommentURL struct {
 // Expected URL format:
 //   - https://github.com/owner/repo/pull/123#discussion_r456789
 //
-// Returns nil, nil if input is not a pull request URL, and an error if it lacks a
-// "#discussion_r<id>" fragment or the fragment's ID is not a valid integer.
+// Returns nil, nil for empty input or input that is not an HTTP(S) URL. Returns an error
+// if the input cannot be parsed as a pull request URL, lacks a "#discussion_r<id>"
+// fragment, or the fragment's ID is not a valid positive integer.
 func ParsePullRequestReviewCommentURL(input string) (*PullRequestReviewCommentURL, error) {
 	pr, err := ParsePullRequestURL(input)
 	if err != nil {
@@ -148,7 +149,7 @@ func ParsePullRequestReviewCommentURL(input string) (*PullRequestReviewCommentUR
 		return nil, fmt.Errorf("missing '#discussion_r<id>' fragment in review comment URL: %s", input)
 	}
 	commentID, err := strconv.ParseInt(strings.TrimPrefix(pr.Url.Fragment, fragmentPrefix), 10, 64)
-	if err != nil {
+	if err != nil || commentID <= 0 {
 		return nil, fmt.Errorf("invalid comment ID in review comment URL: %s", input)
 	}
 
