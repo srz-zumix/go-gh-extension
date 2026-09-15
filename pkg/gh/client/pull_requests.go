@@ -383,6 +383,79 @@ type PullRequestReviewThread struct {
 	Comments   []PullRequestReviewThreadComment
 }
 
+// reviewThreadCommentNode is the GraphQL shape of a single review-thread inline
+// comment, shared by the review-thread query and the nested comment pagination.
+type reviewThreadCommentNode struct {
+	DatabaseID githubv4.Float
+	Body       githubv4.String
+	URL        githubv4.URI
+	DiffHunk   githubv4.String
+	Path       githubv4.String
+	Line       *githubv4.Int
+	CreatedAt  githubv4.DateTime
+	Author     struct {
+		Login    githubv4.String
+		Typename githubv4.String `graphql:"__typename"`
+	}
+}
+
+// toPullRequestReviewThreadComment maps a GraphQL comment node to the exported model.
+func (c reviewThreadCommentNode) toPullRequestReviewThreadComment() PullRequestReviewThreadComment {
+	comment := PullRequestReviewThreadComment{
+		DatabaseID: int64(c.DatabaseID),
+		Author:     string(c.Author.Login),
+		AuthorBot:  string(c.Author.Typename) == "Bot",
+		Body:       string(c.Body),
+		DiffHunk:   string(c.DiffHunk),
+		Path:       string(c.Path),
+		CreatedAt:  c.CreatedAt.Time,
+	}
+	if c.URL.URL != nil {
+		comment.URL = c.URL.String()
+	}
+	if c.Line != nil {
+		comment.Line = int(*c.Line)
+	}
+	return comment
+}
+
+// listRemainingReviewThreadComments fetches the review-thread comments that follow
+// the given cursor, paginating the thread's comments connection to completion.
+func (g *GitHubClient) listRemainingReviewThreadComments(ctx context.Context, graphql *githubv4.Client, threadID githubv4.String, after githubv4.String) ([]PullRequestReviewThreadComment, error) {
+	var query struct {
+		Node struct {
+			Thread struct {
+				Comments struct {
+					Nodes    []reviewThreadCommentNode
+					PageInfo struct {
+						HasNextPage githubv4.Boolean
+						EndCursor   githubv4.String
+					}
+				} `graphql:"comments(first: 100, after: $cursor)"`
+			} `graphql:"... on PullRequestReviewThread"`
+		} `graphql:"node(id: $id)"`
+	}
+	vars := map[string]any{
+		"id":     githubv4.ID(threadID),
+		"cursor": githubv4.NewString(after),
+	}
+
+	var comments []PullRequestReviewThreadComment
+	for {
+		if err := graphql.Query(ctx, &query, vars); err != nil {
+			return nil, err
+		}
+		for _, c := range query.Node.Thread.Comments.Nodes {
+			comments = append(comments, c.toPullRequestReviewThreadComment())
+		}
+		if !query.Node.Thread.Comments.PageInfo.HasNextPage {
+			break
+		}
+		vars["cursor"] = githubv4.NewString(query.Node.Thread.Comments.PageInfo.EndCursor)
+	}
+	return comments, nil
+}
+
 // ListPullRequestReviewThreads lists all review threads for a pull request, including
 // each thread's resolution state and its inline comments.
 func (g *GitHubClient) ListPullRequestReviewThreads(ctx context.Context, owner string, repo string, number int) ([]*PullRequestReviewThread, error) {
@@ -393,7 +466,7 @@ func (g *GitHubClient) ListPullRequestReviewThreads(ctx context.Context, owner s
 
 	var query struct {
 		Repository struct {
-			PullRequest struct {
+			PullRequest *struct {
 				ReviewThreads struct {
 					Nodes []struct {
 						ID         githubv4.String
@@ -402,18 +475,10 @@ func (g *GitHubClient) ListPullRequestReviewThreads(ctx context.Context, owner s
 						Path       githubv4.String
 						Line       *githubv4.Int
 						Comments   struct {
-							Nodes []struct {
-								DatabaseID githubv4.Float
-								Body       githubv4.String
-								URL        githubv4.URI
-								DiffHunk   githubv4.String
-								Path       githubv4.String
-								Line       *githubv4.Int
-								CreatedAt  githubv4.DateTime
-								Author     struct {
-									Login    githubv4.String
-									Typename githubv4.String `graphql:"__typename"`
-								}
+							Nodes    []reviewThreadCommentNode
+							PageInfo struct {
+								HasNextPage githubv4.Boolean
+								EndCursor   githubv4.String
 							}
 						} `graphql:"comments(first: 100)"`
 					}
@@ -438,6 +503,9 @@ func (g *GitHubClient) ListPullRequestReviewThreads(ctx context.Context, owner s
 		if err := graphql.Query(ctx, &query, vars); err != nil {
 			return nil, err
 		}
+		if query.Repository.PullRequest == nil {
+			return nil, fmt.Errorf("pull request #%d not found", number)
+		}
 		for _, t := range query.Repository.PullRequest.ReviewThreads.Nodes {
 			thread := &PullRequestReviewThread{
 				ID:         string(t.ID),
@@ -449,22 +517,14 @@ func (g *GitHubClient) ListPullRequestReviewThreads(ctx context.Context, owner s
 				thread.Line = int(*t.Line)
 			}
 			for _, c := range t.Comments.Nodes {
-				comment := PullRequestReviewThreadComment{
-					DatabaseID: int64(c.DatabaseID),
-					Author:     string(c.Author.Login),
-					AuthorBot:  string(c.Author.Typename) == "Bot",
-					Body:       string(c.Body),
-					DiffHunk:   string(c.DiffHunk),
-					Path:       string(c.Path),
-					CreatedAt:  c.CreatedAt.Time,
+				thread.Comments = append(thread.Comments, c.toPullRequestReviewThreadComment())
+			}
+			if bool(t.Comments.PageInfo.HasNextPage) {
+				rest, err := g.listRemainingReviewThreadComments(ctx, graphql, t.ID, t.Comments.PageInfo.EndCursor)
+				if err != nil {
+					return nil, err
 				}
-				if c.URL.URL != nil {
-					comment.URL = c.URL.String()
-				}
-				if c.Line != nil {
-					comment.Line = int(*c.Line)
-				}
-				thread.Comments = append(thread.Comments, comment)
+				thread.Comments = append(thread.Comments, rest...)
 			}
 			threads = append(threads, thread)
 		}

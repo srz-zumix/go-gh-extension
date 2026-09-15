@@ -487,7 +487,7 @@ func GetPullRequestCommentThreadID(ctx context.Context, g *GitHubClient, repo re
 func ListPullRequestReviewThreads(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any) ([]*client.PullRequestReviewThread, error) {
 	number, err := GetPullRequestNumber(pull_request)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse pull request number from '%s': %w", pull_request, err)
+		return nil, fmt.Errorf("failed to parse pull request number from '%v': %w", pull_request, err)
 	}
 	threads, err := g.ListPullRequestReviewThreads(ctx, repo.Owner, repo.Name, number)
 	if err != nil {
@@ -502,7 +502,7 @@ func ListPullRequestReviewThreads(ctx context.Context, g *GitHubClient, repo rep
 func AddPullRequestReviewCommentReaction(ctx context.Context, g *GitHubClient, repo repository.Repository, comment any, content string) (*github.Reaction, error) {
 	commentID, err := GetCommentID(comment)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse comment ID from '%s': %w", comment, err)
+		return nil, fmt.Errorf("failed to parse comment ID from '%v': %w", comment, err)
 	}
 	reaction, err := g.CreatePullRequestCommentReaction(ctx, repo.Owner, repo.Name, commentID, content)
 	if err != nil {
