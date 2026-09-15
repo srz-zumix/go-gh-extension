@@ -423,7 +423,7 @@ func (c reviewThreadCommentNode) toPullRequestReviewThreadComment() PullRequestR
 // the given cursor, paginating the thread's comments connection to completion.
 func (g *GitHubClient) listRemainingReviewThreadComments(ctx context.Context, graphql *githubv4.Client, threadID githubv4.String, after githubv4.String) ([]PullRequestReviewThreadComment, error) {
 	var query struct {
-		Node struct {
+		Node *struct {
 			Thread struct {
 				Comments struct {
 					Nodes    []reviewThreadCommentNode
@@ -444,6 +444,9 @@ func (g *GitHubClient) listRemainingReviewThreadComments(ctx context.Context, gr
 	for {
 		if err := graphql.Query(ctx, &query, vars); err != nil {
 			return nil, err
+		}
+		if query.Node == nil {
+			return nil, fmt.Errorf("review thread %q not found while paginating comments", threadID)
 		}
 		for _, c := range query.Node.Thread.Comments.Nodes {
 			comments = append(comments, c.toPullRequestReviewThreadComment())
