@@ -119,6 +119,48 @@ func ParsePullRequestURL(input string) (*PullRequestURL, error) {
 	return nil, fmt.Errorf("not a pull request URL: %s", input)
 }
 
+// PullRequestReviewCommentURL represents a pull request review comment parsed from a URL.
+type PullRequestReviewCommentURL struct {
+	Url       *url.URL
+	PRNumber  *int
+	CommentID int64
+	Repo      *repository.Repository
+}
+
+// ParsePullRequestReviewCommentURL parses a GitHub pull request review comment URL and
+// extracts the repository, PR number, and comment ID from its "#discussion_r<id>" fragment.
+// Expected URL format:
+//   - https://github.com/owner/repo/pull/123#discussion_r456789
+//
+// Returns nil, nil for empty input or input that is not an HTTP(S) URL. Returns an error
+// if the input cannot be parsed as a pull request URL, lacks a "#discussion_r<id>"
+// fragment, or the fragment's ID is not a valid positive integer.
+func ParsePullRequestReviewCommentURL(input string) (*PullRequestReviewCommentURL, error) {
+	pr, err := ParsePullRequestURL(input)
+	if err != nil {
+		return nil, err
+	}
+	if pr == nil {
+		return nil, nil
+	}
+
+	const fragmentPrefix = "discussion_r"
+	if !strings.HasPrefix(pr.Url.Fragment, fragmentPrefix) {
+		return nil, fmt.Errorf("missing '#discussion_r<id>' fragment in review comment URL: %s", input)
+	}
+	commentID, err := strconv.ParseInt(strings.TrimPrefix(pr.Url.Fragment, fragmentPrefix), 10, 64)
+	if err != nil || commentID <= 0 {
+		return nil, fmt.Errorf("invalid comment ID in review comment URL: %s", input)
+	}
+
+	return &PullRequestReviewCommentURL{
+		Url:       pr.Url,
+		PRNumber:  pr.Number,
+		CommentID: commentID,
+		Repo:      pr.Repo,
+	}, nil
+}
+
 // IssueURL represents an issue parsed from a URL
 type IssueURL struct {
 	Url    *url.URL

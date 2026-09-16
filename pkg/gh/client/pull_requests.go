@@ -359,6 +359,186 @@ func (g *GitHubClient) GetPullRequestCommentThreadID(ctx context.Context, owner 
 	return "", fmt.Errorf("failed to find thread ID for comment %d", commentID)
 }
 
+// PullRequestReviewThreadComment is a single inline comment within a review thread.
+type PullRequestReviewThreadComment struct {
+	DatabaseID int64
+	Author     string
+	AuthorBot  bool
+	Body       string
+	URL        string
+	DiffHunk   string
+	Path       string
+	Line       int
+	CreatedAt  time.Time
+}
+
+// PullRequestReviewThread is a GraphQL review thread on a pull request, including
+// resolution state that is not exposed by the REST review comments API.
+type PullRequestReviewThread struct {
+	ID         string
+	IsResolved bool
+	IsOutdated bool
+	Path       string
+	Line       int
+	Comments   []PullRequestReviewThreadComment
+}
+
+// reviewThreadCommentNode is the GraphQL shape of a single review-thread inline
+// comment, shared by the review-thread query and the nested comment pagination.
+type reviewThreadCommentNode struct {
+	DatabaseID githubv4.Float
+	Body       githubv4.String
+	URL        githubv4.URI
+	DiffHunk   githubv4.String
+	Path       githubv4.String
+	Line       *githubv4.Int
+	CreatedAt  githubv4.DateTime
+	Author     struct {
+		Login    githubv4.String
+		Typename githubv4.String `graphql:"__typename"`
+	}
+}
+
+// toPullRequestReviewThreadComment maps a GraphQL comment node to the exported model.
+func (c reviewThreadCommentNode) toPullRequestReviewThreadComment() PullRequestReviewThreadComment {
+	comment := PullRequestReviewThreadComment{
+		DatabaseID: int64(c.DatabaseID),
+		Author:     string(c.Author.Login),
+		AuthorBot:  string(c.Author.Typename) == "Bot",
+		Body:       string(c.Body),
+		DiffHunk:   string(c.DiffHunk),
+		Path:       string(c.Path),
+		CreatedAt:  c.CreatedAt.Time,
+	}
+	if c.URL.URL != nil {
+		comment.URL = c.URL.String()
+	}
+	if c.Line != nil {
+		comment.Line = int(*c.Line)
+	}
+	return comment
+}
+
+// listRemainingReviewThreadComments fetches the review-thread comments that follow
+// the given cursor, paginating the thread's comments connection to completion.
+func (g *GitHubClient) listRemainingReviewThreadComments(ctx context.Context, graphql *githubv4.Client, threadID githubv4.String, after githubv4.String) ([]PullRequestReviewThreadComment, error) {
+	var query struct {
+		Node *struct {
+			Thread struct {
+				Comments struct {
+					Nodes    []reviewThreadCommentNode
+					PageInfo struct {
+						HasNextPage githubv4.Boolean
+						EndCursor   githubv4.String
+					}
+				} `graphql:"comments(first: 100, after: $cursor)"`
+			} `graphql:"... on PullRequestReviewThread"`
+		} `graphql:"node(id: $id)"`
+	}
+	vars := map[string]any{
+		"id":     githubv4.ID(threadID),
+		"cursor": githubv4.NewString(after),
+	}
+
+	var comments []PullRequestReviewThreadComment
+	for {
+		if err := graphql.Query(ctx, &query, vars); err != nil {
+			return nil, err
+		}
+		if query.Node == nil {
+			return nil, fmt.Errorf("review thread %q not found while paginating comments", threadID)
+		}
+		for _, c := range query.Node.Thread.Comments.Nodes {
+			comments = append(comments, c.toPullRequestReviewThreadComment())
+		}
+		if !query.Node.Thread.Comments.PageInfo.HasNextPage {
+			break
+		}
+		vars["cursor"] = githubv4.NewString(query.Node.Thread.Comments.PageInfo.EndCursor)
+	}
+	return comments, nil
+}
+
+// ListPullRequestReviewThreads lists all review threads for a pull request, including
+// each thread's resolution state and its inline comments.
+func (g *GitHubClient) ListPullRequestReviewThreads(ctx context.Context, owner string, repo string, number int) ([]*PullRequestReviewThread, error) {
+	graphql, err := g.GetOrCreateGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var query struct {
+		Repository struct {
+			PullRequest *struct {
+				ReviewThreads struct {
+					Nodes []struct {
+						ID         githubv4.String
+						IsResolved githubv4.Boolean
+						IsOutdated githubv4.Boolean
+						Path       githubv4.String
+						Line       *githubv4.Int
+						Comments   struct {
+							Nodes    []reviewThreadCommentNode
+							PageInfo struct {
+								HasNextPage githubv4.Boolean
+								EndCursor   githubv4.String
+							}
+						} `graphql:"comments(first: 100)"`
+					}
+					PageInfo struct {
+						HasNextPage githubv4.Boolean
+						EndCursor   githubv4.String
+					}
+				} `graphql:"reviewThreads(first: 50, after: $cursor)"`
+			} `graphql:"pullRequest(number: $pr)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	vars := map[string]any{
+		"owner":  githubv4.String(owner),
+		"repo":   githubv4.String(repo),
+		"pr":     githubv4.Int(number),
+		"cursor": (*githubv4.String)(nil),
+	}
+
+	var threads []*PullRequestReviewThread
+	for {
+		if err := graphql.Query(ctx, &query, vars); err != nil {
+			return nil, err
+		}
+		if query.Repository.PullRequest == nil {
+			return nil, fmt.Errorf("pull request #%d not found", number)
+		}
+		for _, t := range query.Repository.PullRequest.ReviewThreads.Nodes {
+			thread := &PullRequestReviewThread{
+				ID:         string(t.ID),
+				IsResolved: bool(t.IsResolved),
+				IsOutdated: bool(t.IsOutdated),
+				Path:       string(t.Path),
+			}
+			if t.Line != nil {
+				thread.Line = int(*t.Line)
+			}
+			for _, c := range t.Comments.Nodes {
+				thread.Comments = append(thread.Comments, c.toPullRequestReviewThreadComment())
+			}
+			if bool(t.Comments.PageInfo.HasNextPage) {
+				rest, err := g.listRemainingReviewThreadComments(ctx, graphql, t.ID, t.Comments.PageInfo.EndCursor)
+				if err != nil {
+					return nil, err
+				}
+				thread.Comments = append(thread.Comments, rest...)
+			}
+			threads = append(threads, thread)
+		}
+		if !query.Repository.PullRequest.ReviewThreads.PageInfo.HasNextPage {
+			break
+		}
+		vars["cursor"] = githubv4.NewString(query.Repository.PullRequest.ReviewThreads.PageInfo.EndCursor)
+	}
+	return threads, nil
+}
+
 // ListPullRequests retrieves pull requests for a specific repository. When
 // maxCount is positive, at most maxCount pull requests are returned; a
 // non-positive maxCount retrieves all pull requests across every page.
