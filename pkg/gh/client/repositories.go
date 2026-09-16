@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/google/go-github/v90/github"
 	"github.com/shurcooL/githubv4"
@@ -158,6 +159,19 @@ func (g *GitHubClient) GetRepositoryContent(ctx context.Context, owner, repo, pa
 		return nil, nil, err
 	}
 	return fileContent, dirContent, nil
+}
+
+// GetRepositoryArchiveLink returns a redirect URL for downloading a tarball or zipball
+// archive of the repository at the given ref. maxRedirects is 0 so the pre-signed
+// storage URL (e.g. S3, Azure Blob Storage) is returned instead of being followed,
+// letting callers fetch it without GitHub API authentication headers.
+func (g *GitHubClient) GetRepositoryArchiveLink(ctx context.Context, owner, repo string, archiveFormat github.ArchiveFormat, ref string) (*url.URL, error) {
+	opt := &github.RepositoryContentGetOptions{Ref: ref}
+	link, _, err := g.client.Repositories.GetArchiveLink(ctx, owner, repo, archiveFormat, opt, 0)
+	if err != nil {
+		return nil, err
+	}
+	return link, nil
 }
 
 // ListBranches retrieves all branches for a specific repository.

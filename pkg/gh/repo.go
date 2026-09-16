@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"slices"
 	"strings"
@@ -13,6 +15,7 @@ import (
 	"github.com/google/go-github/v90/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
+	"github.com/srz-zumix/go-gh-extension/pkg/httputil"
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
@@ -563,6 +566,32 @@ func FlattenRepositorySubmodules(submodules []RepositorySubmodule) []RepositoryS
 		flattened = append(flattened, FlattenRepositorySubmodules(submodule.Submodules)...)
 	}
 	return flattened
+}
+
+// DownloadRepositoryArchive downloads a tarball or zipball archive of repo at ref and
+// returns the response body for the caller to read and close. The download follows the
+// GitHub API redirect to the storage backend without forwarding GitHub-specific headers.
+func DownloadRepositoryArchive(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, archiveFormat github.ArchiveFormat) (io.ReadCloser, error) {
+	link, err := g.GetRepositoryArchiveLink(ctx, repo.Owner, repo.Name, archiveFormat, ref)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %s archive link for repository %s/%s at ref '%s': %w", archiveFormat, repo.Owner, repo.Name, ref, err)
+	}
+
+	httpClient := httputil.NewHostAwareClient(g.GetClient().Client(), g.Host())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s archive download request for repository %s/%s: %w", archiveFormat, repo.Owner, repo.Name, err)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download %s archive for repository %s/%s: %w", archiveFormat, repo.Owner, repo.Name, err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer resp.Body.Close() //nolint:errcheck
+		return nil, fmt.Errorf("unexpected http status %s downloading %s archive for repository %s/%s", resp.Status, archiveFormat, repo.Owner, repo.Name)
+	}
+	return resp.Body, nil
 }
 
 func GetRepositoryContent(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, ref *string) ([]*github.RepositoryContent, error) {

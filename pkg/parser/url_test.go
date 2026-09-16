@@ -1925,3 +1925,136 @@ func TestParseProjectURL(t *testing.T) {
 		})
 	}
 }
+
+func TestParseTreeURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    *TreeURL
+		wantErr bool
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "not a URL",
+			input: "feature-branch",
+			want:  nil,
+		},
+		{
+			name:  "tree URL with tag ref and nested path",
+			input: "https://github.com/srz-zumix/gh-team-kit/tree/v0.23.0/.github/extensions/pr-graph-dashboard",
+			want: &TreeURL{
+				Url: mustParseURL("https://github.com/srz-zumix/gh-team-kit/tree/v0.23.0/.github/extensions/pr-graph-dashboard"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "srz-zumix",
+					Name:  "gh-team-kit",
+				},
+				Ref:  "v0.23.0",
+				Path: ".github/extensions/pr-graph-dashboard",
+			},
+		},
+		{
+			name:  "tree URL with branch ref and single path segment",
+			input: "https://github.com/owner/repo/tree/main/docs",
+			want: &TreeURL{
+				Url: mustParseURL("https://github.com/owner/repo/tree/main/docs"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				Ref:  "main",
+				Path: "docs",
+			},
+		},
+		{
+			name:  "tree URL with no path (ref only)",
+			input: "https://github.com/owner/repo/tree/main",
+			want: &TreeURL{
+				Url: mustParseURL("https://github.com/owner/repo/tree/main"),
+				Repo: &repository.Repository{
+					Host:  "github.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				Ref:  "main",
+				Path: "",
+			},
+		},
+		{
+			name:  "GitHub Enterprise tree URL",
+			input: "https://github.example.com/owner/repo/tree/main/docs",
+			want: &TreeURL{
+				Url: mustParseURL("https://github.example.com/owner/repo/tree/main/docs"),
+				Repo: &repository.Repository{
+					Host:  "github.example.com",
+					Owner: "owner",
+					Name:  "repo",
+				},
+				Ref:  "main",
+				Path: "docs",
+			},
+		},
+		{
+			name:    "blob URL is not a tree URL",
+			input:   "https://github.com/owner/repo/blob/main/README.md",
+			wantErr: true,
+		},
+		{
+			name:    "URL with too short path",
+			input:   "https://github.com/owner/repo",
+			wantErr: true,
+		},
+		{
+			name:    "malformed URL",
+			input:   "https://not a valid url",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseTreeURL(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseTreeURL() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil {
+				return
+			}
+
+			if (got == nil) != (tt.want == nil) {
+				t.Errorf("ParseTreeURL() = %v, want %v", got, tt.want)
+				return
+			}
+
+			if got == nil {
+				return
+			}
+
+			// Compare URL
+			if got.Url.String() != tt.want.Url.String() {
+				t.Errorf("ParseTreeURL() Url = %v, want %v", got.Url, tt.want.Url)
+			}
+
+			// Compare Repo
+			if !compareRepo(got.Repo, tt.want.Repo) {
+				t.Errorf("ParseTreeURL() Repo = %v, want %v", got.Repo, tt.want.Repo)
+			}
+
+			// Compare Ref
+			if got.Ref != tt.want.Ref {
+				t.Errorf("ParseTreeURL() Ref = %v, want %v", got.Ref, tt.want.Ref)
+			}
+
+			// Compare Path
+			if got.Path != tt.want.Path {
+				t.Errorf("ParseTreeURL() Path = %v, want %v", got.Path, tt.want.Path)
+			}
+		})
+	}
+}
