@@ -577,7 +577,13 @@ func DownloadRepositoryArchive(ctx context.Context, g *GitHubClient, repo reposi
 		return nil, fmt.Errorf("failed to get %s archive link for repository %s/%s at ref '%s': %w", archiveFormat, repo.Owner, repo.Name, ref, err)
 	}
 
-	httpClient := httputil.NewHostAwareClient(g.GetClient().Client(), g.Host())
+	// Normalize the host to a bare hostname (without any port) so it matches
+	// req.URL.Hostname() inside NewHostAwareClient. Otherwise a GHES host on a
+	// non-default port (e.g. "ghes.example.com:8443") would never compare equal
+	// and same-host archive requests would be misclassified as cross-host,
+	// stripping the authentication headers.
+	host := (&url.URL{Host: g.Host()}).Hostname()
+	httpClient := httputil.NewHostAwareClient(g.GetClient().Client(), host)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s archive download request for repository %s/%s: %w", archiveFormat, repo.Owner, repo.Name, err)

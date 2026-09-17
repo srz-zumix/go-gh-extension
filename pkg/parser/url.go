@@ -267,6 +267,9 @@ func ParseTreeURL(input string) (*TreeURL, error) {
 	if len(githubURL.PathParts) < 4 || githubURL.PathParts[2] != "tree" {
 		return nil, fmt.Errorf("not a tree URL: %s", input)
 	}
+	if githubURL.PathParts[3] == "" {
+		return nil, fmt.Errorf("tree URL has an empty ref: %s", input)
+	}
 
 	return &TreeURL{
 		Url:  githubURL.Url,

@@ -98,14 +98,24 @@ func TestExtractTarGzSubdir_RejectsPathTraversal(t *testing.T) {
 		{name: "owner-repo-abc123/ext/../../etc/passwd", content: "malicious"},
 	})
 
-	destDir := t.TempDir()
+	// Use a sentinel directory as a sibling of destDir so that a successful escape
+	// (writing to "<parent>/etc/passwd") would land in an inspectable location.
+	parent := t.TempDir()
+	destDir := filepath.Join(parent, "dest")
+	if err := os.Mkdir(destDir, 0755); err != nil {
+		t.Fatalf("failed to create destDir: %v", err)
+	}
+
 	err := ExtractTarGzSubdir(bytes.NewReader(archive), "ext", destDir)
 	// path.Clean neutralizes ".." within the rooted archive path, so this entry
-	// resolves outside "ext" and is simply skipped rather than extracted.
+	// resolves outside "ext" and is simply skipped, leaving no files to extract.
 	if err == nil {
-		if _, statErr := os.Stat(filepath.Join(destDir, "..", "etc", "passwd")); statErr == nil {
-			t.Fatalf("path traversal entry was extracted outside destDir")
-		}
+		t.Fatal("expected error when traversal entry is the only candidate, got nil")
+	}
+
+	// Regardless of the error, nothing may have been written outside destDir.
+	if _, statErr := os.Stat(filepath.Join(parent, "etc", "passwd")); !os.IsNotExist(statErr) {
+		t.Fatalf("path traversal entry escaped destDir, stat err = %v", statErr)
 	}
 }
 
@@ -166,5 +176,26 @@ func TestExtractTarGzSubdir_InvalidGzip(t *testing.T) {
 	err := ExtractTarGzSubdir(bytes.NewReader([]byte("not gzip data")), "ext", t.TempDir())
 	if err == nil {
 		t.Fatal("expected error for invalid gzip data, got nil")
+	}
+}
+
+func TestExtractTarGzSubdir_SizeLimitCountsSkippedEntries(t *testing.T) {
+	// A large file placed OUTSIDE the requested subdir must still count toward the
+	// decompressed-size limit, because tar.Reader.Next drains (decompresses) its payload.
+	orig := maxArchiveTotalSize
+	maxArchiveTotalSize = 1 << 10 // 1 KiB
+	defer func() { maxArchiveTotalSize = orig }()
+
+	big := make([]byte, 8<<10) // 8 KiB, well above the lowered limit
+	archive := buildTarGz(t, []tarEntry{
+		{name: "owner-repo-abc123/", typeflag: tar.TypeDir},
+		{name: "owner-repo-abc123/big-outside.bin", content: string(big)},
+		{name: "owner-repo-abc123/ext/", typeflag: tar.TypeDir},
+		{name: "owner-repo-abc123/ext/small.txt", content: "small"},
+	})
+
+	err := ExtractTarGzSubdir(bytes.NewReader(archive), "ext", t.TempDir())
+	if err == nil {
+		t.Fatal("expected error when a skipped entry exceeds the size limit, got nil")
 	}
 }

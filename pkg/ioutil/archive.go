@@ -19,10 +19,14 @@ const (
 	// maxArchiveEntries caps the number of entries processed from an archive to bound
 	// resource usage when extracting untrusted tarballs.
 	maxArchiveEntries = 20000
-	// maxArchiveTotalSize caps the total decompressed size (bytes) written when extracting
-	// an archive, to guard against decompression-bomb style inputs.
-	maxArchiveTotalSize = 200 << 20 // 200 MiB
 )
+
+// maxArchiveTotalSize caps the total decompressed size (bytes) read when extracting an
+// archive, to guard against decompression-bomb style inputs. It is a var (not a const)
+// so tests can temporarily lower it. Every byte decompressed from the tar stream is
+// counted, including the payloads of entries that are skipped because they fall outside
+// the requested subdir.
+var maxArchiveTotalSize int64 = 200 << 20 // 200 MiB
 
 // DownloadZipArchive downloads the workflow run logs archive and returns a zip.Reader for accessing the contents.
 func DownloadZipArchive(ctx context.Context, logURL string) (*zip.Reader, int64, error) {
@@ -64,6 +68,11 @@ func DownloadZipArchive(ctx context.Context, logURL string) (*zip.Reader, int64,
 // other special entries are skipped. Entries are also rejected if resolving them would
 // escape destDir (zip-slip), and the total entry count and decompressed size are capped
 // to guard against decompression bombs.
+//
+// destDir is expected to be a freshly created, empty directory that the caller controls;
+// the zip-slip check is lexical and does not resolve symlinks, so a pre-existing symlink
+// among destDir's parents could still redirect writes. Callers must not pass a directory
+// that may contain attacker-controlled symlinks.
 func ExtractTarGzSubdir(r io.Reader, subdir string, destDir string) error {
 	gzr, err := gzip.NewReader(r)
 	if err != nil {
@@ -73,8 +82,11 @@ func ExtractTarGzSubdir(r io.Reader, subdir string, destDir string) error {
 
 	subdir = strings.Trim(path.Clean("/"+subdir), "/")
 
-	tr := tar.NewReader(gzr)
-	var totalSize int64
+	// Bound the total number of decompressed bytes read from the archive, including the
+	// payloads of entries that are skipped (drained by tar.Reader.Next) because they fall
+	// outside subdir or are non-regular. This prevents a decompression bomb placed outside
+	// subdir from being fully decompressed without counting toward the limit.
+	tr := tar.NewReader(&limitedReader{r: gzr, limit: maxArchiveTotalSize})
 	entries := 0
 	extracted := 0
 	for {
@@ -118,10 +130,6 @@ func ExtractTarGzSubdir(r io.Reader, subdir string, destDir string) error {
 			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 				return fmt.Errorf("failed to create directory for %q: %w", rel, err)
 			}
-			totalSize += hdr.Size
-			if totalSize > maxArchiveTotalSize {
-				return fmt.Errorf("archive exceeds maximum extracted size (limit %d bytes)", maxArchiveTotalSize)
-			}
 			if _, err := WriteFileAtomicFrom(destPath, io.LimitReader(tr, hdr.Size), 0644); err != nil {
 				return fmt.Errorf("failed to write file %q: %w", rel, err)
 			}
@@ -135,6 +143,25 @@ func ExtractTarGzSubdir(r io.Reader, subdir string, destDir string) error {
 		return fmt.Errorf("no files found under %q in archive", subdir)
 	}
 	return nil
+}
+
+// limitedReader wraps an io.Reader and returns an error once the cumulative number of
+// bytes read exceeds limit. Unlike io.LimitedReader, it reports an explicit error rather
+// than a silent EOF, so it can enforce a hard cap on the total decompressed size of an
+// archive (including the payloads of skipped entries drained by tar.Reader.Next).
+type limitedReader struct {
+	r     io.Reader
+	n     int64
+	limit int64
+}
+
+func (l *limitedReader) Read(p []byte) (int, error) {
+	if l.n > l.limit {
+		return 0, fmt.Errorf("archive exceeds maximum extracted size (limit %d bytes)", l.limit)
+	}
+	n, err := l.r.Read(p)
+	l.n += int64(n)
+	return n, err
 }
 
 // stripArchiveRoot removes the archive's single top-level directory component from name,
