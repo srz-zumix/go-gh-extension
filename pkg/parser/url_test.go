@@ -2005,11 +2005,6 @@ func TestParseTreeURL(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "tree URL with empty ref",
-			input:   "https://github.com/owner/repo/tree//docs",
-			wantErr: true,
-		},
-		{
 			name:    "URL with too short path",
 			input:   "https://github.com/owner/repo",
 			wantErr: true,

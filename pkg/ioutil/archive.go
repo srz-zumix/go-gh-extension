@@ -199,7 +199,13 @@ func safeJoin(destDir, rel string) (string, error) {
 		return "", fmt.Errorf("failed to resolve path %q: %w", rel, err)
 	}
 	if joinedAbs != destAbs && !strings.HasPrefix(joinedAbs, destAbs+string(filepath.Separator)) {
-		return "", fmt.Errorf("archive entry %q escapes destination directory", rel)
+		// destAbs may be a filesystem root (e.g. "/"), for which destAbs+Separator
+		// is "//" and the prefix check above would reject valid children. Fall back
+		// to filepath.Rel, which reports containment correctly for root destinations.
+		relToDest, relErr := filepath.Rel(destAbs, joinedAbs)
+		if relErr != nil || relToDest == ".." || strings.HasPrefix(relToDest, ".."+string(filepath.Separator)) {
+			return "", fmt.Errorf("archive entry %q escapes destination directory", rel)
+		}
 	}
 	return joinedAbs, nil
 }

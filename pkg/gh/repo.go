@@ -594,8 +594,11 @@ func DownloadRepositoryArchive(ctx context.Context, g *GitHubClient, repo reposi
 		return nil, fmt.Errorf("failed to download %s archive for repository %s/%s: %w", archiveFormat, repo.Owner, repo.Name, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		defer resp.Body.Close() //nolint:errcheck
-		return nil, fmt.Errorf("unexpected http status %s downloading %s archive for repository %s/%s", resp.Status, archiveFormat, repo.Owner, repo.Name)
+		statusErr := fmt.Errorf("unexpected http status %s downloading %s archive for repository %s/%s", resp.Status, archiveFormat, repo.Owner, repo.Name)
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			return nil, errors.Join(statusErr, fmt.Errorf("failed to close response body: %w", closeErr))
+		}
+		return nil, statusErr
 	}
 	return resp.Body, nil
 }

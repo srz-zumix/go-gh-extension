@@ -179,6 +179,32 @@ func TestExtractTarGzSubdir_InvalidGzip(t *testing.T) {
 	}
 }
 
+func TestSafeJoin(t *testing.T) {
+	sep := string(filepath.Separator)
+	cases := []struct {
+		name    string
+		destDir string
+		rel     string
+		wantErr bool
+	}{
+		{name: "child file", destDir: filepath.Join("tmp", "dest"), rel: "a/b.txt", wantErr: false},
+		{name: "destination itself", destDir: filepath.Join("tmp", "dest"), rel: ".", wantErr: false},
+		{name: "parent escape", destDir: filepath.Join("tmp", "dest"), rel: "../escape", wantErr: true},
+		{name: "root destination child", destDir: sep, rel: "file", wantErr: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := safeJoin(tc.destDir, tc.rel)
+			if tc.wantErr && err == nil {
+				t.Fatalf("safeJoin(%q, %q) = nil error, want error", tc.destDir, tc.rel)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("safeJoin(%q, %q) error = %v, want nil", tc.destDir, tc.rel, err)
+			}
+		})
+	}
+}
+
 func TestExtractTarGzSubdir_SizeLimitCountsSkippedEntries(t *testing.T) {
 	// A large file placed OUTSIDE the requested subdir must still count toward the
 	// decompressed-size limit, because tar.Reader.Next drains (decompresses) its payload.
