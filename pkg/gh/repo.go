@@ -594,6 +594,10 @@ func DownloadRepositoryArchive(ctx context.Context, g *GitHubClient, repo reposi
 		return nil, fmt.Errorf("failed to download %s archive for repository %s/%s: %w", archiveFormat, repo.Owner, repo.Name, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// Drain a bounded amount of the response body so the HTTP transport can
+		// reuse the connection when possible (mirrors pkg/ioutil/download.go).
+		const maxErrorBodyDrain int64 = 4 << 10
+		_, _ = io.CopyN(io.Discard, resp.Body, maxErrorBodyDrain)
 		statusErr := fmt.Errorf("unexpected http status %s downloading %s archive for repository %s/%s", resp.Status, archiveFormat, repo.Owner, repo.Name)
 		if closeErr := resp.Body.Close(); closeErr != nil {
 			return nil, errors.Join(statusErr, fmt.Errorf("failed to close response body: %w", closeErr))

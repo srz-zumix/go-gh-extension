@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -73,12 +74,26 @@ func DownloadZipArchive(ctx context.Context, logURL string) (*zip.Reader, int64,
 // the zip-slip check is lexical and does not resolve symlinks, so a pre-existing symlink
 // among destDir's parents could still redirect writes. Callers must not pass a directory
 // that may contain attacker-controlled symlinks.
-func ExtractTarGzSubdir(r io.Reader, subdir string, destDir string) error {
-	gzr, err := gzip.NewReader(r)
-	if err != nil {
-		return fmt.Errorf("failed to decompress archive: %w", err)
+func ExtractTarGzSubdir(r io.Reader, subdir string, destDir string) (err error) {
+	gzr, gzErr := gzip.NewReader(r)
+	if gzErr != nil {
+		return fmt.Errorf("failed to decompress archive: %w", gzErr)
 	}
-	defer gzr.Close() //nolint:errcheck
+	defer func() {
+		closeErr := gzr.Close()
+		if closeErr == nil {
+			return
+		}
+		wrapped := fmt.Errorf("failed to close gzip reader: %w", closeErr)
+		switch {
+		case err == nil:
+			err = wrapped
+		case errors.Is(err, closeErr):
+			// The primary error already wraps this decompression error; don't duplicate it.
+		default:
+			err = errors.Join(err, wrapped)
+		}
+	}()
 
 	subdir = strings.Trim(path.Clean("/"+subdir), "/")
 
