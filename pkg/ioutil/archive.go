@@ -156,11 +156,21 @@ type limitedReader struct {
 }
 
 func (l *limitedReader) Read(p []byte) (int, error) {
-	if l.n > l.limit {
+	remaining := l.limit - l.n
+	if remaining < 0 {
 		return 0, fmt.Errorf("archive exceeds maximum extracted size (limit %d bytes)", l.limit)
+	}
+	// Read at most one byte beyond the remaining budget so crossing the limit is
+	// always detected, even when the underlying reader reports io.EOF in the same
+	// call. This bounds the total bytes read from the source to limit+1.
+	if int64(len(p)) > remaining+1 {
+		p = p[:remaining+1]
 	}
 	n, err := l.r.Read(p)
 	l.n += int64(n)
+	if l.n > l.limit {
+		return n, fmt.Errorf("archive exceeds maximum extracted size (limit %d bytes)", l.limit)
+	}
 	return n, err
 }
 

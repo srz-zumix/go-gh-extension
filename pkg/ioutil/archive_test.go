@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -177,6 +178,69 @@ func TestExtractTarGzSubdir_InvalidGzip(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for invalid gzip data, got nil")
 	}
+}
+
+// oneShotEOFReader returns all of its data plus io.EOF in a single Read call, to
+// exercise the boundary where the limitedReader crosses its cap in the same read
+// that reports EOF.
+type oneShotEOFReader struct {
+	data []byte
+	done bool
+}
+
+func (r *oneShotEOFReader) Read(p []byte) (int, error) {
+	if r.done {
+		return 0, io.EOF
+	}
+	n := copy(p, r.data)
+	if n < len(r.data) {
+		// Caller's buffer was smaller than our data; return what fits without EOF.
+		r.data = r.data[n:]
+		return n, nil
+	}
+	r.done = true
+	return n, io.EOF
+}
+
+func TestLimitedReader(t *testing.T) {
+	read := func(src io.Reader, limit int64) (int, error) {
+		lr := &limitedReader{r: src, limit: limit}
+		buf := make([]byte, 4096)
+		total := 0
+		for {
+			n, err := lr.Read(buf)
+			total += n
+			if err != nil {
+				return total, err
+			}
+		}
+	}
+
+	t.Run("exactly at limit succeeds", func(t *testing.T) {
+		total, err := read(bytes.NewReader(make([]byte, 1024)), 1024)
+		if err != io.EOF {
+			t.Fatalf("err = %v, want io.EOF", err)
+		}
+		if total != 1024 {
+			t.Fatalf("total = %d, want 1024", total)
+		}
+	})
+
+	t.Run("one byte over limit errors", func(t *testing.T) {
+		_, err := read(bytes.NewReader(make([]byte, 1025)), 1024)
+		if err == nil || err == io.EOF {
+			t.Fatalf("err = %v, want size-limit error", err)
+		}
+	})
+
+	t.Run("overshoot with EOF in same read errors", func(t *testing.T) {
+		// The source returns limit+1 bytes together with io.EOF in a single call.
+		src := &oneShotEOFReader{data: make([]byte, 1025)}
+		_, err := read(src, 1024)
+		if err == nil || err == io.EOF {
+			t.Fatalf("err = %v, want size-limit error even when EOF arrives with the overflowing bytes", err)
+		}
+	})
 }
 
 func TestSafeJoin(t *testing.T) {
