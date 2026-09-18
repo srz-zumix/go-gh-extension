@@ -72,8 +72,9 @@ func DownloadZipArchive(ctx context.Context, logURL string) (*zip.Reader, int64,
 //
 // destDir is expected to be a freshly created, empty directory that the caller controls;
 // the zip-slip check is lexical and does not resolve symlinks, so a pre-existing symlink
-// among destDir's parents could still redirect writes. Callers must not pass a directory
-// that may contain attacker-controlled symlinks.
+// at destDir or in any directory component beneath it (e.g. "destDir/sub" -> "/etc")
+// could still redirect writes outside destDir. Callers must not pass a directory that may
+// contain attacker-controlled symlinks.
 func ExtractTarGzSubdir(r io.Reader, subdir string, destDir string) (err error) {
 	// Reject subdir paths that are absolute or escape the archive root before doing any
 	// work; otherwise inputs like "../" or "/" would collapse to "" during normalization
