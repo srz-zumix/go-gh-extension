@@ -238,6 +238,44 @@ func ParseDiscussionURL(input string) (*DiscussionURL, error) {
 	return nil, fmt.Errorf("not a discussion URL: %s", input)
 }
 
+// TreeURL represents a repository directory (tree) parsed from a URL.
+type TreeURL struct {
+	Url  *url.URL
+	Repo *repository.Repository
+	Ref  string
+	Path string
+}
+
+// ParseTreeURL parses a GitHub tree (directory) URL and extracts the repository, ref, and path.
+// Expected URL format:
+//   - https://github.com/owner/repo/tree/<ref>/<path/to/dir>
+//
+// The ref is taken to be the single path segment immediately following "tree/"; refs
+// containing a slash (e.g. branch names like "feature/x") are not supported by this
+// parser and must be supplied separately by the caller instead of being embedded in the URL.
+// Returns nil, nil for empty input or input that is not an HTTP(S) URL. Returns an error
+// if the input is not a tree URL.
+func ParseTreeURL(input string) (*TreeURL, error) {
+	githubURL, err := ParseGitHubURL(input)
+	if err != nil {
+		return nil, err
+	}
+	if githubURL == nil {
+		return nil, nil
+	}
+
+	if len(githubURL.PathParts) < 4 || githubURL.PathParts[2] != "tree" || githubURL.PathParts[3] == "" {
+		return nil, fmt.Errorf("not a tree URL: %s", input)
+	}
+
+	return &TreeURL{
+		Url:  githubURL.Url,
+		Repo: githubURL.Repo,
+		Ref:  githubURL.PathParts[3],
+		Path: strings.Join(githubURL.PathParts[4:], "/"),
+	}, nil
+}
+
 // MilestoneURL represents a milestone parsed from a URL
 type MilestoneURL struct {
 	Url    *url.URL

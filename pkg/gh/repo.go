@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"slices"
 	"strings"
@@ -563,6 +564,17 @@ func FlattenRepositorySubmodules(submodules []RepositorySubmodule) []RepositoryS
 		flattened = append(flattened, FlattenRepositorySubmodules(submodule.Submodules)...)
 	}
 	return flattened
+}
+
+// DownloadRepositoryArchive downloads a tarball or zipball archive of repo at ref and
+// returns the response body for the caller to read and close. The download follows the
+// GitHub API redirect to the storage backend without forwarding GitHub-specific headers.
+func DownloadRepositoryArchive(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, archiveFormat github.ArchiveFormat) (io.ReadCloser, error) {
+	body, err := g.DownloadRepositoryArchive(ctx, repo.Owner, repo.Name, archiveFormat, ref)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download %s archive for repository %s/%s at ref '%s': %w", archiveFormat, repo.Owner, repo.Name, ref, err)
+	}
+	return body, nil
 }
 
 func GetRepositoryContent(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, ref *string) ([]*github.RepositoryContent, error) {
