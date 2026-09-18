@@ -2,10 +2,15 @@ package client
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 
 	"github.com/google/go-github/v90/github"
 	"github.com/shurcooL/githubv4"
+	"github.com/srz-zumix/go-gh-extension/pkg/httputil"
 )
 
 // getBranchMaxRedirects is the maximum number of redirects that Repositories.GetBranch follows.
@@ -172,6 +177,47 @@ func (g *GitHubClient) GetRepositoryArchiveLink(ctx context.Context, owner, repo
 		return nil, err
 	}
 	return link, nil
+}
+
+// DownloadRepositoryArchive resolves the archive-link redirect for repo at ref and
+// downloads the archive over a host-aware client. Authentication headers are preserved
+// on same-host redirects and stripped on cross-host (CDN/storage) redirects so GitHub
+// credentials are never leaked to the storage backend. The caller owns the returned
+// body and must close it.
+func (g *GitHubClient) DownloadRepositoryArchive(ctx context.Context, owner, repo string, archiveFormat github.ArchiveFormat, ref string) (io.ReadCloser, error) {
+	link, err := g.GetRepositoryArchiveLink(ctx, owner, repo, archiveFormat, ref)
+	if err != nil {
+		return nil, err
+	}
+
+	// Normalize the host to a bare hostname (without any port) so it matches
+	// req.URL.Hostname() inside NewHostAwareClient. Otherwise a GHES host on a
+	// non-default port (e.g. "ghes.example.com:8443") would never compare equal
+	// and same-host archive requests would be misclassified as cross-host,
+	// stripping the authentication headers.
+	host := (&url.URL{Host: g.Host()}).Hostname()
+	httpClient := httputil.NewHostAwareClient(g.GetClient().Client(), host)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// Drain a bounded amount of the response body so the HTTP transport can
+		// reuse the connection when possible (mirrors pkg/ioutil/download.go).
+		const maxErrorBodyDrain int64 = 4 << 10
+		_, _ = io.CopyN(io.Discard, resp.Body, maxErrorBodyDrain)
+		statusErr := fmt.Errorf("unexpected http status %s downloading %s archive", resp.Status, archiveFormat)
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			return nil, errors.Join(statusErr, fmt.Errorf("failed to close response body: %w", closeErr))
+		}
+		return nil, statusErr
+	}
+	return resp.Body, nil
 }
 
 // ListBranches retrieves all branches for a specific repository.

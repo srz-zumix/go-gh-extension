@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"slices"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	"github.com/google/go-github/v90/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
-	"github.com/srz-zumix/go-gh-extension/pkg/httputil"
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
 )
 
@@ -572,39 +570,11 @@ func FlattenRepositorySubmodules(submodules []RepositorySubmodule) []RepositoryS
 // returns the response body for the caller to read and close. The download follows the
 // GitHub API redirect to the storage backend without forwarding GitHub-specific headers.
 func DownloadRepositoryArchive(ctx context.Context, g *GitHubClient, repo repository.Repository, ref string, archiveFormat github.ArchiveFormat) (io.ReadCloser, error) {
-	link, err := g.GetRepositoryArchiveLink(ctx, repo.Owner, repo.Name, archiveFormat, ref)
+	body, err := g.DownloadRepositoryArchive(ctx, repo.Owner, repo.Name, archiveFormat, ref)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get %s archive link for repository %s/%s at ref '%s': %w", archiveFormat, repo.Owner, repo.Name, ref, err)
+		return nil, fmt.Errorf("failed to download %s archive for repository %s/%s at ref '%s': %w", archiveFormat, repo.Owner, repo.Name, ref, err)
 	}
-
-	// Normalize the host to a bare hostname (without any port) so it matches
-	// req.URL.Hostname() inside NewHostAwareClient. Otherwise a GHES host on a
-	// non-default port (e.g. "ghes.example.com:8443") would never compare equal
-	// and same-host archive requests would be misclassified as cross-host,
-	// stripping the authentication headers.
-	host := (&url.URL{Host: g.Host()}).Hostname()
-	httpClient := httputil.NewHostAwareClient(g.GetClient().Client(), host)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create %s archive download request for repository %s/%s: %w", archiveFormat, repo.Owner, repo.Name, err)
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to download %s archive for repository %s/%s: %w", archiveFormat, repo.Owner, repo.Name, err)
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Drain a bounded amount of the response body so the HTTP transport can
-		// reuse the connection when possible (mirrors pkg/ioutil/download.go).
-		const maxErrorBodyDrain int64 = 4 << 10
-		_, _ = io.CopyN(io.Discard, resp.Body, maxErrorBodyDrain)
-		statusErr := fmt.Errorf("unexpected http status %s downloading %s archive for repository %s/%s", resp.Status, archiveFormat, repo.Owner, repo.Name)
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			return nil, errors.Join(statusErr, fmt.Errorf("failed to close response body: %w", closeErr))
-		}
-		return nil, statusErr
-	}
-	return resp.Body, nil
+	return body, nil
 }
 
 func GetRepositoryContent(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, ref *string) ([]*github.RepositoryContent, error) {

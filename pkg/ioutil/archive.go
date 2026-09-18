@@ -75,6 +75,16 @@ func DownloadZipArchive(ctx context.Context, logURL string) (*zip.Reader, int64,
 // among destDir's parents could still redirect writes. Callers must not pass a directory
 // that may contain attacker-controlled symlinks.
 func ExtractTarGzSubdir(r io.Reader, subdir string, destDir string) (err error) {
+	// Reject subdir paths that are absolute or escape the archive root before doing any
+	// work; otherwise inputs like "../" or "/" would collapse to "" during normalization
+	// and be treated as "extract the whole archive", silently broadening the scope.
+	if path.IsAbs(subdir) {
+		return fmt.Errorf("subdir %q must be a relative path", subdir)
+	}
+	if cleaned := path.Clean(subdir); cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return fmt.Errorf("subdir %q escapes the archive root", subdir)
+	}
+
 	gzr, gzErr := gzip.NewReader(r)
 	if gzErr != nil {
 		return fmt.Errorf("failed to decompress archive: %w", gzErr)

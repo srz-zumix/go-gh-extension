@@ -173,6 +173,55 @@ func TestExtractTarGzSubdir_EmptySubdirExtractsWholeArchive(t *testing.T) {
 	}
 }
 
+func TestExtractTarGzSubdir_RejectsEscapingSubdir(t *testing.T) {
+	// Each archive holds a file both at the root and under a nested directory so that,
+	// under the pre-fix behavior, an absolute or escaping subdir would have collapsed to
+	// "" and silently extracted the whole archive.
+	archive := buildTarGz(t, []tarEntry{
+		{name: "owner-repo-abc123/", typeflag: tar.TypeDir},
+		{name: "owner-repo-abc123/root.txt", content: "root"},
+		{name: "owner-repo-abc123/nested/leaf.txt", content: "leaf"},
+	})
+
+	rejected := []string{"..", "../foo", "a/../../b", "/abs", "/"}
+	for _, subdir := range rejected {
+		t.Run("reject "+subdir, func(t *testing.T) {
+			destDir := t.TempDir()
+			err := ExtractTarGzSubdir(bytes.NewReader(archive), subdir, destDir)
+			if err == nil {
+				t.Fatalf("ExtractTarGzSubdir(%q) error = nil, want error", subdir)
+			}
+			entries, readErr := os.ReadDir(destDir)
+			if readErr != nil {
+				t.Fatalf("failed to read dest dir: %v", readErr)
+			}
+			if len(entries) != 0 {
+				t.Errorf("ExtractTarGzSubdir(%q) extracted %d entries, want 0", subdir, len(entries))
+			}
+		})
+	}
+}
+
+func TestExtractTarGzSubdir_NormalizesRelativeSubdir(t *testing.T) {
+	// "nested/../nested" cleans to "nested" and must select that subtree only.
+	archive := buildTarGz(t, []tarEntry{
+		{name: "owner-repo-abc123/", typeflag: tar.TypeDir},
+		{name: "owner-repo-abc123/root.txt", content: "root"},
+		{name: "owner-repo-abc123/nested/leaf.txt", content: "leaf"},
+	})
+
+	destDir := t.TempDir()
+	if err := ExtractTarGzSubdir(bytes.NewReader(archive), "nested/../nested", destDir); err != nil {
+		t.Fatalf("ExtractTarGzSubdir() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(destDir, "leaf.txt")); err != nil {
+		t.Errorf("expected leaf.txt to be extracted, stat err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(destDir, "root.txt")); !os.IsNotExist(err) {
+		t.Errorf("expected root.txt outside subdir to be excluded, stat err = %v", err)
+	}
+}
+
 func TestExtractTarGzSubdir_InvalidGzip(t *testing.T) {
 	err := ExtractTarGzSubdir(bytes.NewReader([]byte("not gzip data")), "ext", t.TempDir())
 	if err == nil {
