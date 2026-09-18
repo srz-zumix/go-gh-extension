@@ -602,6 +602,13 @@ func OpenPullRequest(ctx context.Context, g *GitHubClient, repo repository.Repos
 	})
 }
 
+// UpdatePullRequestBase retargets an open pull request to another base branch (wrapper).
+func UpdatePullRequestBase(ctx context.Context, g *GitHubClient, repo repository.Repository, number int, base string) (*github.PullRequest, error) {
+	return g.EditPullRequest(ctx, repo.Owner, repo.Name, number, &github.PullRequest{
+		Base: &github.PullRequestBranch{Ref: &base},
+	})
+}
+
 // MarkPullRequestFileAsViewed marks a file in a pull request as viewed.
 // pr must be a *github.PullRequest with a valid NodeID.
 func MarkPullRequestFileAsViewed(ctx context.Context, g *GitHubClient, pr *github.PullRequest, filePath string) error {
