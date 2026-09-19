@@ -298,6 +298,12 @@ func SearchDiscussions(ctx context.Context, g *GitHubClient, repo repository.Rep
 	return discussions, nil
 }
 
+// SearchUserDiscussions searches discussions authored by username across all repositories.
+func SearchUserDiscussions(ctx context.Context, g *GitHubClient, username string, query string) ([]Discussion, error) {
+	searchQuery := fmt.Sprintf("author:%s %s", username, query)
+	return g.SearchDiscussions(ctx, searchQuery, 100)
+}
+
 // searchDiscussionsByOwner searches discussions across all repositories owned by an organization or user
 func searchDiscussionsByOwner(ctx context.Context, g *GitHubClient, owner string, query string) ([]Discussion, error) {
 	ownerType, err := DetectOwnerType(ctx, g, owner)

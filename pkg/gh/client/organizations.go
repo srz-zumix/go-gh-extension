@@ -14,6 +14,15 @@ func (g *GitHubClient) GetOrg(ctx context.Context, org string) (*github.Organiza
 	return organization, nil
 }
 
+// ListOrganizationsForUser lists the organizations user is a member of.
+// If user is empty, lists organizations for the authenticated user, including private membership.
+func (g *GitHubClient) ListOrganizationsForUser(ctx context.Context, user string) ([]*github.Organization, error) {
+	opts := &github.ListOptions{}
+	return paginate(ctx, opts, 0, func(ctx context.Context) ([]*github.Organization, *github.Response, error) {
+		return g.client.Organizations.List(ctx, user, opts)
+	})
+}
+
 // EditOrg updates the organization settings using the GitHub API.
 func (g *GitHubClient) EditOrg(ctx context.Context, org string, input *github.Organization) (*github.Organization, error) {
 	organization, _, err := g.client.Organizations.Edit(ctx, org, input)

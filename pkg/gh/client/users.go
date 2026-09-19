@@ -37,3 +37,19 @@ func (g *GitHubClient) GetUserHovercard(ctx context.Context, username string, su
 	}
 	return user, nil
 }
+
+// ListFollowers lists the users following user.
+func (g *GitHubClient) ListFollowers(ctx context.Context, user string) ([]*github.User, error) {
+	opts := &github.ListOptions{}
+	return paginate(ctx, opts, 0, func(ctx context.Context) ([]*github.User, *github.Response, error) {
+		return g.client.Users.ListFollowers(ctx, user, opts)
+	})
+}
+
+// ListFollowing lists the users that user is following.
+func (g *GitHubClient) ListFollowing(ctx context.Context, user string) ([]*github.User, error) {
+	opts := &github.ListOptions{}
+	return paginate(ctx, opts, 0, func(ctx context.Context) ([]*github.User, *github.Response, error) {
+		return g.client.Users.ListFollowing(ctx, user, opts)
+	})
+}
