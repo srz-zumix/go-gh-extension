@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -214,6 +215,46 @@ func TestGetStatusManaged(t *testing.T) {
 	}
 	if !status.Installed || !status.Managed || status.Ref != "v1" || status.CommitSHA != "abc" {
 		t.Fatalf("GetStatus() = %+v, want installed and managed with ref=v1 commit=abc", status)
+	}
+}
+
+func TestUpdateNotInstalledFailsBeforeResolvingRef(t *testing.T) {
+	cfg := Config{Extensions: []Extension{{Name: "my-extension", URL: "https://github.com/owner/repo/tree/v1/dir"}}}
+	prefix := t.TempDir()
+	dir := filepath.Join(prefix, "my-extension")
+
+	// Neither update nor update --force may bootstrap a not-installed extension; both
+	// must fail before any network call (which is why resolve/GetCommitSHA1 are never
+	// reached and no HTTP mocking is required here).
+	for _, force := range []bool{false, true} {
+		opts := InstallOptions{Scope: ScopeUser, Prefix: prefix, Force: force}
+		_, err := Update(context.Background(), cfg, "my-extension", opts)
+		if err == nil {
+			t.Fatalf("Update(force=%v) on not-installed extension: expected error, got nil", force)
+		}
+		if !strings.Contains(err.Error(), "not installed") {
+			t.Fatalf("Update(force=%v) error = %v, want it to mention \"not installed\"", force, err)
+		}
+		if _, statErr := os.Stat(dir); !os.IsNotExist(statErr) {
+			t.Fatalf("Update(force=%v) created or left %q; stat err = %v", force, dir, statErr)
+		}
+	}
+}
+
+func TestUpdateUnmanagedWithoutForceRefuses(t *testing.T) {
+	cfg := Config{Extensions: []Extension{{Name: "my-extension", URL: "https://github.com/owner/repo/tree/v1/dir"}}}
+	prefix := t.TempDir()
+	dir := filepath.Join(prefix, "my-extension")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
+
+	_, err := Update(context.Background(), cfg, "my-extension", InstallOptions{Scope: ScopeUser, Prefix: prefix})
+	if err == nil {
+		t.Fatal("Update() on unmanaged dir without force: expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "not managed by this command") {
+		t.Fatalf("Update() error = %v, want it to mention \"not managed by this command\"", err)
 	}
 }
 

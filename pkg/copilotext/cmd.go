@@ -41,7 +41,9 @@ func newExtensionListCmd(cfg Config) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", ext.Name, ext.URL, src.Ref)
+				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", ext.Name, ext.URL, src.Ref); err != nil {
+					return err
+				}
 			}
 			return nil
 		},
@@ -64,13 +66,17 @@ func newExtensionStatusCmd(cfg Config) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to get status of extension %q: %w", ext.Name, err)
 				}
+				var writeErr error
 				switch {
 				case !status.Installed:
-					fmt.Fprintf(cmd.OutOrStdout(), "%s\tnot installed\t%s\n", status.Name, status.Dir)
+					_, writeErr = fmt.Fprintf(cmd.OutOrStdout(), "%s\tnot installed\t%s\n", status.Name, status.Dir)
 				case !status.Managed:
-					fmt.Fprintf(cmd.OutOrStdout(), "%s\tinstalled (unmanaged)\t%s\n", status.Name, status.Dir)
+					_, writeErr = fmt.Fprintf(cmd.OutOrStdout(), "%s\tinstalled (unmanaged)\t%s\n", status.Name, status.Dir)
 				default:
-					fmt.Fprintf(cmd.OutOrStdout(), "%s\tinstalled\tref=%s\tcommit=%s\t%s\n", status.Name, status.Ref, status.CommitSHA, status.Dir)
+					_, writeErr = fmt.Fprintf(cmd.OutOrStdout(), "%s\tinstalled\tref=%s\tcommit=%s\t%s\n", status.Name, status.Ref, status.CommitSHA, status.Dir)
+				}
+				if writeErr != nil {
+					return writeErr
 				}
 			}
 			return nil
@@ -98,7 +104,9 @@ func newExtensionInstallCmd(cfg Config) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to install extension %q: %w", ext.Name, err)
 				}
-				printInstallResult(cmd, "install", result, opts.DryRun)
+				if err := printInstallResult(cmd, "install", result, opts.DryRun); err != nil {
+					return err
+				}
 			}
 			return nil
 		},
@@ -116,7 +124,7 @@ func newExtensionUpdateCmd(cfg Config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update [name...]",
 		Short: "Update installed extensions",
-		Long:  `Re-install the given extensions (or all bundled extensions, when none are given) when their resolved ref points at a new commit than what is installed, or when --force is given.`,
+		Long:  `Re-install the given extensions (or all bundled extensions, when none are given) when their resolved ref points at a different commit than the one installed, or when --force is given.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.Scope = Scope(scope)
 			exts, err := cfg.selectExtensions(args)
@@ -129,10 +137,14 @@ func newExtensionUpdateCmd(cfg Config) *cobra.Command {
 					return fmt.Errorf("failed to update extension %q: %w", ext.Name, err)
 				}
 				if !result.Changed {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s\talready up to date\t%s\n", result.Name, result.Dir)
+					if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\talready up to date\t%s\n", result.Name, result.Dir); err != nil {
+						return err
+					}
 					continue
 				}
-				printInstallResult(cmd, "update", result, opts.DryRun)
+				if err := printInstallResult(cmd, "update", result, opts.DryRun); err != nil {
+					return err
+				}
 			}
 			return nil
 		},
@@ -161,9 +173,13 @@ func newExtensionUninstallCmd(cfg Config) *cobra.Command {
 					return fmt.Errorf("failed to uninstall extension %q: %w", ext.Name, err)
 				}
 				if dryRun {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s\twould be uninstalled\n", ext.Name)
+					if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\twould be uninstalled\n", ext.Name); err != nil {
+						return err
+					}
 				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s\tuninstalled\n", ext.Name)
+					if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\tuninstalled\n", ext.Name); err != nil {
+						return err
+					}
 				}
 			}
 			return nil
@@ -176,10 +192,15 @@ func newExtensionUninstallCmd(cfg Config) *cobra.Command {
 }
 
 // printInstallResult prints the outcome of an install or update operation.
-func printInstallResult(cmd *cobra.Command, verb string, result *InstallResult, dryRun bool) {
+func printInstallResult(cmd *cobra.Command, verb string, result *InstallResult, dryRun bool) error {
+	var err error
 	if dryRun {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s\twould %s\tref=%s\tcommit=%s\t%s\n", result.Name, verb, result.Ref, result.CommitSHA, result.Dir)
-		return
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\twould %s\tref=%s\tcommit=%s\t%s\n", result.Name, verb, result.Ref, result.CommitSHA, result.Dir)
+	} else {
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\t%sed\tref=%s\tcommit=%s\t%s\n", result.Name, verb, result.Ref, result.CommitSHA, result.Dir)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s\t%sed\tref=%s\tcommit=%s\t%s\n", result.Name, verb, result.Ref, result.CommitSHA, result.Dir)
+	if err != nil {
+		return fmt.Errorf("failed to write output: %w", err)
+	}
+	return nil
 }

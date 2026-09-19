@@ -41,8 +41,9 @@ func Install(ctx context.Context, cfg Config, name string, opts InstallOptions) 
 	return installOrUpdate(ctx, cfg, ext, opts, false)
 }
 
-// Update re-installs the named extension when the resolved ref points at a new commit,
-// or when opts.Force is set. It reports Changed=false when already up to date.
+// Update re-installs the named extension when the resolved ref points at a different
+// commit than the one installed, or when opts.Force is set. It reports Changed=false when
+// already up to date.
 func Update(ctx context.Context, cfg Config, name string, opts InstallOptions) (*InstallResult, error) {
 	ext, err := cfg.find(name)
 	if err != nil {
@@ -57,6 +58,38 @@ func installOrUpdate(ctx context.Context, cfg Config, ext Extension, opts Instal
 		return nil, err
 	}
 
+	root, err := extensionsRoot(ctx, opts.Scope, opts.Prefix)
+	if err != nil {
+		return nil, err
+	}
+	dir := destDir(root, ext.Name)
+
+	// Determine the local installation state before making any network calls so that a
+	// misuse (e.g. updating an extension that is not installed) fails fast without hitting
+	// GitHub.
+	existing, err := readMetadata(dir)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil {
+		if isUpdate {
+			// Update only operates on an already-installed extension. A missing
+			// destination means it was never installed, which --force does not
+			// bootstrap; the user must run install first.
+			if _, statErr := os.Stat(dir); statErr != nil {
+				if os.IsNotExist(statErr) {
+					return nil, fmt.Errorf("extension %q is not installed; run install first", ext.Name)
+				}
+				return nil, fmt.Errorf("failed to inspect %q: %w", dir, statErr)
+			}
+			// The destination exists but is unmanaged: require --force to overwrite it,
+			// preserving the actionable error from requireOverwritable.
+		}
+		if err := requireOverwritable(dir, opts.Force); err != nil {
+			return nil, err
+		}
+	}
+
 	client, err := gh.NewGitHubClientWithRepo(src.Repo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub client for %s/%s: %w", src.Repo.Owner, src.Repo.Name, err)
@@ -64,28 +97,6 @@ func installOrUpdate(ctx context.Context, cfg Config, ext Extension, opts Instal
 	sha, err := gh.GetCommitSHA1(ctx, client, src.Repo, src.Ref)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve ref %q for %s/%s: %w", src.Ref, src.Repo.Owner, src.Repo.Name, err)
-	}
-
-	root, err := extensionsRoot(ctx, opts.Scope, opts.Prefix)
-	if err != nil {
-		return nil, err
-	}
-	dir := destDir(root, ext.Name)
-
-	existing, err := readMetadata(dir)
-	if err != nil {
-		return nil, err
-	}
-	if existing == nil {
-		if isUpdate {
-			if err := requireOverwritable(dir, opts.Force); err != nil {
-				return nil, fmt.Errorf("extension %q is not installed; run install first: %w", ext.Name, err)
-			}
-		} else {
-			if err := requireOverwritable(dir, opts.Force); err != nil {
-				return nil, err
-			}
-		}
 	}
 
 	if isUpdate && !opts.Force && existing != nil && existing.CommitSHA == sha && existing.Ref == src.Ref {
