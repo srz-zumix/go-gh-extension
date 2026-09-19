@@ -1,12 +1,16 @@
 package copilotext
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func TestResolve(t *testing.T) {
@@ -326,5 +330,184 @@ func TestMetadataJSONFieldNames(t *testing.T) {
 		if _, ok := raw[key]; !ok {
 			t.Fatalf("metadata JSON missing key %q, got %v", key, raw)
 		}
+	}
+}
+
+func TestPrintInstallResultVerbForms(t *testing.T) {
+	result := &InstallResult{Name: "my-extension", Dir: "/x", Ref: "v1", CommitSHA: "abc"}
+	cases := []struct {
+		verb, pastVerb string
+		dryRun         bool
+		want, notWant  string
+	}{
+		{"update", "updated", false, "\tupdated\t", "updateed"},
+		{"update", "updated", true, "\twould update\t", "updateed"},
+		{"install", "installed", false, "\tinstalled\t", "installeded"},
+		{"install", "installed", true, "\twould install\t", ""},
+	}
+	for _, c := range cases {
+		var buf bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetOut(&buf)
+		if err := printInstallResult(cmd, c.verb, c.pastVerb, result, c.dryRun); err != nil {
+			t.Fatalf("printInstallResult() error = %v", err)
+		}
+		out := buf.String()
+		if !strings.Contains(out, c.want) {
+			t.Errorf("printInstallResult(%q,%q,dryRun=%v) = %q, want it to contain %q", c.verb, c.pastVerb, c.dryRun, out, c.want)
+		}
+		if c.notWant != "" && strings.Contains(out, c.notWant) {
+			t.Errorf("printInstallResult(%q,%q,dryRun=%v) = %q, must not contain %q", c.verb, c.pastVerb, c.dryRun, out, c.notWant)
+		}
+	}
+}
+
+func mkDirWithFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("failed to create dir %q: %v", dir, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+}
+
+func assertNoBackupContainer(t *testing.T, root string) {
+	t.Helper()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatalf("failed to read root: %v", err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".copilot-extension-backup-") {
+			t.Errorf("backup container left behind: %s", e.Name())
+		}
+	}
+}
+
+func TestReplaceDirWithBackupSuccess(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "ext")
+	src := filepath.Join(root, "src")
+	mkDirWithFile(t, dir, "old.txt", "old")
+	mkDirWithFile(t, src, "new.txt", "new")
+
+	if err := replaceDirWithBackup(realFSOps, src, dir, root, "ext"); err != nil {
+		t.Fatalf("replaceDirWithBackup() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "new.txt")); err != nil {
+		t.Errorf("expected new content in place: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "old.txt")); !os.IsNotExist(err) {
+		t.Errorf("expected old content replaced, stat err = %v", err)
+	}
+	if _, err := os.Stat(src); !os.IsNotExist(err) {
+		t.Errorf("expected src consumed by rename, stat err = %v", err)
+	}
+	assertNoBackupContainer(t, root)
+}
+
+func TestReplaceDirWithBackupNoExistingDir(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "ext")
+	src := filepath.Join(root, "src")
+	mkDirWithFile(t, src, "new.txt", "new")
+
+	if err := replaceDirWithBackup(realFSOps, src, dir, root, "ext"); err != nil {
+		t.Fatalf("replaceDirWithBackup() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "new.txt")); err != nil {
+		t.Errorf("expected fresh install in place: %v", err)
+	}
+	assertNoBackupContainer(t, root)
+}
+
+func TestReplaceDirWithBackupRestoresOnRenameFailure(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "ext")
+	src := filepath.Join(root, "src")
+	mkDirWithFile(t, dir, "old.txt", "old")
+	mkDirWithFile(t, src, "new.txt", "new")
+
+	failSwap := errors.New("swap failed")
+	ops := fsOps{
+		rename: func(oldpath, newpath string) error {
+			if oldpath == src && newpath == dir {
+				return failSwap
+			}
+			return os.Rename(oldpath, newpath)
+		},
+		removeAll: os.RemoveAll,
+	}
+	err := replaceDirWithBackup(ops, src, dir, root, "ext")
+	if err == nil {
+		t.Fatal("replaceDirWithBackup(): expected error, got nil")
+	}
+	if !errors.Is(err, failSwap) {
+		t.Errorf("error = %v, want it to wrap failSwap", err)
+	}
+	if _, e := os.Stat(filepath.Join(dir, "old.txt")); e != nil {
+		t.Errorf("expected previous installation restored: %v", e)
+	}
+	assertNoBackupContainer(t, root)
+}
+
+func TestReplaceDirWithBackupPreservesBackupWhenRestoreFails(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "ext")
+	src := filepath.Join(root, "src")
+	mkDirWithFile(t, dir, "old.txt", "old")
+	mkDirWithFile(t, src, "new.txt", "new")
+
+	failSwap := errors.New("swap failed")
+	failRestore := errors.New("restore failed")
+	var backupPath string
+	ops := fsOps{
+		rename: func(oldpath, newpath string) error {
+			switch {
+			case oldpath == dir:
+				backupPath = newpath
+				return os.Rename(oldpath, newpath)
+			case oldpath == src && newpath == dir:
+				return failSwap
+			case newpath == dir:
+				return failRestore
+			default:
+				return os.Rename(oldpath, newpath)
+			}
+		},
+		removeAll: os.RemoveAll,
+	}
+	err := replaceDirWithBackup(ops, src, dir, root, "ext")
+	if err == nil {
+		t.Fatal("replaceDirWithBackup(): expected error, got nil")
+	}
+	if !errors.Is(err, failSwap) || !errors.Is(err, failRestore) {
+		t.Errorf("error = %v, want it to wrap both failSwap and failRestore", err)
+	}
+	if backupPath == "" {
+		t.Fatal("backup path was not recorded")
+	}
+	if _, e := os.Stat(filepath.Join(backupPath, "old.txt")); e != nil {
+		t.Errorf("expected preserved backup to retain old content: %v", e)
+	}
+}
+
+func TestReplaceDirWithBackupCleanupFailureIsNonFatal(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "ext")
+	src := filepath.Join(root, "src")
+	mkDirWithFile(t, dir, "old.txt", "old")
+	mkDirWithFile(t, src, "new.txt", "new")
+
+	ops := fsOps{
+		rename:    os.Rename,
+		removeAll: func(string) error { return errors.New("cleanup failed") },
+	}
+	if err := replaceDirWithBackup(ops, src, dir, root, "ext"); err != nil {
+		t.Fatalf("expected success despite cleanup failure, got %v", err)
+	}
+	if _, e := os.Stat(filepath.Join(dir, "new.txt")); e != nil {
+		t.Errorf("expected new content in place: %v", e)
 	}
 }

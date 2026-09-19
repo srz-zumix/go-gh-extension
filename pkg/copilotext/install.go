@@ -2,6 +2,7 @@ package copilotext
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -141,7 +142,8 @@ func requireOverwritable(dir string, force bool) error {
 }
 
 // installArchive downloads src's tarball, extracts src.Path into a temporary directory,
-// writes install metadata, then atomically replaces dir with the new contents.
+// writes install metadata, then replaces dir with the new contents, keeping a rollback
+// backup so a failed replace does not destroy an existing installation.
 func installArchive(ctx context.Context, client *gh.GitHubClient, cfg Config, src *source, name, dir, sha string) error {
 	body, err := gh.DownloadRepositoryArchive(ctx, client, src.Repo, src.Ref, github.Tarball)
 	if err != nil {
@@ -179,12 +181,67 @@ func installArchive(ctx context.Context, client *gh.GitHubClient, cfg Config, sr
 		return err
 	}
 
-	if err := os.RemoveAll(dir); err != nil {
-		return fmt.Errorf("failed to remove existing extension directory %q: %w", dir, err)
+	if err := replaceDirWithBackup(realFSOps, tmpDir, dir, root, name); err != nil {
+		return err
 	}
-	if err := os.Rename(tmpDir, dir); err != nil {
+	return nil
+}
+
+// fsOps holds the filesystem operations used by replaceDirWithBackup, injectable in tests
+// to exercise the rename and cleanup failure paths.
+type fsOps struct {
+	rename    func(oldpath, newpath string) error
+	removeAll func(path string) error
+}
+
+var realFSOps = fsOps{rename: os.Rename, removeAll: os.RemoveAll}
+
+// replaceDirWithBackup replaces dir with src (both under root) so that a failed rename does
+// not destroy an existing installation. Any existing dir is first moved into a uniquely
+// named backup container; if moving src into place then fails, the previous installation is
+// restored. If restoration also fails, the backup is preserved and its location is reported
+// in the returned error for manual recovery. A cleanup failure after a successful replace is
+// non-fatal. This is rollback-safe but not an atomic exchange: the destination is briefly
+// absent between the backup and the final rename.
+func replaceDirWithBackup(ops fsOps, src, dir, root, name string) error {
+	// Use Lstat so a dangling destination symlink still counts as existing and gets backed
+	// up rather than being silently skipped.
+	if _, err := os.Lstat(dir); err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to inspect %q: %w", dir, err)
+		}
+		// Nothing to replace: install directly.
+		if err := ops.rename(src, dir); err != nil {
+			return fmt.Errorf("failed to install extension %q to %q: %w", name, dir, err)
+		}
+		return nil
+	}
+
+	backupRoot, err := os.MkdirTemp(root, ".copilot-extension-backup-*")
+	if err != nil {
+		return fmt.Errorf("failed to create backup directory: %w", err)
+	}
+	backup := filepath.Join(backupRoot, "previous")
+	if err := ops.rename(dir, backup); err != nil {
+		// dir is untouched; drop the empty backup container.
+		_ = ops.removeAll(backupRoot)
+		return fmt.Errorf("failed to back up existing extension directory %q: %w", dir, err)
+	}
+
+	if err := ops.rename(src, dir); err != nil {
+		if restoreErr := ops.rename(backup, dir); restoreErr != nil {
+			// Keep the backup so the previous installation can be recovered by hand.
+			return errors.Join(
+				fmt.Errorf("failed to install extension %q to %q: %w", name, dir, err),
+				fmt.Errorf("failed to restore previous installation; backup preserved at %q: %w", backupRoot, restoreErr),
+			)
+		}
+		_ = ops.removeAll(backupRoot)
 		return fmt.Errorf("failed to install extension %q to %q: %w", name, dir, err)
 	}
+
+	// The replace committed; failing to remove the old backup must not fail the install.
+	_ = ops.removeAll(backupRoot)
 	return nil
 }
 

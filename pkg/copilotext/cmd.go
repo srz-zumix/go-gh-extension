@@ -104,7 +104,7 @@ func newExtensionInstallCmd(cfg Config) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to install extension %q: %w", ext.Name, err)
 				}
-				if err := printInstallResult(cmd, "install", result, opts.DryRun); err != nil {
+				if err := printInstallResult(cmd, "install", "installed", result, opts.DryRun); err != nil {
 					return err
 				}
 			}
@@ -142,7 +142,7 @@ func newExtensionUpdateCmd(cfg Config) *cobra.Command {
 					}
 					continue
 				}
-				if err := printInstallResult(cmd, "update", result, opts.DryRun); err != nil {
+				if err := printInstallResult(cmd, "update", "updated", result, opts.DryRun); err != nil {
 					return err
 				}
 			}
@@ -191,13 +191,15 @@ func newExtensionUninstallCmd(cfg Config) *cobra.Command {
 	return cmd
 }
 
-// printInstallResult prints the outcome of an install or update operation.
-func printInstallResult(cmd *cobra.Command, verb string, result *InstallResult, dryRun bool) error {
+// printInstallResult prints the outcome of an install or update operation. verb is the base
+// form (e.g. "install") used for dry-run output and pastVerb is its past tense (e.g.
+// "installed") used for the completed-action output.
+func printInstallResult(cmd *cobra.Command, verb, pastVerb string, result *InstallResult, dryRun bool) error {
 	var err error
 	if dryRun {
 		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\twould %s\tref=%s\tcommit=%s\t%s\n", result.Name, verb, result.Ref, result.CommitSHA, result.Dir)
 	} else {
-		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\t%sed\tref=%s\tcommit=%s\t%s\n", result.Name, verb, result.Ref, result.CommitSHA, result.Dir)
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\tref=%s\tcommit=%s\t%s\n", result.Name, pastVerb, result.Ref, result.CommitSHA, result.Dir)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
