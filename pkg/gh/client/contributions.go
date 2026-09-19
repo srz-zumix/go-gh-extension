@@ -16,6 +16,14 @@ type ContributionsCollection struct {
 	TotalRepositoriesWithContributedCommits int
 	CommitContributionsByRepository         []RepositoryContributions
 	ContributionCalendar                    ContributionCalendar
+	// CommitContributionsByRepositoryTruncated is true when the per-repository
+	// commit breakdown is incomplete. GitHub caps CommitContributionsByRepository
+	// at maxRepositories entries (100), and this list is not paginable, so when a
+	// user contributed commits to more repositories than the cap, only the top
+	// entries are returned. When true, CommitContributionsByRepository is a partial
+	// list and TotalRepositoriesWithContributedCommits should be treated as the
+	// authoritative repository count.
+	CommitContributionsByRepositoryTruncated bool
 }
 
 // RepositoryContributions is the number of commit contributions made to a single repository.
@@ -27,7 +35,7 @@ type RepositoryContributions struct {
 // ContributionCalendar is a user's daily contribution counts over a date range.
 type ContributionCalendar struct {
 	TotalContributions int
-	Days                []ContributionDay
+	Days               []ContributionDay
 }
 
 // ContributionDay is the number of contributions made on a single day.
@@ -109,5 +117,9 @@ func (g *GitHubClient) GetUserContributionsCollection(ctx context.Context, login
 			})
 		}
 	}
+	// commitContributionsByRepository is capped at maxRepositories (100) and cannot
+	// be paginated. When the server-side repository count exceeds the number of
+	// returned entries, the breakdown is incomplete.
+	result.CommitContributionsByRepositoryTruncated = result.TotalRepositoriesWithContributedCommits > len(result.CommitContributionsByRepository)
 	return result, nil
 }
