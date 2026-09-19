@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/shurcooL/githubv4"
@@ -21,8 +22,9 @@ type ContributionsCollection struct {
 	// at maxRepositories entries (100), and this list is not paginable, so when a
 	// user contributed commits to more repositories than the cap, only the top
 	// entries are returned. When true, CommitContributionsByRepository is a partial
-	// list and TotalRepositoriesWithContributedCommits should be treated as the
-	// authoritative repository count.
+	// list. For a single query TotalRepositoriesWithContributedCommits still holds
+	// the authoritative server-reported count; for a merged multi-window result it
+	// is a best-effort lower bound (see GetUserContributions).
 	CommitContributionsByRepositoryTruncated bool
 }
 
@@ -54,7 +56,10 @@ func (g *GitHubClient) GetUserContributionsCollection(ctx context.Context, login
 	}
 
 	var q struct {
-		User struct {
+		// User is nullable in the GraphQL schema: an unknown login can be returned
+		// as null. Model it as a pointer so a null response decodes to nil instead
+		// of a misleading zero-value collection.
+		User *struct {
 			ContributionsCollection struct {
 				TotalCommitContributions                githubv4.Int
 				TotalIssueContributions                 githubv4.Int
@@ -90,6 +95,9 @@ func (g *GitHubClient) GetUserContributionsCollection(ctx context.Context, login
 
 	if err := graphql.Query(ctx, &q, variables); err != nil {
 		return nil, err
+	}
+	if q.User == nil {
+		return nil, fmt.Errorf("user %q not found", login)
 	}
 
 	cc := q.User.ContributionsCollection

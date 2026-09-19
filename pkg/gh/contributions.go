@@ -20,6 +20,10 @@ const maxContributionsWindow = 365 * 24 * time.Hour
 // GetUserContributions fetches contribution stats for username across [since, until].
 // The range is split into at-most-one-year chunks and merged, since GitHub's
 // contributionsCollection query rejects a single query spanning more than one year.
+//
+// When the result spans multiple chunks and any chunk's per-repository breakdown was
+// truncated (CommitContributionsByRepositoryTruncated), TotalRepositoriesWithContributedCommits
+// is a best-effort lower bound rather than an exact count.
 func GetUserContributions(ctx context.Context, g *GitHubClient, username string, since, until time.Time) (*ContributionsCollection, error) {
 	var chunks []*ContributionsCollection
 	for start := since; start.Before(until); {
@@ -45,8 +49,8 @@ func GetUserContributions(ctx context.Context, g *GitHubClient, username string,
 // count and the maximum server-reported per-chunk total. GitHub caps the per-chunk
 // repository breakdown at 100 entries and does not paginate it, so len(repoOrder)
 // undercounts truncated chunks; for a multi-chunk range the result is a best-effort
-// lower bound. CommitContributionsByRepositoryTruncated is set when any chunk's
-// breakdown was incomplete, in which case CommitContributionsByRepository is partial.
+// lower bound. CommitContributionsByRepositoryTruncated is set when any source chunk's
+// breakdown was incomplete, meaning CommitContributionsByRepository may be partial.
 func mergeContributionChunks(chunks []*ContributionsCollection) *ContributionsCollection {
 	result := &ContributionsCollection{}
 	repoTotals := map[string]int{}
