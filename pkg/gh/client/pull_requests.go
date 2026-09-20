@@ -252,7 +252,25 @@ func (g *GitHubClient) ListPullRequestReviewComments(ctx context.Context, owner 
 	return allComments, nil
 }
 
-func (g *GitHubClient) ResolveReviewThread(ctx context.Context, owner string, repo string, threadID string) error {
+// PullRequestReviewThreadResolutionReason is the reason a review thread was resolved.
+type PullRequestReviewThreadResolutionReason string
+
+const (
+	ResolutionReasonAddressed PullRequestReviewThreadResolutionReason = "ADDRESSED"
+	ResolutionReasonWontFix   PullRequestReviewThreadResolutionReason = "WONT_FIX"
+	ResolutionReasonInvalid   PullRequestReviewThreadResolutionReason = "INVALID"
+)
+
+// ResolveReviewThreadInput is a local redefinition of resolveReviewThread's input,
+// adding the resolutionReason field that the vendored githubv4.ResolveReviewThreadInput
+// predates. Its Go type name must match the GraphQL schema's input type name exactly,
+// since the graphql client derives the variable's declared type from it via reflection.
+type ResolveReviewThreadInput struct {
+	ThreadID         githubv4.ID                              `json:"threadId"`
+	ResolutionReason *PullRequestReviewThreadResolutionReason `json:"resolutionReason,omitempty"`
+}
+
+func (g *GitHubClient) ResolveReviewThread(ctx context.Context, owner string, repo string, threadID string, reason PullRequestReviewThreadResolutionReason) error {
 	graphql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
 		return err
@@ -266,8 +284,11 @@ func (g *GitHubClient) ResolveReviewThread(ctx context.Context, owner string, re
 			ClientMutationID githubv4.String
 		} `graphql:"resolveReviewThread(input: $input)"`
 	}
-	input := githubv4.ResolveReviewThreadInput{
-		ThreadID: githubv4.String(threadID),
+	input := ResolveReviewThreadInput{
+		ThreadID: githubv4.ID(threadID),
+	}
+	if reason != "" {
+		input.ResolutionReason = &reason
 	}
 	return graphql.Mutate(ctx, &m, input, nil)
 }
