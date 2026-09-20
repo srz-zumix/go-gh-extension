@@ -94,6 +94,30 @@ func (g *GitHubClient) UpdateOrgVariable(ctx context.Context, org string, variab
 	return err
 }
 
+// ListSelectedReposForOrgVariable lists all repositories that have access to an organization variable.
+func (g *GitHubClient) ListSelectedReposForOrgVariable(ctx context.Context, org, name string) ([]*github.Repository, error) {
+	var allRepos []*github.Repository
+	opt := &github.ListOptions{PerPage: defaultPerPage}
+	for {
+		result, resp, err := g.client.Actions.ListSelectedReposForOrgVariable(ctx, org, name, opt)
+		if err != nil {
+			return nil, err
+		}
+		allRepos = append(allRepos, result.Repositories...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return allRepos, nil
+}
+
+// SetSelectedReposForOrgVariable sets the repositories that have access to an organization variable.
+func (g *GitHubClient) SetSelectedReposForOrgVariable(ctx context.Context, org, name string, ids []int64) error {
+	_, err := g.client.Actions.SetSelectedReposForOrgVariable(ctx, org, name, ids)
+	return err
+}
+
 // ListEnvVariables lists all variables in an environment.
 func (g *GitHubClient) ListEnvVariables(ctx context.Context, owner, repo, env string) ([]*github.ActionsVariable, error) {
 	var all []*github.ActionsVariable

@@ -121,6 +121,16 @@ func GetEnvVariable(ctx context.Context, g *GitHubClient, repo repository.Reposi
 	return g.GetEnvVariable(ctx, repo.Owner, repo.Name, env, name)
 }
 
+// ListSelectedReposForOrgVariable lists all repositories that have access to an organization variable (wrapper).
+func ListSelectedReposForOrgVariable(ctx context.Context, g *GitHubClient, repo repository.Repository, name string) ([]*github.Repository, error) {
+	return g.ListSelectedReposForOrgVariable(ctx, repo.Owner, name)
+}
+
+// SetSelectedReposForOrgVariable sets the repositories that have access to an organization variable (wrapper).
+func SetSelectedReposForOrgVariable(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, ids []int64) error {
+	return g.SetSelectedReposForOrgVariable(ctx, repo.Owner, name, ids)
+}
+
 // CreateOrUpdateEnvVariable creates or updates an environment variable.
 // If overwrite is true, it attempts to update first and falls back to creation if the variable does not exist.
 // If overwrite is false, it attempts to create the variable and returns an error if creation fails.

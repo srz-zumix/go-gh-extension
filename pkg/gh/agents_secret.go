@@ -45,3 +45,13 @@ func SetAgentsRepoSecret(ctx context.Context, g *GitHubClient, repo repository.R
 	}
 	return CreateOrUpdateAgentsRepoSecret(ctx, g, repo, eSecret)
 }
+
+// ListSelectedReposForAgentsOrgSecret lists all repositories that have access to an organization Agents secret (wrapper).
+func ListSelectedReposForAgentsOrgSecret(ctx context.Context, g *GitHubClient, repo repository.Repository, name string) ([]*github.Repository, error) {
+	return g.ListSelectedReposForAgentsOrgSecret(ctx, repo.Owner, name)
+}
+
+// SetSelectedReposForAgentsOrgSecret sets the repositories that have access to an organization Agents secret (wrapper).
+func SetSelectedReposForAgentsOrgSecret(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, ids github.SelectedRepoIDs) error {
+	return g.SetSelectedReposForAgentsOrgSecret(ctx, repo.Owner, name, ids)
+}
