@@ -85,3 +85,41 @@ func (g *GitHubClient) DeleteAgentsRepoSecret(ctx context.Context, owner, repo, 
 	_, err = g.client.Do(req, nil)
 	return err
 }
+
+// ListSelectedReposForAgentsOrgSecret lists all repositories that have access to an organization Agents secret.
+func (g *GitHubClient) ListSelectedReposForAgentsOrgSecret(ctx context.Context, org, name string) ([]*github.Repository, error) {
+	var allRepos []*github.Repository
+	page := 1
+	for {
+		u := fmt.Sprintf("orgs/%s/agents/secrets/%s/repositories?per_page=%d&page=%d", org, name, defaultPerPage, page)
+		req, err := g.client.NewRequest(ctx, "GET", u, nil)
+		if err != nil {
+			return nil, err
+		}
+		result := new(github.SelectedReposList)
+		resp, err := g.client.Do(req, result)
+		if err != nil {
+			return nil, err
+		}
+		allRepos = append(allRepos, result.Repositories...)
+		if resp.NextPage == 0 {
+			break
+		}
+		page = resp.NextPage
+	}
+	return allRepos, nil
+}
+
+// SetSelectedReposForAgentsOrgSecret sets the repositories that have access to an organization Agents secret.
+func (g *GitHubClient) SetSelectedReposForAgentsOrgSecret(ctx context.Context, org, name string, ids github.SelectedRepoIDs) error {
+	u := fmt.Sprintf("orgs/%s/agents/secrets/%s/repositories", org, name)
+	body := struct {
+		SelectedIDs github.SelectedRepoIDs `json:"selected_repository_ids"`
+	}{SelectedIDs: ids}
+	req, err := g.client.NewRequest(ctx, "PUT", u, body)
+	if err != nil {
+		return err
+	}
+	_, err = g.client.Do(req, nil)
+	return err
+}

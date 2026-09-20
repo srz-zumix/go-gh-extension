@@ -21,3 +21,13 @@ func ListCodespacesOrgSecrets(ctx context.Context, g *GitHubClient, repo reposit
 func ListCodespacesUserSecrets(ctx context.Context, g *GitHubClient) ([]*github.Secret, error) {
 	return g.ListCodespacesUserSecrets(ctx)
 }
+
+// ListSelectedReposForCodespacesOrgSecret lists all repositories that have access to an organization Codespaces secret (wrapper).
+func ListSelectedReposForCodespacesOrgSecret(ctx context.Context, g *GitHubClient, repo repository.Repository, name string) ([]*github.Repository, error) {
+	return g.ListSelectedReposForCodespacesOrgSecret(ctx, repo.Owner, name)
+}
+
+// SetSelectedReposForCodespacesOrgSecret sets the repositories that have access to an organization Codespaces secret (wrapper).
+func SetSelectedReposForCodespacesOrgSecret(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, ids github.SelectedRepoIDs) error {
+	return g.SetSelectedReposForCodespacesOrgSecret(ctx, repo.Owner, name, ids)
+}
