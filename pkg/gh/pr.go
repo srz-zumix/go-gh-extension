@@ -455,12 +455,21 @@ func EditPullRequestComment(ctx context.Context, g *GitHubClient, repo repositor
 	return g.EditPullRequestComment(ctx, repo.Owner, repo.Name, commentID, body)
 }
 
-func ResolvePullRequestComment(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any, comment any) error {
+// PullRequestReviewThreadResolutionReason is the reason a review thread was resolved.
+type PullRequestReviewThreadResolutionReason = client.PullRequestReviewThreadResolutionReason
+
+const (
+	ResolutionReasonAddressed = client.ResolutionReasonAddressed
+	ResolutionReasonWontFix   = client.ResolutionReasonWontFix
+	ResolutionReasonInvalid   = client.ResolutionReasonInvalid
+)
+
+func ResolvePullRequestComment(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any, comment any, reason PullRequestReviewThreadResolutionReason) error {
 	threadID, err := GetPullRequestCommentThreadID(ctx, g, repo, pull_request, comment)
 	if err != nil {
 		return fmt.Errorf("failed to get thread ID from pull request '%s' and comment '%s': %w", pull_request, comment, err)
 	}
-	return g.ResolveReviewThread(ctx, repo.Owner, repo.Name, threadID)
+	return g.ResolveReviewThread(ctx, repo.Owner, repo.Name, threadID, reason)
 }
 
 func UnresolvePullRequestComment(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any, comment any) error {
