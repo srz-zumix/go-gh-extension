@@ -39,6 +39,19 @@ type metadata struct {
 	InstalledAt time.Time `json:"installed_at"`
 }
 
+// copilotHome returns the Copilot CLI's per-user home directory, honoring the
+// COPILOT_HOME override.
+func copilotHome() (string, error) {
+	if home := os.Getenv("COPILOT_HOME"); home != "" {
+		return home, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to determine home directory: %w", err)
+	}
+	return filepath.Join(home, ".copilot"), nil
+}
+
 // extensionsRoot returns the directory under which extensions are installed for the given
 // scope. prefix, when non-empty, overrides the scope and is returned as-is.
 func extensionsRoot(ctx context.Context, scope Scope, prefix string) (string, error) {
@@ -53,14 +66,11 @@ func extensionsRoot(ctx context.Context, scope Scope, prefix string) (string, er
 		}
 		return filepath.Join(dir, ".github", "extensions"), nil
 	case ScopeUser, "":
-		if home := os.Getenv("COPILOT_HOME"); home != "" {
-			return filepath.Join(home, "extensions"), nil
-		}
-		home, err := os.UserHomeDir()
+		home, err := copilotHome()
 		if err != nil {
-			return "", fmt.Errorf("failed to determine home directory: %w", err)
+			return "", err
 		}
-		return filepath.Join(home, ".copilot", "extensions"), nil
+		return filepath.Join(home, "extensions"), nil
 	default:
 		return "", fmt.Errorf("unknown scope %q", scope)
 	}
