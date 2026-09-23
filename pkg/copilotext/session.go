@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -194,7 +193,7 @@ type rawPermissionCompleted struct {
 // events.jsonl is read line by line with a growable buffer, rather than json.Decoder's
 // token stream, so a single truncated trailing line (from a session still in progress)
 // can be skipped without discarding every event that follows it.
-func readPermissionRecords(s Session) ([]PermissionRecord, error) {
+func readPermissionRecords(s Session) (records []PermissionRecord, rerr error) {
 	path := filepath.Join(s.Dir, "events.jsonl")
 	f, err := os.Open(path)
 	if err != nil {
@@ -203,7 +202,11 @@ func readPermissionRecords(s Session) ([]PermissionRecord, error) {
 		}
 		return nil, fmt.Errorf("failed to open %q: %w", path, err)
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); cerr != nil && rerr == nil {
+			rerr = fmt.Errorf("failed to close %q: %w", path, cerr)
+		}
+	}()
 
 	requests := make(map[string]PermissionRequest)
 	order := make([]string, 0)
@@ -260,11 +263,11 @@ func readPermissionRecords(s Session) ([]PermissionRecord, error) {
 			results[data.RequestID] = completion{result: data.Result.Kind, decidedAt: ev.Timestamp}
 		}
 	}
-	if err := scanner.Err(); err != nil && err != io.EOF {
-		logger.Warn("stopped reading events.jsonl early", "dir", s.Dir, "error", err)
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read events.jsonl in %q: %w", s.Dir, err)
 	}
 
-	records := make([]PermissionRecord, 0, len(order))
+	records = make([]PermissionRecord, 0, len(order))
 	for _, id := range order {
 		result := PermissionUnresolved
 		var decidedAt time.Time

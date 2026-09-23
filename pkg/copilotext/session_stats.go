@@ -88,6 +88,9 @@ func (scope SessionScope) matches(cwd string) bool {
 	if scope.ExactCWD == "" && scope.UnderDir == "" {
 		return true
 	}
+	if cwd == "" {
+		return false
+	}
 	normalized, err := normalizePath(cwd)
 	if err != nil {
 		return false
@@ -427,15 +430,16 @@ func requestIsReadOnly(req PermissionRequest) bool {
 	switch req.Kind {
 	case "read":
 		return true
-	case "write":
+	case "shell":
+		for _, c := range req.Commands {
+			if !c.ReadOnly {
+				return false
+			}
+		}
+		return true
+	default:
 		return false
 	}
-	for _, c := range req.Commands {
-		if !c.ReadOnly {
-			return false
-		}
-	}
-	return true
 }
 
 // hasAnyCommand reports whether req includes a command whose identifier is in identifiers.

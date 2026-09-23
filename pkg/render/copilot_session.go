@@ -38,6 +38,9 @@ func (r *Renderer) RenderCopilotPermissionStats(stats *copilotext.PermissionStat
 	if r.exporter != nil {
 		return r.RenderExportedData(stats)
 	}
+	if stats == nil {
+		return nil
+	}
 
 	r.writeLine("SUMMARY")
 	r.writeLine("sessions: " + strconv.Itoa(stats.Sessions) + ", requests: " + strconv.Itoa(stats.Requests))

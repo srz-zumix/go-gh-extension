@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -45,6 +46,9 @@ func ParseDuration(s string) (time.Duration, error) {
 		durationUnit = time.Hour
 	case "m":
 		durationUnit = time.Minute
+	}
+	if int64(n) > int64(math.MaxInt64/durationUnit) {
+		return 0, fmt.Errorf("duration out of range: %s", s)
 	}
 	return time.Duration(n) * durationUnit, nil
 }
@@ -92,6 +96,9 @@ func ParsePeriod(period string) (time.Duration, error) {
 		return 0, fmt.Errorf("invalid period %q: expected format <N>d|w|m|y", period)
 	}
 
+	if int64(n) > int64(math.MaxInt64/duration) {
+		return 0, fmt.Errorf("invalid period %q: value out of range", period)
+	}
 	return time.Duration(n) * duration, nil
 }
 
@@ -119,7 +126,7 @@ func IsFiscalPeriod(period string) bool {
 func ParseFiscalPeriod(period string) (time.Time, time.Time, error) {
 	m := fiscalPeriodPattern.FindStringSubmatch(period)
 	if m == nil {
-		return time.Time{}, time.Time{}, fmt.Errorf("invalid fiscal period %q: expected format FY<YY>[H1|H2|Q1..Q4]", period)
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid fiscal period %q: expected format FY<YY|YYYY>[H1|H2|Q1..Q4]", period)
 	}
 
 	year, err := strconv.Atoi(m[1])
