@@ -83,8 +83,10 @@ func folderURIToPath(uri string) (string, error) {
 }
 
 // ListVSCodeSessions returns every VS Code Copilot Chat debug-logs session found under
-// root (a workspaceStorage directory). Workspaces or sessions that cannot be read are
-// skipped with a warning rather than failing the whole scan.
+// root (a workspaceStorage directory). A session whose log cannot be read is skipped with
+// a warning rather than failing the whole scan. An unreadable or malformed workspace.json
+// is likewise non-fatal: the workspace's sessions are still listed, but with an empty
+// Folder (the same, expected result as for absent, multi-root, or remote workspaces).
 func ListVSCodeSessions(root string) ([]VSCodeSession, error) {
 	hashEntries, err := os.ReadDir(root)
 	if err != nil {
@@ -103,7 +105,7 @@ func ListVSCodeSessions(root string) ([]VSCodeSession, error) {
 
 		folder, err := readWorkspaceFolder(hashDir)
 		if err != nil {
-			logger.Warn("skipping workspace with unreadable workspace.json", "dir", hashDir, "error", err)
+			logger.Warn("unable to read workspace.json; sessions will have no folder attribution", "dir", hashDir, "error", err)
 		}
 
 		debugLogsDir := filepath.Join(hashDir, "GitHub.copilot-chat", "debug-logs")

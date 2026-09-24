@@ -72,6 +72,26 @@ func TestListVSCodeSessions(t *testing.T) {
 	}
 }
 
+func TestListVSCodeSessionsCorruptWorkspaceJSON(t *testing.T) {
+	root := t.TempDir()
+
+	// A corrupt workspace.json must not drop the workspace's sessions; they are still
+	// listed, only with an empty Folder (graceful degradation, like multi-root/remote).
+	hash := writeVSCodeWorkspace(t, root, "hash", "not json")
+	writeVSCodeSessionLog(t, hash, "session", `{"type":"session_start"}`+"\n")
+
+	sessions, err := ListVSCodeSessions(root)
+	if err != nil {
+		t.Fatalf("ListVSCodeSessions() error = %v", err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("ListVSCodeSessions() len = %d, want 1: %+v", len(sessions), sessions)
+	}
+	if got := sessions[0].Folder; got != "" {
+		t.Fatalf("session Folder = %q, want empty", got)
+	}
+}
+
 func TestListVSCodeSessionsMissingRoot(t *testing.T) {
 	sessions, err := ListVSCodeSessions(filepath.Join(t.TempDir(), "does-not-exist"))
 	if err != nil {
