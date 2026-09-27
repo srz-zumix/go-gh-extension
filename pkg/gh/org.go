@@ -154,6 +154,27 @@ func SetOrgWebCommitSignoffRequired(ctx context.Context, g *GitHubClient, repo r
 	})
 }
 
+// SetOrgMembersCanForkPrivateRepos sets whether organization members can fork private organization repositories.
+func SetOrgMembersCanForkPrivateRepos(ctx context.Context, g *GitHubClient, repo repository.Repository, enabled bool) (*Organization, error) {
+	return EditOrg(ctx, g, repo, &github.Organization{
+		MembersCanForkPrivateRepos: &enabled,
+	})
+}
+
+// SetOrgMembersCanDeleteRepositories sets whether members with admin permissions can delete a repository.
+func SetOrgMembersCanDeleteRepositories(ctx context.Context, g *GitHubClient, repo repository.Repository, enabled bool) (*Organization, error) {
+	return EditOrg(ctx, g, repo, &github.Organization{
+		MembersCanDeleteRepositories: &enabled,
+	})
+}
+
+// SetOrgMembersCanChangeRepoVisibility sets whether members with admin permissions can change a repository's visibility.
+func SetOrgMembersCanChangeRepoVisibility(ctx context.Context, g *GitHubClient, repo repository.Repository, enabled bool) (*Organization, error) {
+	return EditOrg(ctx, g, repo, &github.Organization{
+		MembersCanChangeRepoVisibility: &enabled,
+	})
+}
+
 // Allowed values for the organization GitHub Actions allowed_actions policy.
 const (
 	OrgAllowedActionsAll       = "all"
