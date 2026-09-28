@@ -55,9 +55,11 @@ type vscodeTurnAttrs struct {
 }
 
 // readVSCodeEvents streams path (a main.jsonl file) line by line, calling fn once per
-// parsed event. Lines that fail to parse are skipped with a warning rather than aborting
-// the whole file, since a single truncated trailing line (from a session still in
-// progress) is expected.
+// parsed event. Lines that fail to parse are skipped rather than aborting the whole file.
+//
+// A truncated first line (the file was trimmed from the head once it grew too large) and
+// a truncated last line (the session is still being written) are both expected, so those
+// are reported at debug level; any other unparsable line is warned about.
 //
 // Lines are read with bufio.Reader.ReadString rather than bufio.Scanner, since a single
 // line can exceed several megabytes (e.g. an llm_request's inputMessages) and
@@ -77,13 +79,20 @@ func readVSCodeEvents(path string, fn func(vscodeRawEvent) error) (rerr error) {
 	}()
 
 	reader := bufio.NewReaderSize(f, 64*1024)
+	lineNo := 0
 	for {
 		line, readErr := reader.ReadString('\n')
+		lineNo++
 		trimmed := strings.TrimSpace(line)
 		if trimmed != "" {
 			var ev vscodeRawEvent
 			if err := json.Unmarshal([]byte(trimmed), &ev); err != nil {
-				logger.Warn("skipping unparsable vscode event", "path", path, "error", err)
+				truncated := lineNo == 1 || !strings.HasSuffix(line, "\n")
+				if truncated {
+					logger.Debug("skipping truncated vscode event", "path", path, "line", lineNo, "error", err)
+				} else {
+					logger.Warn("skipping unparsable vscode event", "path", path, "line", lineNo, "error", err)
+				}
 			} else if err := fn(ev); err != nil {
 				return err
 			}
