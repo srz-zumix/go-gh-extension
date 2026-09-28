@@ -29,6 +29,21 @@ func FindUserByID(ctx context.Context, g *GitHubClient, id int64) (*GitHubUser, 
 	return g.GetUserByID(ctx, id)
 }
 
+// UpdateLoginUser updates the authenticated user's profile.
+func UpdateLoginUser(ctx context.Context, g *GitHubClient, body *GitHubUser) (*GitHubUser, error) {
+	return g.EditUser(ctx, body)
+}
+
+// ListLoginUserSocialAccounts lists the authenticated user's social accounts.
+func ListLoginUserSocialAccounts(ctx context.Context, g *GitHubClient) ([]*github.SocialAccount, error) {
+	return g.ListSocialAccounts(ctx)
+}
+
+// AddLoginUserSocialAccounts adds social accounts to the authenticated user.
+func AddLoginUserSocialAccounts(ctx context.Context, g *GitHubClient, accountURLs []string) ([]*github.SocialAccount, error) {
+	return g.AddSocialAccounts(ctx, accountURLs)
+}
+
 func GetUser(ctx context.Context, g *GitHubClient, username string) *GitHubUser {
 	user, err := FindUser(ctx, g, username)
 	if err != nil {
