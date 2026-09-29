@@ -94,6 +94,11 @@ func TestReadPermissionRecords(t *testing.T) {
 	if first.Request.RequestID != "req-1" || first.Result != PermissionApproved {
 		t.Fatalf("records[0] = %+v, want RequestID req-1, Result approved", first)
 	}
+	// This fixture's permission.completed event has no decisionSource field, mirroring
+	// CLI versions older than 1.0.84-5.
+	if first.DecisionSource != DecisionSourceUnknown {
+		t.Fatalf("records[0].DecisionSource = %q, want %q", first.DecisionSource, DecisionSourceUnknown)
+	}
 	wantDecidedAt := time.Date(2026, 1, 1, 0, 0, 1, 0, time.UTC)
 	if !first.DecidedAt.Equal(wantDecidedAt) {
 		t.Fatalf("records[0].DecidedAt = %v, want %v", first.DecidedAt, wantDecidedAt)
@@ -105,8 +110,35 @@ func TestReadPermissionRecords(t *testing.T) {
 	if second.Request.RequestID != "req-2" || second.Result != PermissionUnresolved {
 		t.Fatalf("records[1] = %+v, want RequestID req-2, Result unresolved", second)
 	}
+	if second.DecisionSource != DecisionSourceUnknown {
+		t.Fatalf("records[1].DecisionSource = %q, want %q", second.DecisionSource, DecisionSourceUnknown)
+	}
 	if !second.DecidedAt.IsZero() {
 		t.Fatalf("records[1].DecidedAt = %v, want zero value", second.DecidedAt)
+	}
+}
+
+func TestReadPermissionRecordsDecisionSource(t *testing.T) {
+	events := `{"type":"permission.requested","timestamp":"2026-01-01T00:00:00Z","data":{"requestId":"req-1","permissionRequest":{"kind":"shell","toolCallId":"tc-1","commands":[{"identifier":"ls","readOnly":true}],"possiblePaths":[],"possibleUrls":[]}}}
+{"type":"permission.completed","timestamp":"2026-01-01T00:00:01Z","data":{"requestId":"req-1","result":{"kind":"approved"},"decisionSource":"human_response"}}
+{"type":"permission.requested","timestamp":"2026-01-01T00:00:02Z","data":{"requestId":"req-2","permissionRequest":{"kind":"shell","toolCallId":"tc-2","commands":[{"identifier":"rm","readOnly":false}],"possiblePaths":[],"possibleUrls":[]}}}
+{"type":"permission.completed","timestamp":"2026-01-01T00:00:03Z","data":{"requestId":"req-2","result":{"kind":"denied-no-approval-rule-and-could-not-request-from-user"},"decisionSource":"unattended_fallback"}}
+`
+	dir := writeSessionDir(t, t.TempDir(), "session-e", "", events)
+	s := Session{ID: "session-e", Dir: dir}
+
+	records, err := readPermissionRecords(s)
+	if err != nil {
+		t.Fatalf("readPermissionRecords() error = %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("readPermissionRecords() len = %d, want 2: %+v", len(records), records)
+	}
+	if records[0].DecisionSource != DecisionSourceHumanResponse {
+		t.Fatalf("records[0].DecisionSource = %q, want %q", records[0].DecisionSource, DecisionSourceHumanResponse)
+	}
+	if records[1].DecisionSource != DecisionSourceUnattendedFallback {
+		t.Fatalf("records[1].DecisionSource = %q, want %q", records[1].DecisionSource, DecisionSourceUnattendedFallback)
 	}
 }
 

@@ -17,6 +17,10 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 			{Key: "approved", Total: 2, Approved: 2},
 			{Key: "denied", Total: 1, Denied: 1},
 		},
+		ByDecisionSource: []copilotext.Count{
+			{Key: "human_response", Total: 2, Approved: 2},
+			{Key: "unattended_fallback", Total: 1, Denied: 1},
+		},
 		ByCommand: []copilotext.Count{
 			{Key: "ls", Total: 2, Approved: 2},
 		},
@@ -32,6 +36,9 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 	}
 	if !strings.Contains(out, "RESULT") || !strings.Contains(out, "approved") || !strings.Contains(out, "denied") {
 		t.Fatalf("output missing RESULT table: %q", out)
+	}
+	if !strings.Contains(out, "DECISION_SOURCE") || !strings.Contains(out, "human_response") {
+		t.Fatalf("output missing DECISION_SOURCE table: %q", out)
 	}
 	if !strings.Contains(out, "COMMAND") || !strings.Contains(out, "ls") {
 		t.Fatalf("output missing COMMAND table: %q", out)

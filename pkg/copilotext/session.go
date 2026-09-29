@@ -23,6 +23,16 @@ const (
 	PermissionUnresolved          = "unresolved"
 )
 
+// Decision source values, as recorded in a "permission.completed" event's
+// data.decisionSource field. CLI versions older than 1.0.84-5 never set this field, so
+// DecisionSourceUnknown is synthesized locally to mean "the CLI did not record who or what
+// decided" rather than any particular decision maker.
+const (
+	DecisionSourceHumanResponse      = "human_response"
+	DecisionSourceUnattendedFallback = "unattended_fallback"
+	DecisionSourceUnknown            = "unknown"
+)
+
 // Session describes a single Copilot CLI session recorded under session-state.
 type Session struct {
 	ID         string
@@ -55,10 +65,18 @@ type PermissionRequest struct {
 // PermissionRecord pairs a PermissionRequest with its outcome (Result), regardless of
 // whether a matching "permission.completed" event was found.
 type PermissionRecord struct {
-	Session   Session
-	Request   PermissionRequest
-	Result    string
-	DecidedAt time.Time
+	Session Session
+	Request PermissionRequest
+	Result  string
+	// DecisionSource is the CLI's own record of who or what produced Result (e.g.
+	// DecisionSourceHumanResponse), or DecisionSourceUnknown when the CLI version that
+	// wrote this event never recorded it. It does not distinguish a rule-based
+	// auto-approval from any other non-human source; as of CLI 1.0.88, rule-based
+	// auto-approvals have not been observed to emit a "permission.completed" event at
+	// all, so Result==PermissionApproved records collected so far are all
+	// DecisionSourceHumanResponse or DecisionSourceUnknown.
+	DecisionSource string
+	DecidedAt      time.Time
 }
 
 // sessionStateRoot returns the directory containing one subdirectory per Copilot CLI
@@ -183,6 +201,7 @@ type rawPermissionCompleted struct {
 	Result    struct {
 		Kind string `json:"kind"`
 	} `json:"result"`
+	DecisionSource string `json:"decisionSource"`
 }
 
 // readPermissionRecords reads s's events.jsonl and returns one PermissionRecord per
@@ -211,8 +230,9 @@ func readPermissionRecords(s Session) (records []PermissionRecord, rerr error) {
 	requests := make(map[string]PermissionRequest)
 	order := make([]string, 0)
 	type completion struct {
-		result    string
-		decidedAt time.Time
+		result         string
+		decisionSource string
+		decidedAt      time.Time
 	}
 	results := make(map[string]completion)
 
@@ -260,7 +280,7 @@ func readPermissionRecords(s Session) (records []PermissionRecord, rerr error) {
 				logger.Warn("skipping unparsable permission.completed event", "dir", s.Dir, "error", err)
 				continue
 			}
-			results[data.RequestID] = completion{result: data.Result.Kind, decidedAt: ev.Timestamp}
+			results[data.RequestID] = completion{result: data.Result.Kind, decisionSource: data.DecisionSource, decidedAt: ev.Timestamp}
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -270,16 +290,21 @@ func readPermissionRecords(s Session) (records []PermissionRecord, rerr error) {
 	records = make([]PermissionRecord, 0, len(order))
 	for _, id := range order {
 		result := PermissionUnresolved
+		decisionSource := DecisionSourceUnknown
 		var decidedAt time.Time
 		if r, ok := results[id]; ok && r.result != "" {
 			result = r.result
 			decidedAt = r.decidedAt
+			if r.decisionSource != "" {
+				decisionSource = r.decisionSource
+			}
 		}
 		records = append(records, PermissionRecord{
-			Session:   s,
-			Request:   requests[id],
-			Result:    result,
-			DecidedAt: decidedAt,
+			Session:        s,
+			Request:        requests[id],
+			Result:         result,
+			DecisionSource: decisionSource,
+			DecidedAt:      decidedAt,
 		})
 	}
 	return records, nil

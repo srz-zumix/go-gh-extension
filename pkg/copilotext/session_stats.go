@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/srz-zumix/go-gh-extension/pkg/gitutil"
@@ -132,6 +133,9 @@ type PermissionStatsOptions struct {
 	// Kind, when non-empty, restricts to requests whose Kind matches any of these exact
 	// values (e.g. "shell", "read", "write").
 	Kind []string
+	// DecisionSource, when non-empty, restricts to records whose DecisionSource matches
+	// any of these exact values (e.g. DecisionSourceHumanResponse, DecisionSourceUnknown).
+	DecisionSource []string
 	// Command, when non-empty, restricts to requests that include any of these exact
 	// command identifiers.
 	Command []string
@@ -167,13 +171,14 @@ type PermissionStats struct {
 	Until    time.Time
 	Scope    SessionScope
 
-	ByResult   []Count
-	ByKind     []Count
-	ByReadOnly []Count
-	ByCommand  []Count
-	ByPath     []Count
-	ByURL      []Count
-	ByCWD      []Count
+	ByResult         []Count
+	ByDecisionSource []Count
+	ByKind           []Count
+	ByReadOnly       []Count
+	ByCommand        []Count
+	ByPath           []Count
+	ByURL            []Count
+	ByCWD            []Count
 }
 
 // counter accumulates Count entries keyed by an arbitrary string, preserving first-seen
@@ -195,13 +200,18 @@ func (c *counter) add(key, result string) {
 		c.order = append(c.order, key)
 	}
 	entry.Total++
-	switch result {
-	case PermissionApproved:
-		entry.Approved++
-	case PermissionDenied:
-		entry.Denied++
-	case PermissionApprovedForLocation:
+	// The CLI records outcome variants such as
+	// "denied-no-approval-rule-and-could-not-request-from-user"; classify any hyphenated
+	// "approved-"/"denied-" variant with its base outcome so real denials are not mistaken
+	// for unresolved requests. "approved-for-location" keeps its own dedicated tally and is
+	// therefore matched before the generic "approved" case.
+	switch {
+	case result == PermissionApprovedForLocation:
 		entry.ApprovedForLocation++
+	case result == PermissionApproved || strings.HasPrefix(result, PermissionApproved+"-"):
+		entry.Approved++
+	case result == PermissionDenied || strings.HasPrefix(result, PermissionDenied+"-"):
+		entry.Denied++
 	default:
 		entry.Unresolved++
 	}
@@ -249,6 +259,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	}
 
 	byResult := newCounter()
+	byDecisionSource := newCounter()
 	byKind := newCounter()
 	byReadOnly := newCounter()
 	byCommand := newCounter()
@@ -285,11 +296,15 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 			if !filters.matches(rec.Request) {
 				continue
 			}
+			if !filters.matchesDecisionSource(rec.DecisionSource) {
+				continue
+			}
 
 			sessionCounted = true
 			stats.Requests++
 
 			byResult.add(rec.Result, rec.Result)
+			byDecisionSource.add(rec.DecisionSource, rec.Result)
 			byKind.add(rec.Request.Kind, rec.Result)
 			byCWD.add(s.CWD, rec.Result)
 
@@ -329,6 +344,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	}
 
 	stats.ByResult = byResult.finish(opts.Top)
+	stats.ByDecisionSource = byDecisionSource.finish(opts.Top)
 	stats.ByKind = byKind.finish(opts.Top)
 	stats.ByReadOnly = byReadOnly.finish(opts.Top)
 	stats.ByCommand = byCommand.finish(opts.Top)
@@ -343,11 +359,12 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 // Command/Path/URL filters, built once per CollectPermissionStats call so that regular
 // expressions aren't recompiled per record.
 type permissionFilters struct {
-	operations map[string]bool
-	kinds      map[string]bool
-	commands   map[string]bool
-	paths      []*regexp.Regexp
-	urls       []*regexp.Regexp
+	operations      map[string]bool
+	kinds           map[string]bool
+	decisionSources map[string]bool
+	commands        map[string]bool
+	paths           []*regexp.Regexp
+	urls            []*regexp.Regexp
 }
 
 // newPermissionFilters compiles opts' filters, validating Operations values and Path/URL
@@ -366,6 +383,9 @@ func newPermissionFilters(opts PermissionStatsOptions) (*permissionFilters, erro
 	}
 	if len(opts.Kind) > 0 {
 		f.kinds = toSet(opts.Kind)
+	}
+	if len(opts.DecisionSource) > 0 {
+		f.decisionSources = toSet(opts.DecisionSource)
 	}
 	if len(opts.Command) > 0 {
 		f.commands = toSet(opts.Command)
@@ -422,6 +442,15 @@ func (f *permissionFilters) matches(req PermissionRequest) bool {
 		return false
 	}
 	return true
+}
+
+// matchesDecisionSource reports whether decisionSource satisfies the configured
+// --decision-source filter. A filter with no values always matches.
+func (f *permissionFilters) matchesDecisionSource(decisionSource string) bool {
+	if len(f.decisionSources) == 0 {
+		return true
+	}
+	return f.decisionSources[decisionSource]
 }
 
 // requestIsReadOnly reports whether req involves no mutation: its Kind is "read", or its
