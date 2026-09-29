@@ -148,6 +148,37 @@ func TestCollectPermissionStats(t *testing.T) {
 	}
 }
 
+func TestCollectPermissionStatsDeniedVariant(t *testing.T) {
+	root := t.TempDir()
+
+	// The CLI records an unattended denial with a descriptive kind rather than the bare
+	// "denied"; it must be tallied as a denial, not folded into unresolved.
+	events := `{"type":"permission.requested","timestamp":"2026-01-01T00:00:00Z","data":{"requestId":"req-1","permissionRequest":{"kind":"shell","toolCallId":"tc-1","commands":[{"identifier":"rm","readOnly":false}],"possiblePaths":[],"possibleUrls":[]}}}
+{"type":"permission.completed","timestamp":"2026-01-01T00:00:01Z","data":{"requestId":"req-1","result":{"kind":"denied-no-approval-rule-and-could-not-request-from-user"},"decisionSource":"unattended_fallback"}}
+`
+	writeSessionDir(t, root, "session-denied",
+		"id: session-denied\ncwd: /repo/denied\ncreated_at: 2026-01-01T00:00:00Z\nupdated_at: 2026-01-01T00:00:00Z\n",
+		events,
+	)
+
+	stats, err := CollectPermissionStats(PermissionStatsOptions{Root: root})
+	if err != nil {
+		t.Fatalf("CollectPermissionStats() error = %v", err)
+	}
+
+	if len(stats.ByResult) != 1 {
+		t.Fatalf("ByResult = %+v, want a single entry", stats.ByResult)
+	}
+	got := stats.ByResult[0]
+	want := "denied-no-approval-rule-and-could-not-request-from-user"
+	if got.Key != want {
+		t.Fatalf("ByResult[0].Key = %q, want %q", got.Key, want)
+	}
+	if got.Total != 1 || got.Denied != 1 || got.Unresolved != 0 {
+		t.Fatalf("ByResult[0] = %+v, want Total=1 Denied=1 Unresolved=0", got)
+	}
+}
+
 func TestCollectPermissionStatsFilterDecisionSource(t *testing.T) {
 	root := t.TempDir()
 

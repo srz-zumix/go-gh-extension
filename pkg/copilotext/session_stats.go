@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/srz-zumix/go-gh-extension/pkg/gitutil"
@@ -199,13 +200,18 @@ func (c *counter) add(key, result string) {
 		c.order = append(c.order, key)
 	}
 	entry.Total++
-	switch result {
-	case PermissionApproved:
-		entry.Approved++
-	case PermissionDenied:
-		entry.Denied++
-	case PermissionApprovedForLocation:
+	// The CLI records outcome variants such as
+	// "denied-no-approval-rule-and-could-not-request-from-user"; classify any hyphenated
+	// "approved-"/"denied-" variant with its base outcome so real denials are not mistaken
+	// for unresolved requests. "approved-for-location" keeps its own dedicated tally and is
+	// therefore matched before the generic "approved" case.
+	switch {
+	case result == PermissionApprovedForLocation:
 		entry.ApprovedForLocation++
+	case result == PermissionApproved || strings.HasPrefix(result, PermissionApproved+"-"):
+		entry.Approved++
+	case result == PermissionDenied || strings.HasPrefix(result, PermissionDenied+"-"):
+		entry.Denied++
 	default:
 		entry.Unresolved++
 	}
