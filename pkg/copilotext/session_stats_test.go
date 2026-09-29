@@ -86,7 +86,7 @@ func TestCollectPermissionStats(t *testing.T) {
 	root := t.TempDir()
 
 	eventsA := `{"type":"permission.requested","timestamp":"2026-01-01T00:00:00Z","data":{"requestId":"req-1","permissionRequest":{"kind":"shell","toolCallId":"tc-1","commands":[{"identifier":"ls","readOnly":true}],"possiblePaths":["/repo/a"],"possibleUrls":["https://example.com"]}}}
-{"type":"permission.completed","timestamp":"2026-01-01T00:00:01Z","data":{"requestId":"req-1","result":{"kind":"approved"}}}
+{"type":"permission.completed","timestamp":"2026-01-01T00:00:01Z","data":{"requestId":"req-1","result":{"kind":"approved"},"decisionSource":"human_response"}}
 {"type":"permission.requested","timestamp":"2026-01-02T00:00:00Z","data":{"requestId":"req-2","permissionRequest":{"kind":"shell","toolCallId":"tc-2","commands":[{"identifier":"ls","readOnly":true},{"identifier":"ls","readOnly":true}],"possiblePaths":["/repo/a","/repo/a"],"possibleUrls":[]}}}
 {"type":"permission.completed","timestamp":"2026-01-02T00:00:01Z","data":{"requestId":"req-2","result":{"kind":"denied"}}}
 `
@@ -136,6 +136,43 @@ func TestCollectPermissionStats(t *testing.T) {
 	}
 	if byResult[PermissionApproved] != 1 || byResult[PermissionDenied] != 1 || byResult[PermissionApprovedForLocation] != 1 {
 		t.Fatalf("ByResult = %+v, want approved=1 denied=1 approved-for-location=1", stats.ByResult)
+	}
+
+	// req-1's decisionSource is recorded; req-2 and req-3 predate that field.
+	byDecisionSource := map[string]int{}
+	for _, c := range stats.ByDecisionSource {
+		byDecisionSource[c.Key] = c.Total
+	}
+	if byDecisionSource[DecisionSourceHumanResponse] != 1 || byDecisionSource[DecisionSourceUnknown] != 2 {
+		t.Fatalf("ByDecisionSource = %+v, want human_response=1 unknown=2", stats.ByDecisionSource)
+	}
+}
+
+func TestCollectPermissionStatsFilterDecisionSource(t *testing.T) {
+	root := t.TempDir()
+
+	events := `{"type":"permission.requested","timestamp":"2026-01-01T00:00:00Z","data":{"requestId":"req-1","permissionRequest":{"kind":"shell","toolCallId":"tc-1","commands":[{"identifier":"ls","readOnly":true}],"possiblePaths":[],"possibleUrls":[]}}}
+{"type":"permission.completed","timestamp":"2026-01-01T00:00:01Z","data":{"requestId":"req-1","result":{"kind":"approved"},"decisionSource":"human_response"}}
+{"type":"permission.requested","timestamp":"2026-01-01T00:00:02Z","data":{"requestId":"req-2","permissionRequest":{"kind":"shell","toolCallId":"tc-2","commands":[{"identifier":"rm","readOnly":false}],"possiblePaths":[],"possibleUrls":[]}}}
+{"type":"permission.completed","timestamp":"2026-01-01T00:00:03Z","data":{"requestId":"req-2","result":{"kind":"approved"}}}
+`
+	writeSessionDir(t, root, "session-a",
+		"id: session-a\ncwd: /repo/a\ncreated_at: 2026-01-01T00:00:00Z\nupdated_at: 2026-01-01T00:00:00Z\n",
+		events,
+	)
+
+	stats, err := CollectPermissionStats(PermissionStatsOptions{
+		Root:           root,
+		DecisionSource: []string{DecisionSourceHumanResponse},
+	})
+	if err != nil {
+		t.Fatalf("CollectPermissionStats() error = %v", err)
+	}
+	if stats.Requests != 1 {
+		t.Fatalf("Requests = %d, want 1", stats.Requests)
+	}
+	if len(stats.ByCommand) != 1 || stats.ByCommand[0].Key != "ls" {
+		t.Fatalf("ByCommand = %+v, want single entry ls", stats.ByCommand)
 	}
 }
 
