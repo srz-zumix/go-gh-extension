@@ -147,6 +147,20 @@ func SetOrgMembersCanCreatePublicRepos(ctx context.Context, g *GitHubClient, rep
 	})
 }
 
+// SetOrgMembersCanCreatePrivateRepos sets whether organization members can create private repositories.
+func SetOrgMembersCanCreatePrivateRepos(ctx context.Context, g *GitHubClient, repo repository.Repository, enabled bool) (*Organization, error) {
+	return EditOrg(ctx, g, repo, &github.Organization{
+		MembersCanCreatePrivateRepos: &enabled,
+	})
+}
+
+// SetOrgMembersCanCreateInternalRepos sets whether organization members can create internal repositories.
+func SetOrgMembersCanCreateInternalRepos(ctx context.Context, g *GitHubClient, repo repository.Repository, enabled bool) (*Organization, error) {
+	return EditOrg(ctx, g, repo, &github.Organization{
+		MembersCanCreateInternalRepos: &enabled,
+	})
+}
+
 // SetOrgWebCommitSignoffRequired sets whether web-based commit signoff is required for the organization.
 func SetOrgWebCommitSignoffRequired(ctx context.Context, g *GitHubClient, repo repository.Repository, required bool) (*Organization, error) {
 	return EditOrg(ctx, g, repo, &github.Organization{
