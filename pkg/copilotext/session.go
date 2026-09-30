@@ -204,37 +204,27 @@ type rawPermissionCompleted struct {
 	DecisionSource string `json:"decisionSource"`
 }
 
-// readPermissionRecords reads s's events.jsonl and returns one PermissionRecord per
-// "permission.requested" event, matched with its "permission.completed" outcome when one
-// exists. Requests without a matching completion (e.g. from an interrupted session) are
-// reported with Result set to PermissionUnresolved.
+// scanSessionEvents reads s's events.jsonl and calls fn once per parsed event, in file
+// order. Lines that fail to parse are skipped with a warning rather than aborting the
+// scan, since a session still in progress may have a truncated trailing line.
 //
 // events.jsonl is read line by line with a growable buffer, rather than json.Decoder's
-// token stream, so a single truncated trailing line (from a session still in progress)
-// can be skipped without discarding every event that follows it.
-func readPermissionRecords(s Session) (records []PermissionRecord, rerr error) {
+// token stream, so a single truncated trailing line can be skipped without discarding
+// every event that follows it.
+func scanSessionEvents(s Session, fn func(rawEvent)) (rerr error) {
 	path := filepath.Join(s.Dir, "events.jsonl")
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return nil
 		}
-		return nil, fmt.Errorf("failed to open %q: %w", path, err)
+		return fmt.Errorf("failed to open %q: %w", path, err)
 	}
 	defer func() {
 		if cerr := f.Close(); cerr != nil && rerr == nil {
 			rerr = fmt.Errorf("failed to close %q: %w", path, cerr)
 		}
 	}()
-
-	requests := make(map[string]PermissionRequest)
-	order := make([]string, 0)
-	type completion struct {
-		result         string
-		decisionSource string
-		decidedAt      time.Time
-	}
-	results := make(map[string]completion)
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 64*1024), 8*1024*1024)
@@ -248,12 +238,35 @@ func readPermissionRecords(s Session) (records []PermissionRecord, rerr error) {
 			logger.Warn("skipping unparsable event", "dir", s.Dir, "error", err)
 			continue
 		}
+		fn(ev)
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed to read events.jsonl in %q: %w", s.Dir, err)
+	}
+	return nil
+}
+
+// readPermissionRecords reads s's events.jsonl and returns one PermissionRecord per
+// "permission.requested" event, matched with its "permission.completed" outcome when one
+// exists. Requests without a matching completion (e.g. from an interrupted session) are
+// reported with Result set to PermissionUnresolved.
+func readPermissionRecords(s Session) ([]PermissionRecord, error) {
+	requests := make(map[string]PermissionRequest)
+	order := make([]string, 0)
+	type completion struct {
+		result         string
+		decisionSource string
+		decidedAt      time.Time
+	}
+	results := make(map[string]completion)
+
+	err := scanSessionEvents(s, func(ev rawEvent) {
 		switch ev.Type {
 		case "permission.requested":
 			var data rawPermissionRequested
 			if err := json.Unmarshal(ev.Data, &data); err != nil {
 				logger.Warn("skipping unparsable permission.requested event", "dir", s.Dir, "error", err)
-				continue
+				return
 			}
 			req := PermissionRequest{
 				RequestID:       data.RequestID,
@@ -278,16 +291,19 @@ func readPermissionRecords(s Session) (records []PermissionRecord, rerr error) {
 			var data rawPermissionCompleted
 			if err := json.Unmarshal(ev.Data, &data); err != nil {
 				logger.Warn("skipping unparsable permission.completed event", "dir", s.Dir, "error", err)
-				continue
+				return
 			}
 			results[data.RequestID] = completion{result: data.Result.Kind, decisionSource: data.DecisionSource, decidedAt: ev.Timestamp}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read events.jsonl in %q: %w", s.Dir, err)
+	if len(order) == 0 {
+		return nil, nil
 	}
 
-	records = make([]PermissionRecord, 0, len(order))
+	records := make([]PermissionRecord, 0, len(order))
 	for _, id := range order {
 		result := PermissionUnresolved
 		decisionSource := DecisionSourceUnknown
@@ -308,4 +324,70 @@ func readPermissionRecords(s Session) (records []PermissionRecord, rerr error) {
 		})
 	}
 	return records, nil
+}
+
+// SessionUsage is the usage summary recorded by a session's "session.shutdown" event: how
+// many premium requests it consumed, its total AIU (Agentic/AI Usage Unit) cost, and its
+// token and API duration totals.
+type SessionUsage struct {
+	At               time.Time
+	PremiumRequests  float64
+	AIU              float64
+	InputTokens      int64
+	CacheReadTokens  int64
+	CacheWriteTokens int64
+	OutputTokens     int64
+	APIDurationMs    float64
+}
+
+// rawSessionShutdown is the data payload of a "session.shutdown" event.
+type rawSessionShutdown struct {
+	TotalPremiumRequests float64 `json:"totalPremiumRequests"`
+	TotalNanoAiu         int64   `json:"totalNanoAiu"`
+	TotalAPIDurationMs   float64 `json:"totalApiDurationMs"`
+	TokenDetails         struct {
+		Input struct {
+			TokenCount int64 `json:"tokenCount"`
+		} `json:"input"`
+		CacheRead struct {
+			TokenCount int64 `json:"tokenCount"`
+		} `json:"cache_read"`
+		CacheWrite struct {
+			TokenCount int64 `json:"tokenCount"`
+		} `json:"cache_write"`
+		Output struct {
+			TokenCount int64 `json:"tokenCount"`
+		} `json:"output"`
+	} `json:"tokenDetails"`
+}
+
+// readSessionUsage reads s's events.jsonl and returns the usage totals recorded by its
+// "session.shutdown" event. found is false when the session has no such event yet (e.g. it
+// is still in progress) or the CLI version that wrote it did not record usage totals.
+func readSessionUsage(s Session) (usage SessionUsage, found bool, rerr error) {
+	err := scanSessionEvents(s, func(ev rawEvent) {
+		if ev.Type != "session.shutdown" {
+			return
+		}
+		var data rawSessionShutdown
+		if err := json.Unmarshal(ev.Data, &data); err != nil {
+			logger.Warn("skipping unparsable session.shutdown event", "dir", s.Dir, "error", err)
+			return
+		}
+		usage = SessionUsage{
+			At:               ev.Timestamp,
+			PremiumRequests:  data.TotalPremiumRequests,
+			AIU:              float64(data.TotalNanoAiu) / 1e9,
+			InputTokens:      data.TokenDetails.Input.TokenCount,
+			CacheReadTokens:  data.TokenDetails.CacheRead.TokenCount,
+			CacheWriteTokens: data.TokenDetails.CacheWrite.TokenCount,
+			OutputTokens:     data.TokenDetails.Output.TokenCount,
+			APIDurationMs:    data.TotalAPIDurationMs,
+		}
+		found = true
+	})
+	if err != nil {
+		return SessionUsage{}, false, err
+	}
+	return usage, found, nil
 }

@@ -408,3 +408,77 @@ func TestCollectPermissionStatsTop(t *testing.T) {
 		t.Fatalf("ByCommand = %+v, want single entry b (highest total)", stats.ByCommand)
 	}
 }
+
+func TestCollectPermissionStatsUsage(t *testing.T) {
+	root := t.TempDir()
+
+	// session-a has both a permission request and a session.shutdown usage event.
+	eventsA := `{"type":"permission.requested","timestamp":"2026-01-01T00:00:00Z","data":{"requestId":"req-1","permissionRequest":{"kind":"shell","toolCallId":"tc-1","commands":[{"identifier":"ls","readOnly":true}],"possiblePaths":[],"possibleUrls":[]}}}
+{"type":"permission.completed","timestamp":"2026-01-01T00:00:01Z","data":{"requestId":"req-1","result":{"kind":"approved"}}}
+{"type":"session.shutdown","timestamp":"2026-01-01T01:00:00Z","data":{"totalPremiumRequests":3,"totalNanoAiu":1500000000,"totalApiDurationMs":100,"tokenDetails":{"input":{"tokenCount":10},"cache_read":{"tokenCount":0},"cache_write":{"tokenCount":0},"output":{"tokenCount":20}}}}
+`
+	writeSessionDir(t, root, "session-a",
+		"id: session-a\ncwd: /repo/a\ncreated_at: 2026-01-01T00:00:00Z\nupdated_at: 2026-01-01T00:00:00Z\n",
+		eventsA,
+	)
+
+	// session-b has only a session.shutdown usage event and no permission requests at
+	// all; it must still contribute to the usage totals.
+	eventsB := `{"type":"session.shutdown","timestamp":"2026-01-02T01:00:00Z","data":{"totalPremiumRequests":2.5,"totalNanoAiu":500000000,"totalApiDurationMs":50,"tokenDetails":{"input":{"tokenCount":5},"cache_read":{"tokenCount":0},"cache_write":{"tokenCount":0},"output":{"tokenCount":10}}}}
+`
+	writeSessionDir(t, root, "session-b",
+		"id: session-b\ncwd: /repo/b\ncreated_at: 2026-01-02T00:00:00Z\nupdated_at: 2026-01-02T00:00:00Z\n",
+		eventsB,
+	)
+
+	stats, err := CollectPermissionStats(PermissionStatsOptions{Root: root})
+	if err != nil {
+		t.Fatalf("CollectPermissionStats() error = %v", err)
+	}
+
+	if stats.UsageSessions != 2 {
+		t.Fatalf("UsageSessions = %d, want 2", stats.UsageSessions)
+	}
+	if stats.UsagePremiumRequests != 5.5 {
+		t.Fatalf("UsagePremiumRequests = %v, want 5.5", stats.UsagePremiumRequests)
+	}
+	if stats.UsageAIU != 2 {
+		t.Fatalf("UsageAIU = %v, want 2", stats.UsageAIU)
+	}
+	if stats.UsageInputTokens != 15 || stats.UsageOutputTokens != 30 {
+		t.Fatalf("UsageInputTokens/UsageOutputTokens = %d/%d, want 15/30", stats.UsageInputTokens, stats.UsageOutputTokens)
+	}
+
+	byCWDUsage := map[string]UsageCount{}
+	for _, c := range stats.ByCWDUsage {
+		byCWDUsage[c.Key] = c
+	}
+	if got := byCWDUsage["/repo/a"]; got.Sessions != 1 || got.AIU != 1.5 {
+		t.Fatalf("ByCWDUsage[/repo/a] = %+v, want Sessions=1 AIU=1.5", got)
+	}
+	if got := byCWDUsage["/repo/b"]; got.Sessions != 1 || got.AIU != 0.5 {
+		t.Fatalf("ByCWDUsage[/repo/b] = %+v, want Sessions=1 AIU=0.5", got)
+	}
+}
+
+func TestCollectPermissionStatsUsageSince(t *testing.T) {
+	root := t.TempDir()
+
+	events := `{"type":"session.shutdown","timestamp":"2026-01-01T00:00:00Z","data":{"totalPremiumRequests":1,"totalNanoAiu":1000000000}}
+`
+	writeSessionDir(t, root, "session-old",
+		"id: session-old\ncwd: /repo\ncreated_at: 2026-01-01T00:00:00Z\nupdated_at: 2026-01-01T00:00:00Z\n",
+		events,
+	)
+
+	stats, err := CollectPermissionStats(PermissionStatsOptions{
+		Root:  root,
+		Since: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("CollectPermissionStats() error = %v", err)
+	}
+	if stats.UsageSessions != 0 || stats.UsageAIU != 0 {
+		t.Fatalf("UsageSessions/UsageAIU = %d/%v, want 0/0 (usage event predates Since)", stats.UsageSessions, stats.UsageAIU)
+	}
+}
