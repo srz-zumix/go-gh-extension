@@ -163,7 +163,23 @@ type Count struct {
 	Unresolved          int
 }
 
-// PermissionStats summarizes the permission requests collected by CollectPermissionStats.
+// UsageCount is one entry of PermissionStats.ByCWDUsage: a working directory and its
+// aggregated session usage totals, drawn from each in-scope session's "session.shutdown"
+// event.
+type UsageCount struct {
+	Key              string
+	Sessions         int
+	PremiumRequests  float64
+	AIU              float64
+	InputTokens      int64
+	CacheReadTokens  int64
+	CacheWriteTokens int64
+	OutputTokens     int64
+	APIDurationMs    float64
+}
+
+// PermissionStats summarizes the permission requests and session usage collected by
+// CollectPermissionStats.
 type PermissionStats struct {
 	Sessions int
 	Requests int
@@ -179,6 +195,18 @@ type PermissionStats struct {
 	ByPath           []Count
 	ByURL            []Count
 	ByCWD            []Count
+
+	// UsageSessions is the number of in-scope sessions with a "session.shutdown" event
+	// recording usage totals, independent of whether they had any permission requests.
+	UsageSessions         int
+	UsagePremiumRequests  float64
+	UsageAIU              float64
+	UsageInputTokens      int64
+	UsageCacheReadTokens  int64
+	UsageCacheWriteTokens int64
+	UsageOutputTokens     int64
+	UsageAPIDurationMs    float64
+	ByCWDUsage            []UsageCount
 }
 
 // counter accumulates Count entries keyed by an arbitrary string, preserving first-seen
@@ -236,8 +264,55 @@ func (c *counter) finish(top int) []Count {
 	return counts
 }
 
+// usageCounter accumulates UsageCount entries keyed by an arbitrary string (e.g. a
+// session's CWD), preserving first-seen order until the final sort.
+type usageCounter struct {
+	order []string
+	byKey map[string]*UsageCount
+}
+
+func newUsageCounter() *usageCounter {
+	return &usageCounter{byKey: make(map[string]*UsageCount)}
+}
+
+func (c *usageCounter) add(key string, u SessionUsage) {
+	entry, ok := c.byKey[key]
+	if !ok {
+		entry = &UsageCount{Key: key}
+		c.byKey[key] = entry
+		c.order = append(c.order, key)
+	}
+	entry.Sessions++
+	entry.PremiumRequests += u.PremiumRequests
+	entry.AIU += u.AIU
+	entry.InputTokens += u.InputTokens
+	entry.CacheReadTokens += u.CacheReadTokens
+	entry.CacheWriteTokens += u.CacheWriteTokens
+	entry.OutputTokens += u.OutputTokens
+	entry.APIDurationMs += u.APIDurationMs
+}
+
+// finish returns the accumulated usage counts sorted by AIU descending, then Key
+// ascending, truncated to the top entries when top > 0.
+func (c *usageCounter) finish(top int) []UsageCount {
+	counts := make([]UsageCount, 0, len(c.order))
+	for _, key := range c.order {
+		counts = append(counts, *c.byKey[key])
+	}
+	sort.Slice(counts, func(i, j int) bool {
+		if counts[i].AIU != counts[j].AIU {
+			return counts[i].AIU > counts[j].AIU
+		}
+		return counts[i].Key < counts[j].Key
+	})
+	if top > 0 && len(counts) > top {
+		counts = counts[:top]
+	}
+	return counts
+}
+
 // CollectPermissionStats scans the Copilot CLI session-state directory and aggregates
-// permission requests into a PermissionStats, applying opts' filters.
+// permission requests and session usage into a PermissionStats, applying opts' filters.
 func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, error) {
 	root := opts.Root
 	if root == "" {
@@ -266,6 +341,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	byPath := newCounter()
 	byURL := newCounter()
 	byCWD := newCounter()
+	byCWDUsage := newUsageCounter()
 
 	stats := &PermissionStats{Since: opts.Since, Until: opts.Until, Scope: opts.Scope}
 
@@ -277,10 +353,25 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 			continue
 		}
 
-		records, err := readPermissionRecords(s)
+		// Usage is aggregated independently of the permission requests below: a session
+		// with no permission requests (e.g. one that only ran read-only tools with no
+		// approval rules) still has a usage total worth reporting.
+		records, usage, found, err := readSessionPermissionsAndUsage(s)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read permission events for session %q: %w", s.ID, err)
+			return nil, fmt.Errorf("failed to read events for session %q: %w", s.ID, err)
 		}
+		if found && (opts.Since.IsZero() || !usage.At.Before(opts.Since)) && (opts.Until.IsZero() || usage.At.Before(opts.Until)) {
+			stats.UsageSessions++
+			stats.UsagePremiumRequests += usage.PremiumRequests
+			stats.UsageAIU += usage.AIU
+			stats.UsageInputTokens += usage.InputTokens
+			stats.UsageCacheReadTokens += usage.CacheReadTokens
+			stats.UsageCacheWriteTokens += usage.CacheWriteTokens
+			stats.UsageOutputTokens += usage.OutputTokens
+			stats.UsageAPIDurationMs += usage.APIDurationMs
+			byCWDUsage.add(s.CWD, usage)
+		}
+
 		if len(records) == 0 {
 			continue
 		}
@@ -351,6 +442,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	stats.ByPath = byPath.finish(opts.Top)
 	stats.ByURL = byURL.finish(opts.Top)
 	stats.ByCWD = byCWD.finish(opts.Top)
+	stats.ByCWDUsage = byCWDUsage.finish(opts.Top)
 
 	return stats, nil
 }

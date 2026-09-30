@@ -199,3 +199,83 @@ func TestReadPermissionRecordsMissingFile(t *testing.T) {
 		t.Fatalf("readPermissionRecords() = %+v, want nil", records)
 	}
 }
+
+func TestReadSessionUsage(t *testing.T) {
+	events := `{"type":"session.start","timestamp":"2026-01-01T00:00:00Z","data":{}}
+{"type":"session.shutdown","timestamp":"2026-01-01T01:00:00Z","data":{"shutdownType":"routine","totalPremiumRequests":5,"totalNanoAiu":2500000000,"totalApiDurationMs":1234,"tokenDetails":{"input":{"tokenCount":100},"cache_read":{"tokenCount":200},"cache_write":{"tokenCount":50},"output":{"tokenCount":300}}}}
+`
+	dir := writeSessionDir(t, t.TempDir(), "session-usage", "", events)
+	s := Session{ID: "session-usage", Dir: dir}
+
+	usage, found, err := readSessionUsage(s)
+	if err != nil {
+		t.Fatalf("readSessionUsage() error = %v", err)
+	}
+	if !found {
+		t.Fatal("readSessionUsage() found = false, want true")
+	}
+	want := SessionUsage{
+		At:               time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC),
+		PremiumRequests:  5,
+		AIU:              2.5,
+		InputTokens:      100,
+		CacheReadTokens:  200,
+		CacheWriteTokens: 50,
+		OutputTokens:     300,
+		APIDurationMs:    1234,
+	}
+	if usage != want {
+		t.Fatalf("readSessionUsage() = %+v, want %+v", usage, want)
+	}
+}
+
+func TestReadSessionUsageMissing(t *testing.T) {
+	events := `{"type":"session.start","timestamp":"2026-01-01T00:00:00Z","data":{}}
+`
+	dir := writeSessionDir(t, t.TempDir(), "session-no-shutdown", "", events)
+	s := Session{ID: "session-no-shutdown", Dir: dir}
+
+	usage, found, err := readSessionUsage(s)
+	if err != nil {
+		t.Fatalf("readSessionUsage() error = %v", err)
+	}
+	if found {
+		t.Fatalf("readSessionUsage() found = true, want false: %+v", usage)
+	}
+}
+
+func TestReadSessionUsageLegacyShutdown(t *testing.T) {
+	events := `{"type":"session.shutdown","timestamp":"2026-01-01T01:00:00Z","data":{"shutdownType":"routine"}}
+{"type":"session.shutdown","timestamp":"2026-01-01T02:00:00Z","data":{}}
+`
+	dir := writeSessionDir(t, t.TempDir(), "session-legacy-shutdown", "", events)
+	s := Session{ID: "session-legacy-shutdown", Dir: dir}
+
+	usage, found, err := readSessionUsage(s)
+	if err != nil {
+		t.Fatalf("readSessionUsage() error = %v", err)
+	}
+	if found {
+		t.Fatalf("readSessionUsage() found = true, want false: %+v", usage)
+	}
+}
+
+func TestReadSessionUsageExplicitZero(t *testing.T) {
+	events := `{"type":"session.shutdown","timestamp":"2026-01-01T01:00:00Z","data":{"totalPremiumRequests":0,"totalNanoAiu":0}}
+{"type":"session.shutdown","timestamp":"2026-01-01T02:00:00Z","data":{}}
+`
+	dir := writeSessionDir(t, t.TempDir(), "session-zero-usage", "", events)
+	s := Session{ID: "session-zero-usage", Dir: dir}
+
+	usage, found, err := readSessionUsage(s)
+	if err != nil {
+		t.Fatalf("readSessionUsage() error = %v", err)
+	}
+	if !found {
+		t.Fatal("readSessionUsage() found = false, want true")
+	}
+	want := SessionUsage{At: time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC)}
+	if usage != want {
+		t.Fatalf("readSessionUsage() = %+v, want %+v", usage, want)
+	}
+}

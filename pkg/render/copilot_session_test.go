@@ -24,6 +24,12 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 		ByCommand: []copilotext.Count{
 			{Key: "ls", Total: 2, Approved: 2},
 		},
+		UsageSessions:        1,
+		UsagePremiumRequests: 3.5,
+		UsageAIU:             1.5,
+		ByCWDUsage: []copilotext.UsageCount{
+			{Key: "/repo/a", Sessions: 1, PremiumRequests: 3, AIU: 1.5, InputTokens: 10, OutputTokens: 20},
+		},
 	}
 
 	if err := sr.Renderer.RenderCopilotPermissionStats(stats); err != nil {
@@ -34,6 +40,9 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 	if !strings.Contains(out, "SUMMARY") || !strings.Contains(out, "sessions: 2, requests: 3") {
 		t.Fatalf("output missing SUMMARY line: %q", out)
 	}
+	if !strings.Contains(out, "usage_sessions: 1, premium_requests: 3.5,") || !strings.Contains(out, "aiu: 1.500") {
+		t.Fatalf("output missing usage SUMMARY line: %q", out)
+	}
 	if !strings.Contains(out, "RESULT") || !strings.Contains(out, "approved") || !strings.Contains(out, "denied") {
 		t.Fatalf("output missing RESULT table: %q", out)
 	}
@@ -42,6 +51,9 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 	}
 	if !strings.Contains(out, "COMMAND") || !strings.Contains(out, "ls") {
 		t.Fatalf("output missing COMMAND table: %q", out)
+	}
+	if !strings.Contains(out, "CWD_USAGE") || !strings.Contains(out, "/repo/a") {
+		t.Fatalf("output missing CWD_USAGE table: %q", out)
 	}
 	// Empty axes (KIND, READONLY, PATH, URL, CWD) must not print a section heading.
 	if strings.Contains(out, "KIND") {
