@@ -3,7 +3,7 @@ module github.com/srz-zumix/go-gh-extension
 go 1.26.1
 
 require (
-	github.com/Songmu/skillsmith v0.1.0
+	github.com/Songmu/skillsmith v0.2.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.19.0
 	github.com/cli/go-gh/v2 v2.13.0
 	github.com/cli/shurcooL-graphql v0.0.4
