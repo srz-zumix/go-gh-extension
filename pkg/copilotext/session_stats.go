@@ -356,9 +356,9 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 		// Usage is aggregated independently of the permission requests below: a session
 		// with no permission requests (e.g. one that only ran read-only tools with no
 		// approval rules) still has a usage total worth reporting.
-		usage, found, err := readSessionUsage(s)
+		records, usage, found, err := readSessionPermissionsAndUsage(s)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read usage events for session %q: %w", s.ID, err)
+			return nil, fmt.Errorf("failed to read events for session %q: %w", s.ID, err)
 		}
 		if found && (opts.Since.IsZero() || !usage.At.Before(opts.Since)) && (opts.Until.IsZero() || usage.At.Before(opts.Until)) {
 			stats.UsageSessions++
@@ -372,10 +372,6 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 			byCWDUsage.add(s.CWD, usage)
 		}
 
-		records, err := readPermissionRecords(s)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read permission events for session %q: %w", s.ID, err)
-		}
 		if len(records) == 0 {
 			continue
 		}

@@ -431,6 +431,15 @@ func TestCollectPermissionStatsUsage(t *testing.T) {
 		eventsB,
 	)
 
+	// session-c has a legacy session.shutdown event without usage totals; it must not be
+	// counted as a usage session.
+	eventsC := `{"type":"session.shutdown","timestamp":"2026-01-03T01:00:00Z","data":{"shutdownType":"routine"}}
+`
+	writeSessionDir(t, root, "session-c",
+		"id: session-c\ncwd: /repo/c\ncreated_at: 2026-01-03T00:00:00Z\nupdated_at: 2026-01-03T00:00:00Z\n",
+		eventsC,
+	)
+
 	stats, err := CollectPermissionStats(PermissionStatsOptions{Root: root})
 	if err != nil {
 		t.Fatalf("CollectPermissionStats() error = %v", err)
@@ -458,6 +467,9 @@ func TestCollectPermissionStatsUsage(t *testing.T) {
 	}
 	if got := byCWDUsage["/repo/b"]; got.Sessions != 1 || got.AIU != 0.5 {
 		t.Fatalf("ByCWDUsage[/repo/b] = %+v, want Sessions=1 AIU=0.5", got)
+	}
+	if got, ok := byCWDUsage["/repo/c"]; ok {
+		t.Fatalf("ByCWDUsage[/repo/c] = %+v, want no entry", got)
 	}
 }
 
