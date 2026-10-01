@@ -151,3 +151,50 @@ func SetRepoForkPRContributorApprovalPolicy(ctx context.Context, g *GitHubClient
 	}
 	return nil
 }
+
+// SetRepoSHAPinningRequired sets whether the repository requires actions to be pinned to a full-length commit SHA.
+func SetRepoSHAPinningRequired(ctx context.Context, g *GitHubClient, repo repository.Repository, required bool) (*github.ActionsPermissionsRepository, error) {
+	// The update endpoint requires the enabled flag, so carry over the current value.
+	current, err := GetRepoActionsPermissions(ctx, g, repo)
+	if err != nil {
+		return nil, err
+	}
+	return UpdateRepoActionsPermissions(ctx, g, repo, github.ActionsPermissionsRepository{
+		Enabled:            current.Enabled,
+		SHAPinningRequired: &required,
+	})
+}
+
+// GetOrgPrivateRepoForkPRWorkflowSettings retrieves the fork PR workflow settings for private repositories in the organization.
+func GetOrgPrivateRepoForkPRWorkflowSettings(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.WorkflowsPermissions, error) {
+	settings, err := g.GetOrgPrivateRepoForkPRWorkflowSettings(ctx, repo.Owner)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get private repository fork PR workflow settings for organization '%s': %w", repo.Owner, err)
+	}
+	return settings, nil
+}
+
+// UpdateOrgPrivateRepoForkPRWorkflowSettings updates the fork PR workflow settings for private repositories in the organization.
+func UpdateOrgPrivateRepoForkPRWorkflowSettings(ctx context.Context, g *GitHubClient, repo repository.Repository, settings github.WorkflowsPermissionsOpt) error {
+	if err := g.UpdateOrgPrivateRepoForkPRWorkflowSettings(ctx, repo.Owner, settings); err != nil {
+		return fmt.Errorf("failed to update private repository fork PR workflow settings for organization '%s': %w", repo.Owner, err)
+	}
+	return nil
+}
+
+// GetRepoPrivateRepoForkPRWorkflowSettings retrieves the fork PR workflow settings of a private repository.
+func GetRepoPrivateRepoForkPRWorkflowSettings(ctx context.Context, g *GitHubClient, repo repository.Repository) (*github.WorkflowsPermissions, error) {
+	settings, err := g.GetRepoPrivateRepoForkPRWorkflowSettings(ctx, repo.Owner, repo.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get private repository fork PR workflow settings for repository '%s/%s': %w", repo.Owner, repo.Name, err)
+	}
+	return settings, nil
+}
+
+// UpdateRepoPrivateRepoForkPRWorkflowSettings updates the fork PR workflow settings of a private repository.
+func UpdateRepoPrivateRepoForkPRWorkflowSettings(ctx context.Context, g *GitHubClient, repo repository.Repository, settings github.WorkflowsPermissionsOpt) error {
+	if err := g.UpdateRepoPrivateRepoForkPRWorkflowSettings(ctx, repo.Owner, repo.Name, settings); err != nil {
+		return fmt.Errorf("failed to update private repository fork PR workflow settings for repository '%s/%s': %w", repo.Owner, repo.Name, err)
+	}
+	return nil
+}
