@@ -242,13 +242,13 @@ func (g *GitHubClient) ListBranches(ctx context.Context, owner string, repo stri
 	return allBranches, nil
 }
 
-// HasTags reports whether the repository has at least one tag.
-func (g *GitHubClient) HasTags(ctx context.Context, owner string, repo string) (bool, error) {
-	tags, _, err := g.client.Repositories.ListTags(ctx, owner, repo, &github.ListOptions{PerPage: 1})
+// ListTagsPage retrieves a single page of tags for a specific repository using the given list options.
+func (g *GitHubClient) ListTagsPage(ctx context.Context, owner string, repo string, opt *github.ListOptions) ([]*github.RepositoryTag, error) {
+	tags, _, err := g.client.Repositories.ListTags(ctx, owner, repo, opt)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return len(tags) > 0, nil
+	return tags, nil
 }
 
 // ListTags retrieves all tags for a specific repository.
