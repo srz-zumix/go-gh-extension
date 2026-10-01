@@ -221,3 +221,16 @@ func SetOrgAllowedActions(ctx context.Context, g *GitHubClient, repo repository.
 		AllowedActions: &allowedActions,
 	})
 }
+
+// SetOrgSHAPinningRequired sets whether the organization requires actions to be pinned to a full-length commit SHA.
+func SetOrgSHAPinningRequired(ctx context.Context, g *GitHubClient, repo repository.Repository, required bool) (*github.ActionsPermissions, error) {
+	// The update endpoint requires enabled_repositories, so carry over the current value.
+	current, err := GetOrgActionsPermissions(ctx, g, repo)
+	if err != nil {
+		return nil, err
+	}
+	return UpdateOrgActionsPermissions(ctx, g, repo, github.ActionsPermissions{
+		EnabledRepositories: current.EnabledRepositories,
+		SHAPinningRequired:  &required,
+	})
+}

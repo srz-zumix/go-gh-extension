@@ -89,3 +89,33 @@ func (g *GitHubClient) UpdateRepoForkPRContributorApprovalPermissions(ctx contex
 	_, err := g.client.Actions.UpdateForkPRContributorApprovalPermissions(ctx, owner, repo, permissions)
 	return err
 }
+
+// GetOrgPrivateRepoForkPRWorkflowSettings gets the fork PR workflow settings for private repositories in the organization.
+func (g *GitHubClient) GetOrgPrivateRepoForkPRWorkflowSettings(ctx context.Context, org string) (*github.WorkflowsPermissions, error) {
+	settings, _, err := g.client.Actions.GetPrivateRepoForkPRWorkflowSettingsInOrganization(ctx, org)
+	if err != nil {
+		return nil, err
+	}
+	return settings, nil
+}
+
+// UpdateOrgPrivateRepoForkPRWorkflowSettings sets the fork PR workflow settings for private repositories in the organization.
+func (g *GitHubClient) UpdateOrgPrivateRepoForkPRWorkflowSettings(ctx context.Context, org string, settings github.WorkflowsPermissionsOpt) error {
+	_, err := g.client.Actions.UpdatePrivateRepoForkPRWorkflowSettingsInOrganization(ctx, org, &settings)
+	return err
+}
+
+// GetRepoPrivateRepoForkPRWorkflowSettings gets the fork PR workflow settings of a private repository.
+func (g *GitHubClient) GetRepoPrivateRepoForkPRWorkflowSettings(ctx context.Context, owner, repo string) (*github.WorkflowsPermissions, error) {
+	settings, _, err := g.client.Repositories.GetPrivateRepoForkPRWorkflowSettings(ctx, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	return settings, nil
+}
+
+// UpdateRepoPrivateRepoForkPRWorkflowSettings sets the fork PR workflow settings of a private repository.
+func (g *GitHubClient) UpdateRepoPrivateRepoForkPRWorkflowSettings(ctx context.Context, owner, repo string, settings github.WorkflowsPermissionsOpt) error {
+	_, err := g.client.Repositories.UpdatePrivateRepoForkPRWorkflowSettings(ctx, owner, repo, &settings)
+	return err
+}
