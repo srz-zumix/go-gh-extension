@@ -242,6 +242,15 @@ func (g *GitHubClient) ListBranches(ctx context.Context, owner string, repo stri
 	return allBranches, nil
 }
 
+// ListTagsPage retrieves a single page of tags for a specific repository using the given list options.
+func (g *GitHubClient) ListTagsPage(ctx context.Context, owner string, repo string, opt *github.ListOptions) ([]*github.RepositoryTag, error) {
+	tags, _, err := g.client.Repositories.ListTags(ctx, owner, repo, opt)
+	if err != nil {
+		return nil, err
+	}
+	return tags, nil
+}
+
 // ListTags retrieves all tags for a specific repository.
 func (g *GitHubClient) ListTags(ctx context.Context, owner string, repo string) ([]*github.RepositoryTag, error) {
 	var allTags []*github.RepositoryTag

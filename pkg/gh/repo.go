@@ -155,6 +155,15 @@ func ListTags(ctx context.Context, g *GitHubClient, repo repository.Repository) 
 	return g.ListTags(ctx, repo.Owner, repo.Name)
 }
 
+// HasTags reports whether the repository has at least one tag.
+func HasTags(ctx context.Context, g *GitHubClient, repo repository.Repository) (bool, error) {
+	tags, err := g.ListTagsPage(ctx, repo.Owner, repo.Name, &github.ListOptions{PerPage: 1})
+	if err != nil {
+		return false, err
+	}
+	return len(tags) > 0, nil
+}
+
 func ListProtectedBranches(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Branch, error) {
 	protected := true
 	return g.ListBranches(ctx, repo.Owner, repo.Name, &protected)
@@ -737,6 +746,11 @@ func DisableIssues(ctx context.Context, g *GitHubClient, repo repository.Reposit
 // SetDeleteBranchOnMerge sets whether head branches are automatically deleted after pull requests are merged.
 func SetDeleteBranchOnMerge(ctx context.Context, g *GitHubClient, repo repository.Repository, enabled bool) (*github.Repository, error) {
 	return EditRepository(ctx, g, repo, &github.Repository{DeleteBranchOnMerge: github.Ptr(enabled)})
+}
+
+// SetRepoAllowForking sets whether forking is allowed for a private or internal repository.
+func SetRepoAllowForking(ctx context.Context, g *GitHubClient, repo repository.Repository, allowed bool) (*github.Repository, error) {
+	return EditRepository(ctx, g, repo, &github.Repository{AllowForking: github.Ptr(allowed)})
 }
 
 // GetRepositoryNodeID retrieves the GraphQL node ID of a repository.
