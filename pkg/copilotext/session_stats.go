@@ -163,12 +163,14 @@ type Count struct {
 	Unresolved          int
 }
 
-// UsageCount is one entry of PermissionStats.ByCWDUsage: a working directory and its
-// aggregated session usage totals, drawn from each in-scope session's "session.shutdown"
-// event.
+// UsageCount is one entry of a PermissionStats usage axis: a key and its aggregated
+// session usage totals, drawn from each in-scope session's "session.shutdown" event.
+// Key is a working directory for PermissionStats.ByCWDUsage entries and a model name for
+// PermissionStats.ByModelUsage entries.
 type UsageCount struct {
 	Key              string
 	Sessions         int
+	Requests         int
 	PremiumRequests  float64
 	AIU              float64
 	InputTokens      int64
@@ -207,6 +209,7 @@ type PermissionStats struct {
 	UsageOutputTokens     int64
 	UsageAPIDurationMs    float64
 	ByCWDUsage            []UsageCount
+	ByModelUsage          []UsageCount
 }
 
 // counter accumulates Count entries keyed by an arbitrary string, preserving first-seen
@@ -283,6 +286,7 @@ func (c *usageCounter) add(key string, u SessionUsage) {
 		c.order = append(c.order, key)
 	}
 	entry.Sessions++
+	entry.Requests += u.Requests
 	entry.PremiumRequests += u.PremiumRequests
 	entry.AIU += u.AIU
 	entry.InputTokens += u.InputTokens
@@ -342,6 +346,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	byURL := newCounter()
 	byCWD := newCounter()
 	byCWDUsage := newUsageCounter()
+	byModelUsage := newUsageCounter()
 
 	stats := &PermissionStats{Since: opts.Since, Until: opts.Until, Scope: opts.Scope}
 
@@ -370,6 +375,9 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 			stats.UsageOutputTokens += usage.OutputTokens
 			stats.UsageAPIDurationMs += usage.APIDurationMs
 			byCWDUsage.add(s.CWD, usage)
+			for model, modelUsage := range usage.Models {
+				byModelUsage.add(model, modelUsage)
+			}
 		}
 
 		if len(records) == 0 {
@@ -443,6 +451,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	stats.ByURL = byURL.finish(opts.Top)
 	stats.ByCWD = byCWD.finish(opts.Top)
 	stats.ByCWDUsage = byCWDUsage.finish(opts.Top)
+	stats.ByModelUsage = byModelUsage.finish(opts.Top)
 
 	return stats, nil
 }

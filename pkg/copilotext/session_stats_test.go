@@ -457,6 +457,9 @@ func TestCollectPermissionStatsUsage(t *testing.T) {
 	if stats.UsageInputTokens != 15 || stats.UsageOutputTokens != 30 {
 		t.Fatalf("UsageInputTokens/UsageOutputTokens = %d/%d, want 15/30", stats.UsageInputTokens, stats.UsageOutputTokens)
 	}
+	if len(stats.ByModelUsage) != 0 {
+		t.Fatalf("ByModelUsage = %+v, want no entries without model metrics", stats.ByModelUsage)
+	}
 
 	byCWDUsage := map[string]UsageCount{}
 	for _, c := range stats.ByCWDUsage {
@@ -470,6 +473,56 @@ func TestCollectPermissionStatsUsage(t *testing.T) {
 	}
 	if got, ok := byCWDUsage["/repo/c"]; ok {
 		t.Fatalf("ByCWDUsage[/repo/c] = %+v, want no entry", got)
+	}
+}
+
+func TestCollectPermissionStatsModelUsage(t *testing.T) {
+	root := t.TempDir()
+	events := `{"type":"session.shutdown","timestamp":"2026-01-01T01:00:00Z","data":{"totalPremiumRequests":5,"totalNanoAiu":3000000000,"modelMetrics":{"model-a":{"requests":{"count":2,"cost":3},"totalNanoAiu":2000000000,"usage":{"inputTokens":10,"outputTokens":20}},"model-b":{"requests":{"count":1,"cost":2},"totalNanoAiu":1000000000,"usage":{"inputTokens":5,"outputTokens":10}}}}}
+`
+	writeSessionDir(t, root, "session-a", "id: session-a\ncwd: /repo/a\n", events)
+	writeSessionDir(t, root, "session-b", "id: session-b\ncwd: /repo/b\n", events)
+	stats, err := CollectPermissionStats(PermissionStatsOptions{Root: root, Kind: []string{"write"}})
+	if err != nil {
+		t.Fatalf("CollectPermissionStats() error = %v", err)
+	}
+	if stats.UsageSessions != 2 || stats.UsagePremiumRequests != 10 || stats.UsageAIU != 6 || stats.Requests != 0 {
+		t.Fatalf("unexpected totals: %+v", stats)
+	}
+	want := []UsageCount{
+		{Key: "model-a", Sessions: 2, Requests: 4, PremiumRequests: 6, AIU: 4, InputTokens: 20, OutputTokens: 40},
+		{Key: "model-b", Sessions: 2, Requests: 2, PremiumRequests: 4, AIU: 2, InputTokens: 10, OutputTokens: 20},
+	}
+	if len(stats.ByModelUsage) != len(want) {
+		t.Fatalf("ByModelUsage = %+v, want %+v", stats.ByModelUsage, want)
+	}
+	for index, entry := range want {
+		if stats.ByModelUsage[index] != entry {
+			t.Fatalf("ByModelUsage[%d] = %+v, want %+v", index, stats.ByModelUsage[index], entry)
+		}
+	}
+	for _, test := range []struct {
+		name     string
+		opts     PermissionStatsOptions
+		entries  int
+		sessions int
+	}{
+		{name: "top", opts: PermissionStatsOptions{Top: 1}, entries: 1, sessions: 2},
+		{name: "session", opts: PermissionStatsOptions{SessionID: "session-a"}, entries: 2, sessions: 1},
+		{name: "scope", opts: PermissionStatsOptions{Scope: SessionScope{ExactCWD: "/repo/a"}}, entries: 2, sessions: 1},
+		{name: "since", opts: PermissionStatsOptions{Since: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)}},
+		{name: "until", opts: PermissionStatsOptions{Until: time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC)}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			test.opts.Root = root
+			got, err := CollectPermissionStats(test.opts)
+			if err != nil {
+				t.Fatalf("CollectPermissionStats() error = %v", err)
+			}
+			if len(got.ByModelUsage) != test.entries || got.UsageSessions != test.sessions {
+				t.Fatalf("ByModelUsage = %+v, UsageSessions = %d", got.ByModelUsage, got.UsageSessions)
+			}
+		})
 	}
 }
 

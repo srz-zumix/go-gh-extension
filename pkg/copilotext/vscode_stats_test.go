@@ -81,8 +81,11 @@ func TestCollectVSCodeStatsToolsAndModels(t *testing.T) {
 		t.Fatalf("ByWorkspace = %+v, want one entry for /repo/a", stats.ByWorkspace)
 	}
 	ws := stats.ByWorkspace[0]
-	if ws.ToolCalls != 3 || ws.LLMRequests != 2 || ws.Turns != 1 {
-		t.Fatalf("ByWorkspace[0] = %+v, want ToolCalls=3 LLMRequests=2 Turns=1", ws)
+	if ws.Sessions != 1 || ws.ToolCalls != 3 || ws.LLMRequests != 2 || ws.Turns != 1 {
+		t.Fatalf("ByWorkspace[0] = %+v, want Sessions=1 ToolCalls=3 LLMRequests=2 Turns=1", ws)
+	}
+	if ws.InputTokens != 300 || ws.OutputTokens != 60 || ws.CachedTokens != 15 || ws.UsageAIU != 3 {
+		t.Fatalf("ByWorkspace[0] usage = %+v, want Input=300 Output=60 Cached=15 UsageAIU=3", ws)
 	}
 }
 

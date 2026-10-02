@@ -56,3 +56,23 @@ func TestRenderVSCodeStatsJSON(t *testing.T) {
 		t.Fatalf("expected JSON export of VSCodeStats, got %q", out)
 	}
 }
+
+func TestRenderVSCodeStatsWorkspaceTable(t *testing.T) {
+	sr := NewStringRenderer(nil)
+	stats := &copilotext.VSCodeStats{
+		ByWorkspace: []copilotext.VSCodeWorkspaceCount{
+			{Key: "/repo/a", Sessions: 2, ToolCalls: 5, LLMRequests: 4, Turns: 3, InputTokens: 100, OutputTokens: 20, CachedTokens: 80, UsageAIU: 1.5},
+		},
+	}
+
+	if err := sr.Renderer.RenderVSCodeStats(stats); err != nil {
+		t.Fatalf("RenderVSCodeStats() error = %v", err)
+	}
+
+	out := sr.Stdout.String()
+	for _, want := range []string{"WORKSPACE", "SESSIONS", "USAGE AIU", "/repo/a", "1.500"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("output missing %q: %q", want, out)
+		}
+	}
+}

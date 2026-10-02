@@ -3,6 +3,7 @@ package copilotext
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -224,7 +225,7 @@ func TestReadSessionUsage(t *testing.T) {
 		OutputTokens:     300,
 		APIDurationMs:    1234,
 	}
-	if usage != want {
+	if !reflect.DeepEqual(usage, want) {
 		t.Fatalf("readSessionUsage() = %+v, want %+v", usage, want)
 	}
 }
@@ -275,7 +276,28 @@ func TestReadSessionUsageExplicitZero(t *testing.T) {
 		t.Fatal("readSessionUsage() found = false, want true")
 	}
 	want := SessionUsage{At: time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC)}
-	if usage != want {
+	if !reflect.DeepEqual(usage, want) {
 		t.Fatalf("readSessionUsage() = %+v, want %+v", usage, want)
+	}
+}
+
+func TestReadSessionUsageModels(t *testing.T) {
+	events := `{"type":"session.shutdown","timestamp":"2026-01-01T01:00:00Z","data":{"totalPremiumRequests":5,"totalNanoAiu":2500000000,"modelMetrics":{"model-a":{"requests":{"count":2,"cost":3},"totalNanoAiu":1500000000,"usage":{"inputTokens":999,"outputTokens":20},"tokenDetails":{"input":{"tokenCount":10},"cache_read":{"tokenCount":100},"cache_write":{"tokenCount":50},"output":{"tokenCount":20}}},"model-b":{"requests":{"count":1,"cost":2},"totalNanoAiu":1000000000,"usage":{"inputTokens":30,"cacheReadTokens":40,"cacheWriteTokens":5,"outputTokens":60}}}}}
+`
+	dir := writeSessionDir(t, t.TempDir(), "session-models", "", events)
+	usage, found, err := readSessionUsage(Session{ID: "session-models", Dir: dir})
+	if err != nil || !found {
+		t.Fatalf("readSessionUsage() found = %v, error = %v", found, err)
+	}
+	if usage.PremiumRequests != 5 || usage.AIU != 2.5 || usage.Requests != 3 || len(usage.Models) != 2 {
+		t.Fatalf("unexpected session usage: %+v", usage)
+	}
+	at := time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC)
+	want := map[string]SessionUsage{
+		"model-a": {At: at, Requests: 2, PremiumRequests: 3, AIU: 1.5, InputTokens: 10, CacheReadTokens: 100, CacheWriteTokens: 50, OutputTokens: 20},
+		"model-b": {At: at, Requests: 1, PremiumRequests: 2, AIU: 1, InputTokens: 30, CacheReadTokens: 40, CacheWriteTokens: 5, OutputTokens: 60},
+	}
+	if !reflect.DeepEqual(usage.Models, want) {
+		t.Fatalf("Models = %+v, want %+v", usage.Models, want)
 	}
 }
