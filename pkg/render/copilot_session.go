@@ -12,7 +12,7 @@ var countTableHeader = []string{"KEY", "TOTAL", "APPROVED", "APPROVED_FOR_LOCATI
 
 // usageCountTableHeader lists the columns used for the usage-by-CWD table in
 // RenderCopilotPermissionStats.
-var usageCountTableHeader = []string{"KEY", "SESSIONS", "PREMIUM_REQUESTS", "AIU", "INPUT", "CACHE_READ", "CACHE_WRITE", "OUTPUT", "API_DURATION_MS"}
+var usageCountTableHeader = []string{"KEY", "SESSIONS", "REQUESTS", "PREMIUM_REQUESTS", "AIU", "INPUT", "CACHE_READ", "CACHE_WRITE", "OUTPUT", "API_DURATION_MS"}
 
 // renderCountTable renders one axis (e.g. ByCommand) as a table titled by section.
 func (r *Renderer) renderCountTable(section string, counts []copilotext.Count) error {
@@ -47,6 +47,7 @@ func (r *Renderer) renderUsageCountTable(section string, counts []copilotext.Usa
 		table.Append([]string{
 			c.Key,
 			strconv.Itoa(c.Sessions),
+			strconv.Itoa(c.Requests),
 			strconv.FormatFloat(c.PremiumRequests, 'f', -1, 64),
 			strconv.FormatFloat(c.AIU, 'f', 3, 64),
 			strconv.FormatInt(c.InputTokens, 10),
@@ -94,6 +95,8 @@ func (r *Renderer) RenderCopilotPermissionStats(stats *copilotext.PermissionStat
 			return err
 		}
 	}
-	return r.renderUsageCountTable("CWD_USAGE", stats.ByCWDUsage)
+	if err := r.renderUsageCountTable("CWD_USAGE", stats.ByCWDUsage); err != nil {
+		return err
+	}
+	return r.renderUsageCountTable("MODEL_USAGE", stats.ByModelUsage)
 }
-

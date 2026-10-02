@@ -356,6 +356,8 @@ func (pc *permissionCollector) records() []PermissionRecord {
 // token and API duration totals.
 type SessionUsage struct {
 	At               time.Time
+	Models           map[string]SessionUsage
+	Requests         int
 	PremiumRequests  float64
 	AIU              float64
 	InputTokens      int64
@@ -369,6 +371,19 @@ type SessionUsage struct {
 // pointers so that a payload without usage totals (e.g. written by an older CLI version) can
 // be told apart from one that recorded explicit zero values.
 type rawSessionShutdown struct {
+	ModelMetrics map[string]struct {
+		Requests struct {
+			Count int     `json:"count"`
+			Cost  float64 `json:"cost"`
+		} `json:"requests"`
+		Usage struct {
+			InputTokens      int64 `json:"inputTokens"`
+			CacheReadTokens  int64 `json:"cacheReadTokens"`
+			CacheWriteTokens int64 `json:"cacheWriteTokens"`
+			OutputTokens     int64 `json:"outputTokens"`
+		} `json:"usage"`
+		rawSessionShutdown
+	} `json:"modelMetrics"`
 	TotalPremiumRequests *float64 `json:"totalPremiumRequests"`
 	TotalNanoAiu         *int64   `json:"totalNanoAiu"`
 	TotalAPIDurationMs   *float64 `json:"totalApiDurationMs"`
@@ -390,7 +405,7 @@ type rawSessionShutdown struct {
 
 // hasUsage reports whether the payload recorded any usage total.
 func (d rawSessionShutdown) hasUsage() bool {
-	return d.TotalPremiumRequests != nil || d.TotalNanoAiu != nil || d.TotalAPIDurationMs != nil || d.TokenDetails != nil
+	return d.TotalPremiumRequests != nil || d.TotalNanoAiu != nil || d.TotalAPIDurationMs != nil || d.TokenDetails != nil || len(d.ModelMetrics) > 0
 }
 
 // readSessionUsage reads s's events.jsonl and returns the usage totals recorded by its
@@ -425,7 +440,13 @@ func (uc *usageCollector) handle(ev rawEvent) {
 	if !data.hasUsage() {
 		return
 	}
-	usage := SessionUsage{At: ev.Timestamp}
+	usage := data.sessionUsage(ev.Timestamp)
+	uc.usage = usage
+	uc.found = true
+}
+
+func (data rawSessionShutdown) sessionUsage(at time.Time) SessionUsage {
+	usage := SessionUsage{At: at}
 	if data.TotalPremiumRequests != nil {
 		usage.PremiumRequests = *data.TotalPremiumRequests
 	}
@@ -441,8 +462,23 @@ func (uc *usageCollector) handle(ev rawEvent) {
 		usage.CacheWriteTokens = data.TokenDetails.CacheWrite.TokenCount
 		usage.OutputTokens = data.TokenDetails.Output.TokenCount
 	}
-	uc.usage = usage
-	uc.found = true
+	if len(data.ModelMetrics) > 0 {
+		usage.Models = make(map[string]SessionUsage, len(data.ModelMetrics))
+		for model, metrics := range data.ModelMetrics {
+			modelUsage := metrics.rawSessionShutdown.sessionUsage(at)
+			modelUsage.Requests = metrics.Requests.Count
+			modelUsage.PremiumRequests = metrics.Requests.Cost
+			if metrics.TokenDetails == nil {
+				modelUsage.InputTokens = metrics.Usage.InputTokens
+				modelUsage.CacheReadTokens = metrics.Usage.CacheReadTokens
+				modelUsage.CacheWriteTokens = metrics.Usage.CacheWriteTokens
+				modelUsage.OutputTokens = metrics.Usage.OutputTokens
+			}
+			usage.Requests += modelUsage.Requests
+			usage.Models[model] = modelUsage
+		}
+	}
+	return usage
 }
 
 // readSessionPermissionsAndUsage reads s's events.jsonl in a single pass and returns both

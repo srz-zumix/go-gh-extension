@@ -1,6 +1,7 @@
 package render
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -30,6 +31,9 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 		ByCWDUsage: []copilotext.UsageCount{
 			{Key: "/repo/a", Sessions: 1, PremiumRequests: 3, AIU: 1.5, InputTokens: 10, OutputTokens: 20},
 		},
+		ByModelUsage: []copilotext.UsageCount{
+			{Key: "model-a", Sessions: 1, Requests: 2, PremiumRequests: 3, AIU: 1.5, InputTokens: 10, OutputTokens: 20},
+		},
 	}
 
 	if err := sr.Renderer.RenderCopilotPermissionStats(stats); err != nil {
@@ -55,6 +59,9 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 	if !strings.Contains(out, "CWD_USAGE") || !strings.Contains(out, "/repo/a") {
 		t.Fatalf("output missing CWD_USAGE table: %q", out)
 	}
+	if !strings.Contains(out, "MODEL_USAGE") || !strings.Contains(out, "model-a") || !strings.Contains(out, "REQUESTS") {
+		t.Fatalf("output missing MODEL_USAGE table: %q", out)
+	}
 	// Empty axes (KIND, READONLY, PATH, URL, CWD) must not print a section heading.
 	if strings.Contains(out, "KIND") {
 		t.Fatalf("output should omit empty KIND section: %q", out)
@@ -63,7 +70,10 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 
 func TestRenderCopilotPermissionStatsJSON(t *testing.T) {
 	sr := NewStringRenderer(cmdutil.NewJSONExporter())
-	stats := &copilotext.PermissionStats{Sessions: 1, Requests: 1}
+	stats := &copilotext.PermissionStats{
+		Sessions: 1, Requests: 1,
+		ByModelUsage: []copilotext.UsageCount{{Key: "model-a", Sessions: 1, Requests: 2, PremiumRequests: 3, AIU: 1.5}},
+	}
 
 	if err := sr.Renderer.RenderCopilotPermissionStats(stats); err != nil {
 		t.Fatalf("RenderCopilotPermissionStats() error = %v", err)
@@ -72,5 +82,12 @@ func TestRenderCopilotPermissionStatsJSON(t *testing.T) {
 	out := sr.Stdout.String()
 	if !strings.Contains(out, `"Sessions":1`) {
 		t.Fatalf("expected JSON export of PermissionStats, got %q", out)
+	}
+	var decoded copilotext.PermissionStats
+	if err := json.Unmarshal([]byte(out), &decoded); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(decoded.ByModelUsage) != 1 || decoded.ByModelUsage[0] != stats.ByModelUsage[0] {
+		t.Fatalf("ByModelUsage = %+v, want %+v", decoded.ByModelUsage, stats.ByModelUsage)
 	}
 }
