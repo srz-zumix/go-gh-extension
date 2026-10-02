@@ -9,7 +9,7 @@ import (
 var vscodeToolTableHeader = []string{"KEY", "TOTAL", "OK", "ERROR", "TOTAL_MS", "AVG_MS"}
 var vscodeModelTableHeader = []string{"KEY", "REQUESTS", "INPUT", "OUTPUT", "CACHED", "AVG_TTFT_MS", "USAGE_AIU"}
 var vscodeAgentTableHeader = []string{"KEY", "TOTAL"}
-var vscodeWorkspaceTableHeader = []string{"KEY", "TOOL_CALLS", "LLM_REQUESTS", "TURNS"}
+var vscodeWorkspaceTableHeader = []string{"KEY", "SESSIONS", "TOOL_CALLS", "LLM_REQUESTS", "TURNS", "INPUT", "OUTPUT", "CACHED", "USAGE_AIU"}
 
 func (r *Renderer) renderVSCodeToolTable(counts []copilotext.VSCodeToolCount) error {
 	if len(counts) == 0 {
@@ -75,9 +75,14 @@ func (r *Renderer) renderVSCodeWorkspaceTable(counts []copilotext.VSCodeWorkspac
 	for _, c := range counts {
 		table.Append([]string{
 			c.Key,
+			strconv.Itoa(c.Sessions),
 			strconv.Itoa(c.ToolCalls),
 			strconv.Itoa(c.LLMRequests),
 			strconv.Itoa(c.Turns),
+			strconv.FormatInt(c.InputTokens, 10),
+			strconv.FormatInt(c.OutputTokens, 10),
+			strconv.FormatInt(c.CachedTokens, 10),
+			strconv.FormatFloat(c.UsageAIU, 'f', 3, 64),
 		})
 	}
 	return table.Render()

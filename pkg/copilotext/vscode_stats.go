@@ -71,12 +71,34 @@ type VSCodeAgentCount struct {
 }
 
 // VSCodeWorkspaceCount is one entry of VSCodeStats.ByWorkspace: a workspace folder and its
-// activity totals.
+// activity, token and usage totals. Token and usage totals are summed over the
+// llm_request events counted in LLMRequests (i.e. after the Model filter).
 type VSCodeWorkspaceCount struct {
-	Key         string
-	ToolCalls   int
-	LLMRequests int
-	Turns       int
+	Key          string
+	Sessions     int
+	ToolCalls    int
+	LLMRequests  int
+	Turns        int
+	InputTokens  int64
+	OutputTokens int64
+	CachedTokens int64
+	UsageAIU     float64
+}
+
+// vscodeWorkspaceUsage is the per-session token and usage subtotal folded into a
+// VSCodeWorkspaceCount.
+type vscodeWorkspaceUsage struct {
+	InputTokens  int64
+	OutputTokens int64
+	CachedTokens int64
+	UsageAIU     float64
+}
+
+func (u *vscodeWorkspaceUsage) add(attrs vscodeLLMRequestAttrs) {
+	u.InputTokens += attrs.InputTokens
+	u.OutputTokens += attrs.OutputTokens
+	u.CachedTokens += attrs.CachedTokens
+	u.UsageAIU += float64(attrs.CopilotUsageNanoAIU) / 1e9
 }
 
 // VSCodeStats summarizes the VS Code Copilot Chat activity collected by
@@ -228,16 +250,21 @@ func (a *vscodeAggregator) addAgent(name string) {
 	entry.Total++
 }
 
-func (a *vscodeAggregator) addWorkspace(key string, toolCalls, llmRequests, turns int) {
+func (a *vscodeAggregator) addWorkspace(key string, toolCalls, llmRequests, turns int, usage vscodeWorkspaceUsage) {
 	entry, ok := a.workspaces[key]
 	if !ok {
 		entry = &VSCodeWorkspaceCount{Key: key}
 		a.workspaces[key] = entry
 		a.wsOrder = append(a.wsOrder, key)
 	}
+	entry.Sessions++
 	entry.ToolCalls += toolCalls
 	entry.LLMRequests += llmRequests
 	entry.Turns += turns
+	entry.InputTokens += usage.InputTokens
+	entry.OutputTokens += usage.OutputTokens
+	entry.CachedTokens += usage.CachedTokens
+	entry.UsageAIU += usage.UsageAIU
 }
 
 func (a *vscodeAggregator) finishTools(top int) []VSCodeToolCount {
@@ -357,6 +384,7 @@ func CollectVSCodeStats(opts VSCodeStatsOptions) (*VSCodeStats, error) {
 		sessionCounted := false
 		turnIDs := make(map[string]bool)
 		var toolCallsInSession, llmRequestsInSession int
+		var usageInSession vscodeWorkspaceUsage
 
 		readErr := readVSCodeEvents(s.LogPath, func(ev vscodeRawEvent) error {
 			ts := time.UnixMilli(int64(ev.TS))
@@ -397,6 +425,7 @@ func CollectVSCodeStats(opts VSCodeStatsOptions) (*VSCodeStats, error) {
 					return nil
 				}
 				agg.addModel(a.Model, a)
+				usageInSession.add(a)
 				stats.LLMRequests++
 				llmRequestsInSession++
 				sessionCounted = true
@@ -421,7 +450,7 @@ func CollectVSCodeStats(opts VSCodeStatsOptions) (*VSCodeStats, error) {
 
 		if sessionCounted {
 			stats.Sessions++
-			agg.addWorkspace(s.Folder, toolCallsInSession, llmRequestsInSession, len(turnIDs))
+			agg.addWorkspace(s.Folder, toolCallsInSession, llmRequestsInSession, len(turnIDs), usageInSession)
 		}
 	}
 
