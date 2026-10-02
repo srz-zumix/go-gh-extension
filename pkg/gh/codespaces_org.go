@@ -9,8 +9,10 @@ import (
 
 // Codespaces organization access visibilities.
 const (
-	CodespacesOrgAccessDisabled        = "disabled"
-	CodespacesOrgAccessSelectedMembers = "selected_members"
+	CodespacesOrgAccessDisabled                          = "disabled"
+	CodespacesOrgAccessSelectedMembers                   = "selected_members"
+	CodespacesOrgAccessAllMembers                        = "all_members"
+	CodespacesOrgAccessAllMembersAndOutsideCollaborators = "all_members_and_outside_collaborators"
 )
 
 // GetCodespacesOrgAccess gets the Codespaces access setting of the organization that owns repo (wrapper).
