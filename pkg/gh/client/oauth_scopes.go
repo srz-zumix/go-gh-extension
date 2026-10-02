@@ -3,12 +3,14 @@ package client
 import (
 	"context"
 	"net/http"
+	"strings"
 )
 
 // oauthScopesHeader is the response header that lists the scopes of an OAuth or classic personal access token.
 const oauthScopesHeader = "X-OAuth-Scopes"
 
 // GetOAuthScopesHeader returns the raw X-OAuth-Scopes header of the API root.
+// Multiple header field lines are combined into a single comma-separated value.
 // ok is false when the header is absent, as with fine-grained or GitHub App tokens.
 func (g *GitHubClient) GetOAuthScopesHeader(ctx context.Context) (header string, ok bool, err error) {
 	req, err := g.client.NewRequest(ctx, "GET", "", nil)
@@ -23,5 +25,5 @@ func (g *GitHubClient) GetOAuthScopesHeader(ctx context.Context) (header string,
 	if !ok || len(values) == 0 {
 		return "", false, nil
 	}
-	return values[0], true, nil
+	return strings.Join(values, ", "), true, nil
 }
