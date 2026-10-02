@@ -163,9 +163,10 @@ type Count struct {
 	Unresolved          int
 }
 
-// UsageCount is one entry of PermissionStats.ByCWDUsage: a working directory and its
-// aggregated session usage totals, drawn from each in-scope session's "session.shutdown"
-// event.
+// UsageCount is one entry of a PermissionStats usage axis: a key and its aggregated
+// session usage totals, drawn from each in-scope session's "session.shutdown" event.
+// Key is a working directory for PermissionStats.ByCWDUsage entries and a model name for
+// PermissionStats.ByModelUsage entries.
 type UsageCount struct {
 	Key              string
 	Sessions         int

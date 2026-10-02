@@ -465,7 +465,7 @@ func (data rawSessionShutdown) sessionUsage(at time.Time) SessionUsage {
 	if len(data.ModelMetrics) > 0 {
 		usage.Models = make(map[string]SessionUsage, len(data.ModelMetrics))
 		for model, metrics := range data.ModelMetrics {
-			modelUsage := metrics.rawSessionShutdown.sessionUsage(at)
+			modelUsage := metrics.sessionUsage(at)
 			modelUsage.Requests = metrics.Requests.Count
 			modelUsage.PremiumRequests = metrics.Requests.Cost
 			if metrics.TokenDetails == nil {
