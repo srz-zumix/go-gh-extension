@@ -172,9 +172,69 @@ func (g *GitHubClient) RemoveReviewers(ctx context.Context, owner string, repo s
 }
 
 func (g *GitHubClient) ListRequestedReviewers(ctx context.Context, owner string, repo string, number int) (*github.Reviewers, error) {
-	reviewers, _, err := g.client.PullRequests.ListReviewers(ctx, owner, repo, number)
+	graphql, err := g.GetOrCreateGraphQLClient()
 	if err != nil {
 		return nil, err
+	}
+	var query struct {
+		Repository struct {
+			PullRequest *struct {
+				ReviewRequests struct {
+					Nodes []struct {
+						RequestedReviewer struct {
+							User struct {
+								Login string
+							} `graphql:"... on User"`
+							Bot struct {
+								Login string
+							} `graphql:"... on Bot"`
+							Mannequin struct {
+								Login string
+							} `graphql:"... on Mannequin"`
+							Team struct {
+								Slug string
+							} `graphql:"... on Team"`
+						}
+					}
+					PageInfo struct {
+						EndCursor   githubv4.String
+						HasNextPage bool
+					}
+				} `graphql:"reviewRequests(first: 100, after: $cursor)"`
+			} `graphql:"pullRequest(number: $pr)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+	vars := map[string]any{
+		"owner":  githubv4.String(owner),
+		"repo":   githubv4.String(repo),
+		"pr":     githubv4.Int(number),
+		"cursor": (*githubv4.String)(nil),
+	}
+	reviewers := &github.Reviewers{}
+	for {
+		if err := graphql.Query(ctx, &query, vars); err != nil {
+			return nil, err
+		}
+		if query.Repository.PullRequest == nil {
+			return nil, errors.New("pull request not found")
+		}
+		for _, node := range query.Repository.PullRequest.ReviewRequests.Nodes {
+			reviewer := node.RequestedReviewer
+			switch {
+			case reviewer.User.Login != "":
+				reviewers.Users = append(reviewers.Users, &github.User{Login: github.Ptr(reviewer.User.Login)})
+			case reviewer.Bot.Login != "":
+				reviewers.Users = append(reviewers.Users, &github.User{Login: github.Ptr(reviewer.Bot.Login)})
+			case reviewer.Mannequin.Login != "":
+				reviewers.Users = append(reviewers.Users, &github.User{Login: github.Ptr(reviewer.Mannequin.Login)})
+			case reviewer.Team.Slug != "":
+				reviewers.Teams = append(reviewers.Teams, &github.Team{Slug: github.Ptr(reviewer.Team.Slug)})
+			}
+		}
+		if !query.Repository.PullRequest.ReviewRequests.PageInfo.HasNextPage {
+			break
+		}
+		vars["cursor"] = githubv4.NewString(query.Repository.PullRequest.ReviewRequests.PageInfo.EndCursor)
 	}
 	return reviewers, nil
 }
