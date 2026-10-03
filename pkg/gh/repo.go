@@ -662,6 +662,12 @@ func CreateRepositoryFile(ctx context.Context, g *GitHubClient, repo repository.
 	return g.CreateFile(ctx, repo.Owner, repo.Name, path, toGitHubRepositoryContentFileOptions(opts))
 }
 
+// CreateCommitOnBranch commits the given files (path -> content) to a branch as a commit signed by GitHub (wrapper).
+// expectedHeadOid must be the current head commit SHA of the branch. It returns the new commit SHA.
+func CreateCommitOnBranch(ctx context.Context, g *GitHubClient, repo repository.Repository, branch, expectedHeadOid, headline string, additions map[string][]byte) (string, error) {
+	return g.CreateCommitOnBranch(ctx, repo.Owner, repo.Name, branch, expectedHeadOid, headline, additions)
+}
+
 // UpdateRepositoryFile updates an existing file in a repository (wrapper).
 func UpdateRepositoryFile(ctx context.Context, g *GitHubClient, repo repository.Repository, path string, opts *RepositoryContentFileOptions) (*github.RepositoryContentResponse, error) {
 	return g.UpdateFile(ctx, repo.Owner, repo.Name, path, toGitHubRepositoryContentFileOptions(opts))
