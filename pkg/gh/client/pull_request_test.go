@@ -25,9 +25,10 @@ func TestListRequestedReviewers(t *testing.T) {
 			response: `{"data":{"repository":{"pullRequest":{"reviewRequests":{"nodes":[
 				{"requestedReviewer":{"login":"alice"}},
 				{"requestedReviewer":{"login":"copilot-pull-request-reviewer"}},
+				{"requestedReviewer":{"login":"migrated-user"}},
 				{"requestedReviewer":{"slug":"reviewers"}},
 				{"requestedReviewer":null}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}`,
-			users: []string{"alice", "copilot-pull-request-reviewer"},
+			users: []string{"alice", "copilot-pull-request-reviewer", "migrated-user"},
 			teams: []string{"reviewers"},
 		},
 		{
@@ -55,6 +56,7 @@ func TestListRequestedReviewers(t *testing.T) {
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 				assert.Contains(t, request.Query, "... on Bot")
 				assert.Contains(t, request.Query, "... on User")
+				assert.Contains(t, request.Query, "... on Mannequin")
 				assert.Contains(t, request.Query, "... on Team")
 				_, err := w.Write([]byte(tt.response))
 				assert.NoError(t, err)

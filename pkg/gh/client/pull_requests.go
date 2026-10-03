@@ -188,6 +188,9 @@ func (g *GitHubClient) ListRequestedReviewers(ctx context.Context, owner string,
 							Bot struct {
 								Login string
 							} `graphql:"... on Bot"`
+							Mannequin struct {
+								Login string
+							} `graphql:"... on Mannequin"`
 							Team struct {
 								Slug string
 							} `graphql:"... on Team"`
@@ -222,6 +225,8 @@ func (g *GitHubClient) ListRequestedReviewers(ctx context.Context, owner string,
 				reviewers.Users = append(reviewers.Users, &github.User{Login: github.Ptr(reviewer.User.Login)})
 			case reviewer.Bot.Login != "":
 				reviewers.Users = append(reviewers.Users, &github.User{Login: github.Ptr(reviewer.Bot.Login)})
+			case reviewer.Mannequin.Login != "":
+				reviewers.Users = append(reviewers.Users, &github.User{Login: github.Ptr(reviewer.Mannequin.Login)})
 			case reviewer.Team.Slug != "":
 				reviewers.Teams = append(reviewers.Teams, &github.Team{Slug: github.Ptr(reviewer.Team.Slug)})
 			}
