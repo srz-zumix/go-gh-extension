@@ -71,6 +71,24 @@ func (g *GitHubClient) ListOrgRunners(ctx context.Context, owner string) ([]*git
 	return allRunners, nil
 }
 
+func (g *GitHubClient) ListEnterpriseRunners(ctx context.Context, enterprise string) ([]*github.Runner, error) {
+	allRunners := []*github.Runner{}
+	opt := &github.ListRunnersOptions{
+		ListOptions: github.ListOptions{PerPage: defaultPerPage},
+	}
+	for {
+		runners, resp, err := g.client.Enterprise.ListRunners(ctx, enterprise, opt)
+		if err != nil {
+			return nil, err
+		}
+		allRunners = append(allRunners, runners.Runners...)
+		if resp.NextPage == 0 {
+			return allRunners, nil
+		}
+		opt.Page = resp.NextPage
+	}
+}
+
 func (g *GitHubClient) FindOrgRunner(ctx context.Context, owner string, runnerName string) (*github.Runner, error) {
 	runners, err := g.ListOrgRunners(ctx, owner)
 	if err != nil {
