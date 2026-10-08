@@ -28,14 +28,20 @@ func TestListHooks(t *testing.T) {
 					if request.URL.Query().Get("page") == "2" {
 						if fail {
 							writer.WriteHeader(http.StatusForbidden)
-							fmt.Fprint(writer, `{"message":"forbidden"}`)
+							if _, err := fmt.Fprint(writer, `{"message":"forbidden"}`); err != nil {
+								t.Errorf("failed to write response: %v", err)
+							}
 						} else {
-							fmt.Fprint(writer, `[{"id":2}]`)
+							if _, err := fmt.Fprint(writer, `[{"id":2}]`); err != nil {
+								t.Errorf("failed to write response: %v", err)
+							}
 						}
 						return
 					}
 					writer.Header().Set("Link", fmt.Sprintf(`<http://%s%s?page=2>; rel="next"`, request.Host, path))
-					fmt.Fprint(writer, `[{"id":1}]`)
+					if _, err := fmt.Fprint(writer, `[{"id":1}]`); err != nil {
+						t.Errorf("failed to write response: %v", err)
+					}
 				}))
 				defer server.Close()
 				client := newTestClient(t, server.URL, http.DefaultTransport)
