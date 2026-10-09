@@ -98,6 +98,10 @@ func ListOrgRunners(ctx context.Context, g *GitHubClient, repo repository.Reposi
 	return g.ListOrgRunners(ctx, repo.Owner)
 }
 
+func ListEnterpriseRunners(ctx context.Context, g *GitHubClient, enterprise repository.Repository) ([]*github.Runner, error) {
+	return g.ListEnterpriseRunners(ctx, enterprise.Owner)
+}
+
 // FindOrgRunner finds a self-hosted runner by name for an organization (wrapper)
 func FindOrgRunner(ctx context.Context, g *GitHubClient, repo repository.Repository, runnerName string) (*github.Runner, error) {
 	return g.FindOrgRunner(ctx, repo.Owner, runnerName)
@@ -268,6 +272,42 @@ func UpdateOrgRunnerGroup(ctx context.Context, g *GitHubClient, repo repository.
 // ListOrgRunnerGroupRunners lists all self-hosted runners belonging to an organization runner group (wrapper)
 func ListOrgRunnerGroupRunners(ctx context.Context, g *GitHubClient, repo repository.Repository, groupID int64) ([]*github.Runner, error) {
 	return g.ListOrgRunnerGroupRunners(ctx, repo.Owner, groupID)
+}
+
+// ListOrgRunnersWithInherited lists the organization runners plus the runners of runner groups inherited from the enterprise,
+// which only need organization admin permission to read.
+func ListOrgRunnersWithInherited(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.Runner, error) {
+	runners, err := ListOrgRunners(ctx, g, repo)
+	if err != nil {
+		return nil, err
+	}
+	groups, err := ListOrgRunnerGroups(ctx, g, repo)
+	if err != nil {
+		return nil, err
+	}
+	// Enterprise and organization runner IDs may overlap, so the group is part of the key.
+	seen := make(map[[2]int64]bool, len(runners))
+	for _, runner := range runners {
+		seen[[2]int64{runner.GetRunnerGroupID(), runner.GetID()}] = true
+	}
+	for _, group := range groups {
+		if !group.GetInherited() {
+			continue
+		}
+		groupRunners, err := ListOrgRunnerGroupRunners(ctx, g, repo, group.GetID())
+		if err != nil {
+			return nil, err
+		}
+		for _, runner := range groupRunners {
+			key := [2]int64{group.GetID(), runner.GetID()}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			runners = append(runners, runner)
+		}
+	}
+	return runners, nil
 }
 
 // ListOrgRunnerGroupRepositories lists all repositories that have access to an organization runner group (wrapper)
