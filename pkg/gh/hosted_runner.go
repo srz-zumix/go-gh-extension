@@ -16,6 +16,11 @@ func ListEnterpriseHostedRunners(ctx context.Context, g *GitHubClient, enterpris
 	return g.ListEnterpriseHostedRunners(ctx, enterprise.Owner)
 }
 
+// ListOrgRunnerGroupHostedRunners lists the GitHub-hosted runner pools of an organization runner group (wrapper)
+func ListOrgRunnerGroupHostedRunners(ctx context.Context, g *GitHubClient, repo repository.Repository, groupID int64) ([]*github.HostedRunner, error) {
+	return g.ListOrgRunnerGroupHostedRunners(ctx, repo.Owner, groupID)
+}
+
 // ListOrgHostedRunnersWithInherited lists the organization pools plus those of runner groups inherited from the enterprise,
 // which the organization list omits and which only need organization admin permission to read.
 func ListOrgHostedRunnersWithInherited(ctx context.Context, g *GitHubClient, repo repository.Repository) ([]*github.HostedRunner, error) {
@@ -35,7 +40,7 @@ func ListOrgHostedRunnersWithInherited(ctx context.Context, g *GitHubClient, rep
 		if !group.GetInherited() {
 			continue
 		}
-		groupRunners, err := g.ListOrgRunnerGroupHostedRunners(ctx, repo.Owner, group.GetID())
+		groupRunners, err := ListOrgRunnerGroupHostedRunners(ctx, g, repo, group.GetID())
 		if err != nil {
 			return nil, err
 		}
