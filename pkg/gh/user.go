@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
 	"slices"
 
+	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v90/github"
 )
@@ -87,10 +89,39 @@ func UpdateUsers(ctx context.Context, g *GitHubClient, users []*GitHubUser) ([]*
 	return users, nil
 }
 
+// UpdateUsersForSuspension fills in the data needed to detect suspended users.
+// Only GitHub Enterprise Server exposes suspended_at, so other hosts skip the per-user lookup.
+func UpdateUsersForSuspension(ctx context.Context, g *GitHubClient, users []*GitHubUser) ([]*GitHubUser, error) {
+	if !auth.IsEnterprise(g.Host()) {
+		return users, nil
+	}
+	return UpdateUsers(ctx, g, users)
+}
+
+// obfuscatedManagedUserLogin matches the "<hash>_<SHORTCODE>" login given to deprovisioned EMU accounts.
+var obfuscatedManagedUserLogin = regexp.MustCompile(`(?i)^[0-9a-f]{30,}_[0-9a-z]+$`)
+
+// IsObfuscatedManagedUserLogin reports whether login looks like a suspended EMU account's obfuscated login.
+func IsObfuscatedManagedUserLogin(login string) bool {
+	return obfuscatedManagedUserLogin.MatchString(login)
+}
+
+// IsSuspendedUser reports whether the user is suspended.
+// GHEC does not return suspended_at, so the obfuscated EMU login is used as well.
+func IsSuspendedUser(user *GitHubUser) bool {
+	if user == nil {
+		return false
+	}
+	if user.SuspendedAt != nil {
+		return true
+	}
+	return user.Login != nil && IsObfuscatedManagedUserLogin(*user.Login)
+}
+
 func CollectSuspendedUsers(users []*GitHubUser) []*GitHubUser {
 	var suspendedUsers []*GitHubUser
 	for _, user := range users {
-		if user.SuspendedAt != nil {
+		if IsSuspendedUser(user) {
 			suspendedUsers = append(suspendedUsers, user)
 		}
 	}
@@ -98,13 +129,13 @@ func CollectSuspendedUsers(users []*GitHubUser) []*GitHubUser {
 }
 
 func ExcludeSuspendedUsers(users []*GitHubUser) []*GitHubUser {
-	var suspendedUsers []*GitHubUser
+	var activeUsers []*GitHubUser
 	for _, user := range users {
-		if user.SuspendedAt == nil {
-			suspendedUsers = append(suspendedUsers, user)
+		if !IsSuspendedUser(user) {
+			activeUsers = append(activeUsers, user)
 		}
 	}
-	return suspendedUsers
+	return activeUsers
 }
 
 func ExcludeOrganizationAdmins(ctx context.Context, g *GitHubClient, repo repository.Repository, users []*GitHubUser) ([]*GitHubUser, error) {
