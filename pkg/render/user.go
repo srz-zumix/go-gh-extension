@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v90/github"
+	"github.com/srz-zumix/go-gh-extension/pkg/gh"
 )
 
 // UserFieldList is the list of valid field names for user display.
@@ -30,7 +31,7 @@ func NewUserFieldGetters() *userFiledGetters {
 				return ToString(user.RoleName)
 			},
 			"SUSPENDED": func(user *github.User) string {
-				return ToString(user.SuspendedAt != nil)
+				return ToString(gh.IsSuspendedUser(user))
 			},
 			"URL": func(user *github.User) string {
 				return ToString(user.HTMLURL)
@@ -87,6 +88,6 @@ func (r *Renderer) RenderUserWithRole(users []*github.User) error {
 }
 
 func (r *Renderer) RenderUserDetails(users []*github.User) error {
-	headers := []string{"USERNAME", "ROLE", "EMAIL", "SUSPENDED"}
+	headers := []string{"LOGIN", "NAME", "ROLE", "EMAIL", "SUSPENDED"}
 	return r.RenderUsers(users, headers)
 }
