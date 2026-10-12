@@ -76,6 +76,21 @@ func (r *Renderer) RenderCopilotPermissionStats(stats *copilotext.PermissionStat
 	r.writeLine("usage_sessions: " + strconv.Itoa(stats.UsageSessions) +
 		", premium_requests: " + strconv.FormatFloat(stats.UsagePremiumRequests, 'f', -1, 64) +
 		", aiu: " + strconv.FormatFloat(stats.UsageAIU, 'f', 3, 64))
+	if stats.UsageIncompleteSessions > 0 {
+		r.writeLine("incomplete_usage_sessions: " + strconv.Itoa(stats.UsageIncompleteSessions) +
+			" (model, request, or token breakdown may be incomplete)")
+	}
+
+	if stats.AskUser != nil {
+		q := stats.AskUser
+		r.writeLine("")
+		r.writeLine("ASK_USER")
+		r.writeLine("sessions: " + strconv.Itoa(q.Sessions) + ", questions: " + strconv.Itoa(q.Questions) +
+			", answered: " + strconv.Itoa(q.Answered) + ", cancelled: " + strconv.Itoa(q.Cancelled) +
+			", failed: " + strconv.Itoa(q.Failed) + ", unresolved: " + strconv.Itoa(q.Unresolved) +
+			", unknown: " + strconv.Itoa(q.Unknown))
+		r.renderQuestionWait(q.TimedAnswers, q.UntimedAnswers, q.TotalWaitMs, q.AvgWaitMs, q.MaxWaitMs)
+	}
 
 	sections := []struct {
 		name   string
@@ -98,5 +113,22 @@ func (r *Renderer) RenderCopilotPermissionStats(stats *copilotext.PermissionStat
 	if err := r.renderUsageCountTable("CWD_USAGE", stats.ByCWDUsage); err != nil {
 		return err
 	}
-	return r.renderUsageCountTable("MODEL_USAGE", stats.ByModelUsage)
+	if err := r.renderUsageCountTable("MODEL_USAGE", stats.ByModelUsage); err != nil {
+		return err
+	}
+	if len(stats.ByRoleUsage) == 0 {
+		return nil
+	}
+	r.writeLine("")
+	r.writeLine("AGENT_USAGE")
+	table := r.newTableWriter([]string{"ROLE", "SESSIONS", "REQUESTS", "PREMIUM_REQUESTS", "AIU", "INPUT", "CACHE_READ", "CACHE_WRITE", "OUTPUT"})
+	for _, c := range stats.ByRoleUsage {
+		table.Append([]string{
+			c.Key, strconv.Itoa(c.Sessions), strconv.Itoa(c.Requests),
+			strconv.FormatFloat(c.PremiumRequests, 'f', -1, 64), strconv.FormatFloat(c.AIU, 'f', 3, 64),
+			strconv.FormatInt(c.InputTokens, 10), strconv.FormatInt(c.CacheReadTokens, 10),
+			strconv.FormatInt(c.CacheWriteTokens, 10), strconv.FormatInt(c.OutputTokens, 10),
+		})
+	}
+	return table.Render()
 }

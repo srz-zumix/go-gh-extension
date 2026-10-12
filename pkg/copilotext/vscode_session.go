@@ -22,7 +22,9 @@ type VSCodeSession struct {
 	// Folder is the absolute path decoded from the owning workspace's workspace.json
 	// "folder" field. It is empty when workspace.json is missing, unreadable, or uses
 	// the multi-root "workspace" key instead of "folder".
-	Folder     string
+	Folder string
+	// ModifiedAt is the latest modification time of the main and child JSONL logs.
+	// Zero means the log directory could not be fully inspected.
 	ModifiedAt time.Time
 }
 
@@ -130,13 +132,34 @@ func ListVSCodeSessions(root string) ([]VSCodeSession, error) {
 				}
 				continue
 			}
+			modifiedAt := info.ModTime()
+			logEntries, err := os.ReadDir(sessionDir)
+			if err != nil {
+				logger.Warn("unable to inspect child log modification times", "dir", sessionDir, "error", err)
+				modifiedAt = time.Time{}
+			} else {
+				for _, entry := range logEntries {
+					if !entry.Type().IsRegular() || filepath.Ext(entry.Name()) != ".jsonl" {
+						continue
+					}
+					logInfo, err := entry.Info()
+					if err != nil {
+						logger.Warn("unable to inspect log modification time", "path", filepath.Join(sessionDir, entry.Name()), "error", err)
+						modifiedAt = time.Time{}
+						break
+					}
+					if logInfo.ModTime().After(modifiedAt) {
+						modifiedAt = logInfo.ModTime()
+					}
+				}
+			}
 			sessions = append(sessions, VSCodeSession{
 				ID:            se.Name(),
 				Dir:           sessionDir,
 				LogPath:       logPath,
 				WorkspaceHash: h.Name(),
 				Folder:        folder,
-				ModifiedAt:    info.ModTime(),
+				ModifiedAt:    modifiedAt,
 			})
 		}
 	}

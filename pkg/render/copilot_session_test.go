@@ -25,14 +25,19 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 		ByCommand: []copilotext.Count{
 			{Key: "ls", Total: 2, Approved: 2},
 		},
-		UsageSessions:        1,
-		UsagePremiumRequests: 3.5,
-		UsageAIU:             1.5,
+		UsageSessions:           1,
+		UsageIncompleteSessions: 1,
+		UsagePremiumRequests:    3.5,
+		UsageAIU:                1.5,
 		ByCWDUsage: []copilotext.UsageCount{
 			{Key: "/repo/a", Sessions: 1, PremiumRequests: 3, AIU: 1.5, InputTokens: 10, OutputTokens: 20},
 		},
 		ByModelUsage: []copilotext.UsageCount{
 			{Key: "model-a", Sessions: 1, Requests: 2, PremiumRequests: 3, AIU: 1.5, InputTokens: 10, OutputTokens: 20},
+		},
+		ByRoleUsage: []copilotext.UsageCount{
+			{Key: "main", Sessions: 1, Requests: 1, AIU: 1},
+			{Key: "subagent", Sessions: 1, Requests: 1, AIU: 0.5},
 		},
 	}
 
@@ -62,6 +67,10 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 	if !strings.Contains(out, "MODEL_USAGE") || !strings.Contains(out, "model-a") || !strings.Contains(out, "REQUESTS") {
 		t.Fatalf("output missing MODEL_USAGE table: %q", out)
 	}
+	if !strings.Contains(out, "AGENT_USAGE") || !strings.Contains(out, "subagent") ||
+		!strings.Contains(out, "incomplete_usage_sessions: 1") {
+		t.Fatalf("output missing agent usage or incomplete notice: %q", out)
+	}
 	// Empty axes (KIND, READONLY, PATH, URL, CWD) must not print a section heading.
 	if strings.Contains(out, "KIND") {
 		t.Fatalf("output should omit empty KIND section: %q", out)
@@ -72,7 +81,10 @@ func TestRenderCopilotPermissionStatsJSON(t *testing.T) {
 	sr := NewStringRenderer(cmdutil.NewJSONExporter())
 	stats := &copilotext.PermissionStats{
 		Sessions: 1, Requests: 1,
-		ByModelUsage: []copilotext.UsageCount{{Key: "model-a", Sessions: 1, Requests: 2, PremiumRequests: 3, AIU: 1.5}},
+		UsageIncompleteSessions: 1,
+		UsageRequests:           2,
+		ByModelUsage:            []copilotext.UsageCount{{Key: "model-a", Sessions: 1, Requests: 2, PremiumRequests: 3, AIU: 1.5}},
+		ByRoleUsage:             []copilotext.UsageCount{{Key: "subagent", Sessions: 1, Requests: 2, AIU: 1.5}},
 	}
 
 	if err := sr.Renderer.RenderCopilotPermissionStats(stats); err != nil {
@@ -89,5 +101,9 @@ func TestRenderCopilotPermissionStatsJSON(t *testing.T) {
 	}
 	if len(decoded.ByModelUsage) != 1 || decoded.ByModelUsage[0] != stats.ByModelUsage[0] {
 		t.Fatalf("ByModelUsage = %+v, want %+v", decoded.ByModelUsage, stats.ByModelUsage)
+	}
+	if decoded.UsageRequests != 2 || decoded.UsageIncompleteSessions != 1 ||
+		len(decoded.ByRoleUsage) != 1 || decoded.ByRoleUsage[0] != stats.ByRoleUsage[0] {
+		t.Fatalf("missing JSON live usage/role fields: %+v", decoded)
 	}
 }

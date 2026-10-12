@@ -153,6 +153,8 @@ func readSession(dir string) (Session, error) {
 
 // rawEvent is the outer envelope shared by every line of events.jsonl.
 type rawEvent struct {
+	ID        string          `json:"id"`
+	AgentID   string          `json:"agentId"`
 	Type      string          `json:"type"`
 	Data      json.RawMessage `json:"data"`
 	Timestamp time.Time       `json:"timestamp"`
@@ -351,12 +353,12 @@ func (pc *permissionCollector) records() []PermissionRecord {
 	return records
 }
 
-// SessionUsage is the usage summary recorded by a session's "session.shutdown" event: how
-// many premium requests it consumed, its total AIU (Agentic/AI Usage Unit) cost, and its
-// token and API duration totals.
+// SessionUsage combines recorded request usage and cumulative session snapshots.
 type SessionUsage struct {
 	At               time.Time
 	Models           map[string]SessionUsage
+	Roles            map[string]SessionUsage
+	Incomplete       bool
 	Requests         int
 	PremiumRequests  float64
 	AIU              float64
@@ -408,41 +410,14 @@ func (d rawSessionShutdown) hasUsage() bool {
 	return d.TotalPremiumRequests != nil || d.TotalNanoAiu != nil || d.TotalAPIDurationMs != nil || d.TokenDetails != nil || len(d.ModelMetrics) > 0
 }
 
-// readSessionUsage reads s's events.jsonl and returns the usage totals recorded by its
-// "session.shutdown" event. found is false when the session has no such event yet (e.g. it
-// is still in progress) or the CLI version that wrote it did not record usage totals.
+// readSessionUsage reads recorded request usage and cumulative usage snapshots.
 func readSessionUsage(s Session) (usage SessionUsage, found bool, rerr error) {
 	uc := &usageCollector{session: s}
 	if err := scanSessionEvents(s, uc.handle); err != nil {
 		return SessionUsage{}, false, err
 	}
-	return uc.usage, uc.found, nil
-}
-
-// usageCollector captures the usage totals of a single session's "session.shutdown" event
-// so they can be gathered in a shared events.jsonl scan.
-type usageCollector struct {
-	session Session
-	usage   SessionUsage
-	found   bool
-}
-
-// handle records ev's usage totals when it is a "session.shutdown" event that contains them.
-func (uc *usageCollector) handle(ev rawEvent) {
-	if ev.Type != "session.shutdown" {
-		return
-	}
-	var data rawSessionShutdown
-	if err := json.Unmarshal(ev.Data, &data); err != nil {
-		logger.Warn("skipping unparsable session.shutdown event", "dir", uc.session.Dir, "error", err)
-		return
-	}
-	if !data.hasUsage() {
-		return
-	}
-	usage := data.sessionUsage(ev.Timestamp)
-	uc.usage = usage
-	uc.found = true
+	usage, found = uc.result()
+	return usage, found, nil
 }
 
 func (data rawSessionShutdown) sessionUsage(at time.Time) SessionUsage {
@@ -481,18 +456,26 @@ func (data rawSessionShutdown) sessionUsage(at time.Time) SessionUsage {
 	return usage
 }
 
-// readSessionPermissionsAndUsage reads s's events.jsonl in a single pass and returns both
-// its permission records (as readPermissionRecords) and its usage totals (as
-// readSessionUsage).
-func readSessionPermissionsAndUsage(s Session) (records []PermissionRecord, usage SessionUsage, usageFound bool, rerr error) {
+type sessionActivity struct {
+	permissions []PermissionRecord
+	usage       SessionUsage
+	usageFound  bool
+	questions   []questionRecord
+}
+
+// readSessionActivity gathers permission, usage, and question accounting in one scan.
+func readSessionActivity(s Session) (sessionActivity, error) {
 	pc := newPermissionCollector(s)
 	uc := &usageCollector{session: s}
+	qc := newQuestionCollector(s)
 	err := scanSessionEvents(s, func(ev rawEvent) {
 		pc.handle(ev)
 		uc.handle(ev)
+		qc.handle(ev)
 	})
 	if err != nil {
-		return nil, SessionUsage{}, false, err
+		return sessionActivity{}, err
 	}
-	return pc.records(), uc.usage, uc.found, nil
+	usage, found := uc.result()
+	return sessionActivity{permissions: pc.records(), usage: usage, usageFound: found, questions: qc.records()}, nil
 }
