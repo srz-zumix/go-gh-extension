@@ -133,20 +133,24 @@ func TestGetUsageSummary(t *testing.T) {
 		Product:      "actions",
 		SKU:          "actions_linux",
 	}
-	wantQuery := map[string]string{
-		"year":           "2025",
-		"month":          "3",
-		"day":            "4",
+	commonQuery := map[string]string{
+		"year":       "2025",
+		"month":      "3",
+		"day":        "4",
+		"repository": "example/repo",
+		"product":    "actions",
+		"sku":        "actions_linux",
+	}
+	// cost_center_id and organization are accepted by the enterprise summary endpoint only.
+	enterpriseOnlyQuery := map[string]string{
 		"cost_center_id": "cc-1",
 		"organization":   "example-org",
-		"repository":     "example/repo",
-		"product":        "actions",
-		"sku":            "actions_linux",
 	}
 	for _, tc := range []struct {
-		name string
-		path string
-		call func(g *GitHubClient, opts *BillingUsageSummaryOptions) (*BillingUsageSummary, error)
+		name           string
+		path           string
+		wantEnterprise bool
+		call           func(g *GitHubClient, opts *BillingUsageSummaryOptions) (*BillingUsageSummary, error)
 	}{
 		{
 			name: "org",
@@ -163,8 +167,9 @@ func TestGetUsageSummary(t *testing.T) {
 			},
 		},
 		{
-			name: "enterprise",
-			path: "/enterprises/example/settings/billing/usage/summary",
+			name:           "enterprise",
+			path:           "/enterprises/example/settings/billing/usage/summary",
+			wantEnterprise: true,
 			call: func(g *GitHubClient, o *BillingUsageSummaryOptions) (*BillingUsageSummary, error) {
 				return g.GetEnterpriseUsageSummary(context.Background(), "example", o)
 			},
@@ -174,8 +179,15 @@ func TestGetUsageSummary(t *testing.T) {
 			t.Run("success", func(t *testing.T) {
 				client := newStubClient(t, func(r *http.Request) (int, string) {
 					assert.Equal(t, tc.path, r.URL.Path)
-					for k, want := range wantQuery {
+					for k, want := range commonQuery {
 						assert.Equal(t, want, r.URL.Query().Get(k), "query %q", k)
+					}
+					for k, want := range enterpriseOnlyQuery {
+						if tc.wantEnterprise {
+							assert.Equal(t, want, r.URL.Query().Get(k), "query %q", k)
+						} else {
+							assert.Empty(t, r.URL.Query().Get(k), "query %q", k)
+						}
 					}
 					return http.StatusOK, `{"timePeriod":{"year":2025,"month":3},"organization":"example","usageItems":[{"product":"actions","sku":"actions_linux","unitType":"minutes","pricePerUnit":0.008,"netQuantity":100,"netAmount":0.8}]}`
 				})

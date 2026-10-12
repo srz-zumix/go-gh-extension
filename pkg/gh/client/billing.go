@@ -113,14 +113,25 @@ func (g *GitHubClient) GetEnterpriseUsageReport(ctx context.Context, enterprise 
 	return report, err
 }
 
+// withoutEnterpriseOnlyFields drops the fields that only the enterprise summary endpoint accepts.
+func (o *BillingUsageSummaryOptions) withoutEnterpriseOnlyFields() *BillingUsageSummaryOptions {
+	if o == nil {
+		return nil
+	}
+	sanitized := *o
+	sanitized.CostCenterID = ""
+	sanitized.Organization = ""
+	return &sanitized
+}
+
 // GetOrgUsageSummary gets the billing usage summary of an organization.
 func (g *GitHubClient) GetOrgUsageSummary(ctx context.Context, org string, opts *BillingUsageSummaryOptions) (*BillingUsageSummary, error) {
-	return g.getUsageSummary(ctx, fmt.Sprintf("organizations/%v/settings/billing/usage/summary", org), opts)
+	return g.getUsageSummary(ctx, fmt.Sprintf("organizations/%v/settings/billing/usage/summary", org), opts.withoutEnterpriseOnlyFields())
 }
 
 // GetUserUsageSummary gets the billing usage summary of a user.
 func (g *GitHubClient) GetUserUsageSummary(ctx context.Context, user string, opts *BillingUsageSummaryOptions) (*BillingUsageSummary, error) {
-	return g.getUsageSummary(ctx, fmt.Sprintf("users/%v/settings/billing/usage/summary", user), opts)
+	return g.getUsageSummary(ctx, fmt.Sprintf("users/%v/settings/billing/usage/summary", user), opts.withoutEnterpriseOnlyFields())
 }
 
 // GetEnterpriseUsageSummary gets the billing usage summary of an enterprise.
