@@ -95,3 +95,8 @@ func vscodeQuestion(ev vscodeRawEvent, path string) (string, *float64) {
 	}
 	return outcome, wait
 }
+
+// IsEmpty reports whether no question call was observed, so renderers can skip the section.
+func (stats *VSCodeQuestionStats) IsEmpty() bool {
+	return stats == nil || *stats == VSCodeQuestionStats{}
+}

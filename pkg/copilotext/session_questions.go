@@ -175,3 +175,8 @@ func (stats *AskUserStats) addOutcome(outcome string, wait *float64) {
 		stats.Unknown++
 	}
 }
+
+// IsEmpty reports whether no question was observed, so renderers can skip the section.
+func (stats *AskUserStats) IsEmpty() bool {
+	return stats == nil || *stats == AskUserStats{}
+}

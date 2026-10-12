@@ -81,7 +81,7 @@ func (r *Renderer) RenderCopilotPermissionStats(stats *copilotext.PermissionStat
 			" (model, request, or token breakdown may be incomplete)")
 	}
 
-	if stats.AskUser != nil {
+	if !stats.AskUser.IsEmpty() {
 		q := stats.AskUser
 		r.writeLine("")
 		r.writeLine("ASK_USER")

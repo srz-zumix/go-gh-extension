@@ -104,7 +104,7 @@ func (r *Renderer) RenderVSCodeStats(stats *copilotext.VSCodeStats) error {
 		", turns: " + strconv.Itoa(stats.Turns) +
 		", llm_requests: " + strconv.Itoa(stats.LLMRequests) +
 		", tool_calls: " + strconv.Itoa(stats.ToolCalls))
-	if q := stats.UserQuestions; q != nil {
+	if q := stats.UserQuestions; !q.IsEmpty() {
 		r.writeLine("")
 		r.writeLine("USER_QUESTIONS")
 		r.writeLine("sessions: " + strconv.Itoa(q.Sessions) + ", calls: " + strconv.Itoa(q.Calls) +
