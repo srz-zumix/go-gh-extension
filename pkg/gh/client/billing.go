@@ -28,6 +28,8 @@ type BillingUsageSummaryOptions struct {
 	Day   int `url:"day,omitempty"`
 	// CostCenterID is supported by enterprise summaries only.
 	CostCenterID string `url:"cost_center_id,omitempty"`
+	// Organization is supported by enterprise summaries only.
+	Organization string `url:"organization,omitempty"`
 	// Repository is in the OWNER/REPO format.
 	Repository string `url:"repository,omitempty"`
 	Product    string `url:"product,omitempty"`
