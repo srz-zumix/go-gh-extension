@@ -239,3 +239,23 @@ func TestCollectPermissionStatsLiveUsageScopeAndTime(t *testing.T) {
 		})
 	}
 }
+
+func TestSessionUsagePartialPremiumCheckpointIsIncomplete(t *testing.T) {
+	// A later checkpoint replaces only the premium-request total, so the per-model
+	// breakdown kept from the shutdown snapshot no longer sums to it.
+	checkpoint := `{"type":"session.usage_checkpoint","timestamp":"2026-01-01T03:00:00Z","data":{"totalPremiumRequests":5}}` + "\n"
+	u := collectUsageLog(t, completeUsageShutdown+checkpoint)
+	if u.PremiumRequests != 5 {
+		t.Fatalf("usage = %+v, want checkpoint premium total", u)
+	}
+	var models SessionUsage
+	for _, model := range u.Models {
+		models.add(model)
+	}
+	if models.PremiumRequests == u.PremiumRequests {
+		t.Fatalf("model premium sum=%v unexpectedly matches total", models.PremiumRequests)
+	}
+	if !u.Incomplete {
+		t.Fatalf("usage = %+v, want incomplete when model premium sum disagrees with total", u)
+	}
+}

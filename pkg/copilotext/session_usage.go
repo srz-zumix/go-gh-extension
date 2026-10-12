@@ -284,6 +284,7 @@ func (uc *usageCollector) result() (SessionUsage, bool) {
 		modelUsage.add(model)
 	}
 	u.Incomplete = u.Incomplete || len(u.Models) == 0 || math.Abs(u.AIU-modelUsage.AIU) > 1e-9 ||
+		math.Abs(u.PremiumRequests-modelUsage.PremiumRequests) > 1e-9 ||
 		u.Requests != modelUsage.Requests || u.InputTokens != modelUsage.InputTokens ||
 		u.CacheReadTokens != modelUsage.CacheReadTokens || u.CacheWriteTokens != modelUsage.CacheWriteTokens ||
 		u.OutputTokens != modelUsage.OutputTokens
