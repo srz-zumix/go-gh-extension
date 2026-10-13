@@ -3,7 +3,10 @@ package copilotext
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -16,9 +19,8 @@ type VSCodeStatsOptions struct {
 	// Root overrides the workspaceStorage directory to scan. Empty uses the default
 	// (~/Library/Application Support/Code/User/workspaceStorage).
 	Root string
-	// Since and Until, when non-zero, restrict counted events to Since <= ts < Until.
-	// A session whose log file was last modified before Since is skipped without being
-	// opened, since VS Code only ever appends to main.jsonl.
+	// Since and Until, when non-zero, restrict counted events to Since <= ts < Until,
+	// including child logs referenced before Since.
 	Since, Until time.Time
 	// Scope restricts which sessions are considered, matching against the owning
 	// workspace's recorded folder path.
@@ -32,9 +34,12 @@ type VSCodeStatsOptions struct {
 	// Model, when non-empty, restricts LLM request stats to llm_request events whose
 	// model matches any of these regular expressions.
 	Model []string
-	// Agent, when non-empty, restricts subagent stats to child_session_ref events whose
-	// derived agent name matches any of these regular expressions.
+	// Agent, when non-empty, scopes all activity to child logs whose derived agent name
+	// matches any pattern. Main-agent and differently named descendant activity is excluded.
 	Agent []string
+	// IncludeLogStats exports untruncated log-level statistics for local projection.
+	// It cannot be combined with Agent.
+	IncludeLogStats bool
 	// Top, when > 0, keeps only the top N entries (by their primary count, then Key) of
 	// each axis. 0 keeps every entry.
 	Top int
@@ -104,18 +109,60 @@ func (u *vscodeWorkspaceUsage) add(attrs vscodeLLMRequestAttrs) {
 // VSCodeStats summarizes the VS Code Copilot Chat activity collected by
 // CollectVSCodeStats.
 type VSCodeStats struct {
-	Sessions    int
-	Turns       int
-	LLMRequests int
-	ToolCalls   int
-	Since       time.Time
-	Until       time.Time
-	Scope       SessionScope
+	Sessions      int
+	Turns         int
+	LLMRequests   int
+	ToolCalls     int
+	Since         time.Time
+	Until         time.Time
+	Scope         SessionScope
+	UserQuestions *VSCodeQuestionStats
 
 	ByTool      []VSCodeToolCount
 	ByModel     []VSCodeModelCount
 	ByAgent     []VSCodeAgentCount
 	ByWorkspace []VSCodeWorkspaceCount
+	LogDetails  *VSCodeLogDataset `json:",omitempty"`
+}
+
+// VSCodeLogDataset contains normalized activity and invocation provenance, not raw events.
+type VSCodeLogDataset struct {
+	Version  int
+	Sessions []VSCodeSessionDetails
+}
+
+// VSCodeSessionDetails identifies a parent chat and its independently countable logs.
+type VSCodeSessionDetails struct {
+	ID          string
+	Workspace   string
+	Logs        []*VSCodeLogStats
+	Invocations []VSCodeAgentInvocation
+}
+
+// VSCodeAgentInvocation preserves reference order and identity for filtered deduplication.
+type VSCodeAgentInvocation struct {
+	ID    string
+	Agent string
+}
+
+// VSCodeLogStats records one log's own activity and all referencing agent names.
+type VSCodeLogStats struct {
+	ID            string
+	Main          bool
+	Agents        []string
+	Turns         int
+	LLMRequests   int
+	ToolCalls     int
+	ByTool        []VSCodeToolCount
+	ByModel       []VSCodeLogModelCount
+	UserQuestions *VSCodeQuestionStats
+}
+
+// VSCodeLogModelCount retains positive TTFT samples for exact cross-log averaging.
+type VSCodeLogModelCount struct {
+	VSCodeModelCount
+	TotalTTFTMs float64
+	TTFTSamples int
 }
 
 // vscodeAgentName derives a subagent axis key from a child_session_ref event's
@@ -348,6 +395,9 @@ func (a *vscodeAggregator) finishWorkspaces(top int) []VSCodeWorkspaceCount {
 // tool usage, token/usage, turn, and subagent activity into a VSCodeStats, applying
 // opts' filters.
 func CollectVSCodeStats(opts VSCodeStatsOptions) (*VSCodeStats, error) {
+	if opts.IncludeLogStats && len(opts.Agent) > 0 {
+		return nil, fmt.Errorf("--include-log-stats cannot be combined with --agent")
+	}
 	root := opts.Root
 	if root == "" {
 		r, err := vscodeStorageRoot()
@@ -368,7 +418,11 @@ func CollectVSCodeStats(opts VSCodeStatsOptions) (*VSCodeStats, error) {
 	}
 
 	agg := newVSCodeAggregator()
+	questions := &AskUserStats{}
 	stats := &VSCodeStats{Since: opts.Since, Until: opts.Until, Scope: opts.Scope}
+	if opts.IncludeLogStats {
+		stats.LogDetails = &VSCodeLogDataset{Version: 1, Sessions: []VSCodeSessionDetails{}}
+	}
 
 	for _, s := range sessions {
 		if opts.SessionID != "" && s.ID != opts.SessionID {
@@ -377,80 +431,206 @@ func CollectVSCodeStats(opts VSCodeStatsOptions) (*VSCodeStats, error) {
 		if !opts.Scope.matches(s.Folder) {
 			continue
 		}
-		if !opts.Since.IsZero() && s.ModifiedAt.Before(opts.Since) {
+		if !opts.Since.IsZero() && !s.ModifiedAt.IsZero() && s.ModifiedAt.Before(opts.Since) {
 			continue
 		}
-
 		sessionCounted := false
-		turnIDs := make(map[string]bool)
-		var toolCallsInSession, llmRequestsInSession int
+		questionsBefore := questions.Questions
+		var toolCallsInSession, llmRequestsInSession, turnsInSession int
 		var usageInSession vscodeWorkspaceUsage
-
-		readErr := readVSCodeEvents(s.LogPath, func(ev vscodeRawEvent) error {
-			ts := time.UnixMilli(int64(ev.TS))
-			if !opts.Since.IsZero() && ts.Before(opts.Since) {
+		visitedLogs := make(map[string]bool)
+		countedLogs := make(map[string]bool)
+		countedAgents := make(map[string]bool)
+		detail := VSCodeSessionDetails{ID: s.ID, Workspace: s.Folder}
+		logDetails := make(map[string]*VSCodeLogStats)
+		logAggregators := make(map[string]*vscodeAggregator)
+		logQuestions := make(map[string]*AskUserStats)
+		getLogDetail := func(path string) *VSCodeLogStats {
+			if !opts.IncludeLogStats {
 				return nil
 			}
-			if !opts.Until.IsZero() && !ts.Before(opts.Until) {
+			if entry := logDetails[path]; entry != nil {
+				return entry
+			}
+			entry := &VSCodeLogStats{ID: filepath.Base(path), Main: path == s.LogPath, Agents: []string{}}
+			logDetails[path] = entry
+			logAggregators[path] = newVSCodeAggregator()
+			logQuestions[path] = &AskUserStats{}
+			detail.Logs = append(detail.Logs, entry)
+			return entry
+		}
+
+		var readLog func(string, bool) error
+		readLog = func(logPath string, countActivity bool) error {
+			if logPath == s.LogPath && len(filters.agents) > 0 {
+				countActivity = false
+			}
+			// A later matching reference may select an already visited log's activity.
+			followRefs := !visitedLogs[logPath]
+			if !followRefs && (!countActivity || countedLogs[logPath]) {
 				return nil
 			}
-
-			switch ev.Type {
-			case "turn_start":
-				var a vscodeTurnAttrs
-				if err := json.Unmarshal(ev.Attrs, &a); err != nil {
-					logger.Warn("skipping unparsable turn_start event", "path", s.LogPath, "error", err)
+			visitedLogs[logPath] = true
+			if countActivity {
+				countedLogs[logPath] = true
+			}
+			logDetail := getLogDetail(logPath)
+			turnIDs := make(map[string]bool)
+			questionSpans := make(map[string]bool)
+			return readVSCodeEvents(logPath, func(ev vscodeRawEvent) error {
+				ts := time.UnixMilli(int64(ev.TS))
+				inWindow := (opts.Since.IsZero() || !ts.Before(opts.Since)) &&
+					(opts.Until.IsZero() || ts.Before(opts.Until))
+				// Discover matching descendants even through unselected or older invocations.
+				if ev.Type == "child_session_ref" {
+					// Children start after their reference, so refs at/after Until cannot contribute.
+					if !followRefs || (!opts.Until.IsZero() && !ts.Before(opts.Until)) {
+						return nil
+					}
+				} else if !countActivity || !inWindow {
 					return nil
 				}
-				if a.TurnID != "" && !turnIDs[a.TurnID] {
-					turnIDs[a.TurnID] = true
-					stats.Turns++
+
+				switch ev.Type {
+				case "turn_start":
+					var a vscodeTurnAttrs
+					if err := json.Unmarshal(ev.Attrs, &a); err != nil {
+						logger.Warn("skipping unparsable turn_start event", "path", logPath, "error", err)
+						return nil
+					}
+					if a.TurnID != "" && !turnIDs[a.TurnID] {
+						turnIDs[a.TurnID] = true
+						stats.Turns++
+						turnsInSession++
+						sessionCounted = true
+						if logDetail != nil {
+							logDetail.Turns++
+						}
+					}
+				case "tool_call":
+					if !filters.matchesTool(ev.Name) {
+						return nil
+					}
+					dur := 0.0
+					if ev.Dur != nil {
+						dur = *ev.Dur
+					}
+					agg.addTool(ev.Name, ev.Status, dur)
+					stats.ToolCalls++
+					toolCallsInSession++
 					sessionCounted = true
+					if logDetail != nil {
+						logDetail.ToolCalls++
+						logAggregators[logPath].addTool(ev.Name, ev.Status, dur)
+					}
+					if ev.Name == "vscode_askQuestions" && (ev.SpanID == "" || !questionSpans[ev.SpanID]) {
+						if ev.SpanID != "" {
+							questionSpans[ev.SpanID] = true
+						}
+						outcome, wait := vscodeQuestion(ev, logPath)
+						questions.addOutcome(outcome, wait)
+						if logDetail != nil {
+							logQuestions[logPath].addOutcome(outcome, wait)
+						}
+					}
+				case "llm_request":
+					var a vscodeLLMRequestAttrs
+					if err := json.Unmarshal(ev.Attrs, &a); err != nil {
+						logger.Warn("skipping unparsable llm_request event", "path", logPath, "error", err)
+						return nil
+					}
+					if !filters.matchesModel(a.Model) {
+						return nil
+					}
+					agg.addModel(a.Model, a)
+					usageInSession.add(a)
+					stats.LLMRequests++
+					llmRequestsInSession++
+					sessionCounted = true
+					if logDetail != nil {
+						logDetail.LLMRequests++
+						logAggregators[logPath].addModel(a.Model, a)
+					}
+				case "child_session_ref":
+					var a vscodeChildSessionRefAttrs
+					if err := json.Unmarshal(ev.Attrs, &a); err != nil {
+						logger.Warn("skipping unparsable child_session_ref event", "path", logPath, "error", err)
+						return nil
+					}
+					name, ok := vscodeAgentName(a.Label)
+					if !ok {
+						return nil
+					}
+					if a.ChildLogFile != "" {
+						if filepath.Base(a.ChildLogFile) != a.ChildLogFile || filepath.Ext(a.ChildLogFile) != ".jsonl" {
+							logger.Warn("skipping invalid child log filename", "path", logPath, "filename", a.ChildLogFile)
+						} else {
+							childPath := filepath.Join(s.Dir, a.ChildLogFile)
+							info, err := os.Lstat(childPath)
+							if os.IsNotExist(err) {
+								logger.Warn("referenced vscode child log is missing", "path", childPath)
+							} else if err != nil {
+								return fmt.Errorf("failed to stat child log %q: %w", childPath, err)
+							} else if !info.Mode().IsRegular() {
+								logger.Warn("skipping non-regular vscode child log", "path", childPath)
+							} else {
+								if child := getLogDetail(childPath); child != nil && !slices.Contains(child.Agents, name) {
+									child.Agents = append(child.Agents, name)
+								}
+								if err := readLog(childPath, filters.matchesAgent(name)); err != nil {
+									return fmt.Errorf("failed to read child log %q: %w", childPath, err)
+								}
+							}
+						}
+					} else if opts.IncludeLogStats || (len(filters.agents) > 0 && filters.matchesAgent(name)) {
+						logger.Warn("referenced vscode child log filename is missing", "path", logPath, "agent", name)
+					}
+					agentID := a.ChildLogFile
+					if agentID == "" {
+						agentID = a.ChildSessionID
+					}
+					if opts.IncludeLogStats && inWindow {
+						detail.Invocations = append(detail.Invocations, VSCodeAgentInvocation{ID: agentID, Agent: name})
+					}
+					if inWindow && filters.matchesAgent(name) && (agentID == "" || !countedAgents[agentID]) {
+						agg.addAgent(name)
+						if agentID != "" {
+							countedAgents[agentID] = true
+						}
+						sessionCounted = true
+					}
 				}
-			case "tool_call":
-				if !filters.matchesTool(ev.Name) {
-					return nil
-				}
-				agg.addTool(ev.Name, ev.Status, ev.Dur)
-				stats.ToolCalls++
-				toolCallsInSession++
-				sessionCounted = true
-			case "llm_request":
-				var a vscodeLLMRequestAttrs
-				if err := json.Unmarshal(ev.Attrs, &a); err != nil {
-					logger.Warn("skipping unparsable llm_request event", "path", s.LogPath, "error", err)
-					return nil
-				}
-				if !filters.matchesModel(a.Model) {
-					return nil
-				}
-				agg.addModel(a.Model, a)
-				usageInSession.add(a)
-				stats.LLMRequests++
-				llmRequestsInSession++
-				sessionCounted = true
-			case "child_session_ref":
-				var a vscodeChildSessionRefAttrs
-				if err := json.Unmarshal(ev.Attrs, &a); err != nil {
-					logger.Warn("skipping unparsable child_session_ref event", "path", s.LogPath, "error", err)
-					return nil
-				}
-				name, ok := vscodeAgentName(a.Label)
-				if !ok || !filters.matchesAgent(name) {
-					return nil
-				}
-				agg.addAgent(name)
-				sessionCounted = true
-			}
-			return nil
-		})
-		if readErr != nil {
+				return nil
+			})
+		}
+		if readErr := readLog(s.LogPath, len(filters.agents) == 0); readErr != nil {
 			return nil, fmt.Errorf("failed to read vscode session log %q: %w", s.LogPath, readErr)
 		}
 
+		if questions.Questions > questionsBefore {
+			questions.Sessions++
+		}
 		if sessionCounted {
 			stats.Sessions++
-			agg.addWorkspace(s.Folder, toolCallsInSession, llmRequestsInSession, len(turnIDs), usageInSession)
+			agg.addWorkspace(s.Folder, toolCallsInSession, llmRequestsInSession, turnsInSession, usageInSession)
+			if opts.IncludeLogStats {
+				for path, entry := range logDetails {
+					la := logAggregators[path]
+					entry.ByTool = la.finishTools(0)
+					entry.ByModel = []VSCodeLogModelCount{}
+					q := logQuestions[path]
+					if q.Questions > 0 {
+						q.Sessions = 1
+					}
+					entry.UserQuestions = vscodeQuestionStats(q)
+					for _, model := range la.finishModels(0) {
+						entry.ByModel = append(entry.ByModel, VSCodeLogModelCount{
+							VSCodeModelCount: model, TotalTTFTMs: la.modelTTFTSum[model.Key], TTFTSamples: la.modelTTFTCount[model.Key],
+						})
+					}
+				}
+				stats.LogDetails.Sessions = append(stats.LogDetails.Sessions, detail)
+			}
 		}
 	}
 
@@ -458,6 +638,7 @@ func CollectVSCodeStats(opts VSCodeStatsOptions) (*VSCodeStats, error) {
 	stats.ByModel = agg.finishModels(opts.Top)
 	stats.ByAgent = agg.finishAgents(opts.Top)
 	stats.ByWorkspace = agg.finishWorkspaces(opts.Top)
+	stats.UserQuestions = vscodeQuestionStats(questions)
 
 	return stats, nil
 }

@@ -21,7 +21,7 @@ type vscodeRawEvent struct {
 	// TS is epoch milliseconds. Most events emit an integer, but some (e.g. subagent)
 	// have been observed with a fractional value, so this is float64 rather than int64.
 	TS           float64         `json:"ts"`
-	Dur          float64         `json:"dur"`
+	Dur          *float64        `json:"dur"`
 	SID          string          `json:"sid"`
 	Type         string          `json:"type"`
 	Name         string          `json:"name"`

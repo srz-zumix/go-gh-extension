@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // writeVSCodeWorkspace creates a workspaceStorage/<hash> directory with the given
@@ -34,6 +35,15 @@ func writeVSCodeSessionLog(t *testing.T, hashDir, sessionID, mainJSONL string) s
 	path := filepath.Join(dir, "main.jsonl")
 	if err := os.WriteFile(path, []byte(mainJSONL), 0o644); err != nil {
 		t.Fatalf("WriteFile(main.jsonl) error = %v", err)
+	}
+	return path
+}
+
+func writeVSCodeChildLog(t *testing.T, mainPath, filename, content string) string {
+	t.Helper()
+	path := filepath.Join(filepath.Dir(mainPath), filename)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", path, err)
 	}
 	return path
 }
@@ -69,6 +79,30 @@ func TestListVSCodeSessions(t *testing.T) {
 	}
 	if got := byID["session-b"].Folder; got != "" {
 		t.Fatalf("session-b (multi-root) Folder = %q, want empty", got)
+	}
+}
+
+func TestListVSCodeSessionsIncludesChildModificationTime(t *testing.T) {
+	root := t.TempDir()
+	hash := writeVSCodeWorkspace(t, root, "hash", `{"folder":"file:///repo/a"}`)
+	mainPath := writeVSCodeSessionLog(t, hash, "parent", `{"type":"session_start"}`+"\n")
+	childPath := writeVSCodeChildLog(t, mainPath, "child.jsonl", `{"type":"session_start"}`+"\n")
+	metadataPath := writeVSCodeChildLog(t, mainPath, "models.json", "{}\n")
+	for path, modified := range map[string]time.Time{
+		mainPath:     time.Unix(1000, 0),
+		childPath:    time.Unix(2000, 0),
+		metadataPath: time.Unix(3000, 0),
+	} {
+		if err := os.Chtimes(path, modified, modified); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sessions, err := ListVSCodeSessions(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 || !sessions[0].ModifiedAt.Equal(time.Unix(2000, 0)) {
+		t.Fatalf("sessions = %+v, want child log modification time without model metadata", sessions)
 	}
 }
 

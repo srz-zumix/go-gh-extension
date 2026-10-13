@@ -104,6 +104,16 @@ func (r *Renderer) RenderVSCodeStats(stats *copilotext.VSCodeStats) error {
 		", turns: " + strconv.Itoa(stats.Turns) +
 		", llm_requests: " + strconv.Itoa(stats.LLMRequests) +
 		", tool_calls: " + strconv.Itoa(stats.ToolCalls))
+	if q := stats.UserQuestions; !q.IsEmpty() {
+		r.writeLine("")
+		r.writeLine("USER_QUESTIONS")
+		r.writeLine("sessions: " + strconv.Itoa(q.Sessions) + ", calls: " + strconv.Itoa(q.Calls) +
+			", answered: " + strconv.Itoa(q.Answered) + ", skipped: " + strconv.Itoa(q.Skipped) +
+			", cancelled: " + strconv.Itoa(q.Cancelled) + ", failed: " + strconv.Itoa(q.Failed) +
+			", unknown: " + strconv.Itoa(q.Unknown))
+		r.renderQuestionWait(q.TimedAnswers, q.UntimedAnswers, q.TotalWaitMs, q.AvgWaitMs, q.MaxWaitMs)
+		r.writeLine("completed vscode_askQuestions calls only; multi-question batches share one interval; in-flight questions are unavailable")
+	}
 
 	if err := r.renderVSCodeToolTable(stats.ByTool); err != nil {
 		return err

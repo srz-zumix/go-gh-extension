@@ -216,7 +216,14 @@ func TestReadSessionUsage(t *testing.T) {
 		t.Fatal("readSessionUsage() found = false, want true")
 	}
 	want := SessionUsage{
-		At:               time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC),
+		At:         time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC),
+		Incomplete: true,
+		Roles: map[string]SessionUsage{
+			UsageRoleUnknown: {
+				PremiumRequests: 5, AIU: 2.5, InputTokens: 100,
+				CacheReadTokens: 200, CacheWriteTokens: 50, OutputTokens: 300,
+			},
+		},
 		PremiumRequests:  5,
 		AIU:              2.5,
 		InputTokens:      100,
@@ -275,7 +282,10 @@ func TestReadSessionUsageExplicitZero(t *testing.T) {
 	if !found {
 		t.Fatal("readSessionUsage() found = false, want true")
 	}
-	want := SessionUsage{At: time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC)}
+	want := SessionUsage{
+		At: time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC), Incomplete: true,
+		Roles: map[string]SessionUsage{UsageRoleUnknown: {}},
+	}
 	if !reflect.DeepEqual(usage, want) {
 		t.Fatalf("readSessionUsage() = %+v, want %+v", usage, want)
 	}

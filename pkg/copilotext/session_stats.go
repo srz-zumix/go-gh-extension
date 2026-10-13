@@ -164,9 +164,8 @@ type Count struct {
 }
 
 // UsageCount is one entry of a PermissionStats usage axis: a key and its aggregated
-// session usage totals, drawn from each in-scope session's "session.shutdown" event.
-// Key is a working directory for PermissionStats.ByCWDUsage entries and a model name for
-// PermissionStats.ByModelUsage entries.
+// recorded session usage totals.
+// Key is a working directory, model name, or agent role for the corresponding usage axis.
 type UsageCount struct {
 	Key              string
 	Sessions         int
@@ -198,18 +197,21 @@ type PermissionStats struct {
 	ByURL            []Count
 	ByCWD            []Count
 
-	// UsageSessions is the number of in-scope sessions with a "session.shutdown" event
-	// recording usage totals, independent of whether they had any permission requests.
-	UsageSessions         int
-	UsagePremiumRequests  float64
-	UsageAIU              float64
-	UsageInputTokens      int64
-	UsageCacheReadTokens  int64
-	UsageCacheWriteTokens int64
-	UsageOutputTokens     int64
-	UsageAPIDurationMs    float64
-	ByCWDUsage            []UsageCount
-	ByModelUsage          []UsageCount
+	// UsageSessions counts sessions with any recorded usage, including active sessions.
+	UsageSessions           int
+	UsageIncompleteSessions int
+	UsageRequests           int
+	UsagePremiumRequests    float64
+	UsageAIU                float64
+	UsageInputTokens        int64
+	UsageCacheReadTokens    int64
+	UsageCacheWriteTokens   int64
+	UsageOutputTokens       int64
+	UsageAPIDurationMs      float64
+	ByCWDUsage              []UsageCount
+	ByModelUsage            []UsageCount
+	ByRoleUsage             []UsageCount
+	AskUser                 *AskUserStats
 }
 
 // counter accumulates Count entries keyed by an arbitrary string, preserving first-seen
@@ -347,8 +349,9 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	byCWD := newCounter()
 	byCWDUsage := newUsageCounter()
 	byModelUsage := newUsageCounter()
+	byRoleUsage := newUsageCounter()
 
-	stats := &PermissionStats{Since: opts.Since, Until: opts.Until, Scope: opts.Scope}
+	stats := &PermissionStats{Since: opts.Since, Until: opts.Until, Scope: opts.Scope, AskUser: &AskUserStats{}}
 
 	for _, s := range sessions {
 		if opts.SessionID != "" && s.ID != opts.SessionID {
@@ -361,12 +364,29 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 		// Usage is aggregated independently of the permission requests below: a session
 		// with no permission requests (e.g. one that only ran read-only tools with no
 		// approval rules) still has a usage total worth reporting.
-		records, usage, found, err := readSessionPermissionsAndUsage(s)
+		activity, err := readSessionActivity(s, opts.Since, opts.Until)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read events for session %q: %w", s.ID, err)
 		}
-		if found && (opts.Since.IsZero() || !usage.At.Before(opts.Since)) && (opts.Until.IsZero() || usage.At.Before(opts.Until)) {
+		records, usage, found := activity.permissions, activity.usage, activity.usageFound
+		questionSession := false
+		for _, rec := range activity.questions {
+			if (!opts.Since.IsZero() && rec.startedAt.Before(opts.Since)) ||
+				(!opts.Until.IsZero() && !rec.startedAt.Before(opts.Until)) {
+				continue
+			}
+			stats.AskUser.add(rec)
+			questionSession = true
+		}
+		if questionSession {
+			stats.AskUser.Sessions++
+		}
+		if found {
 			stats.UsageSessions++
+			if usage.Incomplete {
+				stats.UsageIncompleteSessions++
+			}
+			stats.UsageRequests += usage.Requests
 			stats.UsagePremiumRequests += usage.PremiumRequests
 			stats.UsageAIU += usage.AIU
 			stats.UsageInputTokens += usage.InputTokens
@@ -377,6 +397,9 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 			byCWDUsage.add(s.CWD, usage)
 			for model, modelUsage := range usage.Models {
 				byModelUsage.add(model, modelUsage)
+			}
+			for role, roleUsage := range usage.Roles {
+				byRoleUsage.add(role, roleUsage)
 			}
 		}
 
@@ -452,6 +475,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	stats.ByCWD = byCWD.finish(opts.Top)
 	stats.ByCWDUsage = byCWDUsage.finish(opts.Top)
 	stats.ByModelUsage = byModelUsage.finish(opts.Top)
+	stats.ByRoleUsage = byRoleUsage.finish(0)
 
 	return stats, nil
 }
