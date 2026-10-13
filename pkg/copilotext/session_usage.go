@@ -199,47 +199,52 @@ func (uc *usageCollector) handle(ev rawEvent) {
 }
 
 func (uc *usageCollector) result() (SessionUsage, bool) {
-	if len(uc.entries) == 0 {
-		return SessionUsage{}, false
-	}
+	return uc.resultWithin(time.Time{}, time.Time{})
+}
+
+// resultWithin folds usage entries recorded at since <= At < until (zero bounds are
+// open). Cumulative snapshots cover usage before since, so the state folded before
+// since is subtracted from the state folded before until.
+func (uc *usageCollector) resultWithin(since, until time.Time) (SessionUsage, bool) {
 	sort.SliceStable(uc.entries, func(i, j int) bool {
 		return uc.entries[i].at.Before(uc.entries[j].at)
 	})
-	u := SessionUsage{Models: make(map[string]SessionUsage), Roles: make(map[string]SessionUsage)}
-	roles := make(map[string]SessionUsage)
-	for _, entry := range uc.entries {
-		u.At = entry.at
-		if entry.snapshot == nil {
-			u.add(entry.record)
-			model := u.Models[entry.model]
-			model.add(entry.record)
-			u.Models[entry.model] = model
-			role := roles[entry.role]
-			role.add(entry.record)
-			roles[entry.role] = role
-			continue
+	beforeUntil := len(uc.entries)
+	if !until.IsZero() {
+		beforeUntil = sort.Search(len(uc.entries), func(i int) bool { return !uc.entries[i].at.Before(until) })
+	}
+	beforeSince := 0
+	if !since.IsZero() {
+		beforeSince = sort.Search(beforeUntil, func(i int) bool { return !uc.entries[i].at.Before(since) })
+	}
+	if beforeSince >= beforeUntil {
+		return SessionUsage{}, false
+	}
+	u, roles := foldUsageEntries(uc.entries[:beforeUntil])
+	if beforeSince > 0 {
+		base, baseRoles := foldUsageEntries(uc.entries[:beforeSince])
+		u.sub(base)
+		for model, baseModel := range base.Models {
+			modelUsage := u.Models[model]
+			modelUsage.sub(baseModel)
+			if modelUsage.Requests == 0 && modelUsage.AIU == 0 && modelUsage.PremiumRequests == 0 &&
+				modelUsage.InputTokens == 0 && modelUsage.CacheReadTokens == 0 &&
+				modelUsage.CacheWriteTokens == 0 && modelUsage.OutputTokens == 0 {
+				delete(u.Models, model)
+				continue
+			}
+			u.Models[model] = modelUsage
 		}
-		data := entry.snapshot
-		snapshot := data.sessionUsage(entry.at)
-		// Snapshots replace covered counters; subsequent records add only new usage.
-		if data.TotalPremiumRequests != nil {
-			u.PremiumRequests = snapshot.PremiumRequests
-		}
-		if data.TotalNanoAiu != nil {
-			u.AIU = snapshot.AIU
-		}
-		if data.TotalAPIDurationMs != nil {
-			u.APIDurationMs = snapshot.APIDurationMs
-		}
-		if data.TokenDetails != nil {
-			u.InputTokens = snapshot.InputTokens
-			u.CacheReadTokens = snapshot.CacheReadTokens
-			u.CacheWriteTokens = snapshot.CacheWriteTokens
-			u.OutputTokens = snapshot.OutputTokens
-		}
-		if len(data.ModelMetrics) > 0 {
-			u.Models = snapshot.Models
-			u.Requests = snapshot.Requests
+		for key, baseRole := range baseRoles {
+			role := roles[key]
+			role.sub(baseRole)
+			if role.Requests == 0 && role.AIU == 0 && role.PremiumRequests == 0 &&
+				role.InputTokens == 0 && role.CacheReadTokens == 0 &&
+				role.CacheWriteTokens == 0 && role.OutputTokens == 0 {
+				delete(roles, key)
+				continue
+			}
+			roles[key] = role
 		}
 	}
 	unknown := SessionUsage{
@@ -292,4 +297,57 @@ func (uc *usageCollector) result() (SessionUsage, bool) {
 		u.Models = nil
 	}
 	return u, true
+}
+
+func (u *SessionUsage) sub(other SessionUsage) {
+	u.Requests -= other.Requests
+	u.PremiumRequests -= other.PremiumRequests
+	u.AIU -= other.AIU
+	u.InputTokens -= other.InputTokens
+	u.CacheReadTokens -= other.CacheReadTokens
+	u.CacheWriteTokens -= other.CacheWriteTokens
+	u.OutputTokens -= other.OutputTokens
+	u.APIDurationMs -= other.APIDurationMs
+}
+
+// foldUsageEntries folds sorted request deltas and cumulative snapshots.
+func foldUsageEntries(entries []usageEntry) (SessionUsage, map[string]SessionUsage) {
+	u := SessionUsage{Models: make(map[string]SessionUsage), Roles: make(map[string]SessionUsage)}
+	roles := make(map[string]SessionUsage)
+	for _, entry := range entries {
+		u.At = entry.at
+		if entry.snapshot == nil {
+			u.add(entry.record)
+			model := u.Models[entry.model]
+			model.add(entry.record)
+			u.Models[entry.model] = model
+			role := roles[entry.role]
+			role.add(entry.record)
+			roles[entry.role] = role
+			continue
+		}
+		data := entry.snapshot
+		snapshot := data.sessionUsage(entry.at)
+		// Snapshots replace covered counters; subsequent records add only new usage.
+		if data.TotalPremiumRequests != nil {
+			u.PremiumRequests = snapshot.PremiumRequests
+		}
+		if data.TotalNanoAiu != nil {
+			u.AIU = snapshot.AIU
+		}
+		if data.TotalAPIDurationMs != nil {
+			u.APIDurationMs = snapshot.APIDurationMs
+		}
+		if data.TokenDetails != nil {
+			u.InputTokens = snapshot.InputTokens
+			u.CacheReadTokens = snapshot.CacheReadTokens
+			u.CacheWriteTokens = snapshot.CacheWriteTokens
+			u.OutputTokens = snapshot.OutputTokens
+		}
+		if len(data.ModelMetrics) > 0 {
+			u.Models = snapshot.Models
+			u.Requests = snapshot.Requests
+		}
+	}
+	return u, roles
 }

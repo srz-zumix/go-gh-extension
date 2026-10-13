@@ -259,3 +259,23 @@ func TestSessionUsagePartialPremiumCheckpointIsIncomplete(t *testing.T) {
 		t.Fatalf("usage = %+v, want incomplete when model premium sum disagrees with total", u)
 	}
 }
+
+func TestSessionUsageWithinInterval(t *testing.T) {
+	early := usageRecordEvent(t, "usage-a", "model-a", "user", "root", 2000000000)
+	late := strings.Replace(usageRecordEvent(t, "usage-b", "model-b", "user", "root", 1000000000),
+		"2026-01-01T01:00:00Z", "2026-01-01T03:00:00Z", 1)
+	dir := writeSessionDir(t, t.TempDir(), "session-a", "", early+completeUsageShutdown+late)
+	since := time.Date(2026, 1, 1, 2, 30, 0, 0, time.UTC)
+	u, err := readSessionActivity(Session{ID: "session-a", Dir: dir}, since, time.Time{})
+	if err != nil || !u.usageFound {
+		t.Fatalf("readSessionActivity() found=%v error=%v", u.usageFound, err)
+	}
+	if u.usage.Requests != 1 || math.Abs(u.usage.AIU-1) > 1e-9 || u.usage.Models["model-b"].Requests != 1 ||
+		len(u.usage.Models) != 1 || u.usage.Roles[UsageRoleMain].Requests != 1 {
+		t.Fatalf("usage since %v = %+v, want only the late record", since, u.usage)
+	}
+	until := time.Date(2026, 1, 1, 0, 30, 0, 0, time.UTC)
+	if u, err := readSessionActivity(Session{ID: "session-a", Dir: dir}, time.Time{}, until); err != nil || u.usageFound {
+		t.Fatalf("readSessionActivity() until %v found=%v error=%v, want not found", until, u.usageFound, err)
+	}
+}

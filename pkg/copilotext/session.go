@@ -464,7 +464,8 @@ type sessionActivity struct {
 }
 
 // readSessionActivity gathers permission, usage, and question accounting in one scan.
-func readSessionActivity(s Session) (sessionActivity, error) {
+// Usage is restricted to since <= At < until (zero bounds are open).
+func readSessionActivity(s Session, since, until time.Time) (sessionActivity, error) {
 	pc := newPermissionCollector(s)
 	uc := &usageCollector{session: s}
 	qc := newQuestionCollector(s)
@@ -476,6 +477,6 @@ func readSessionActivity(s Session) (sessionActivity, error) {
 	if err != nil {
 		return sessionActivity{}, err
 	}
-	usage, found := uc.result()
+	usage, found := uc.resultWithin(since, until)
 	return sessionActivity{permissions: pc.records(), usage: usage, usageFound: found, questions: qc.records()}, nil
 }
