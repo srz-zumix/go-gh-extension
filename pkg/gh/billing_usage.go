@@ -25,13 +25,14 @@ type BillingUsageRow struct {
 
 // BillingUsageGroup is the sum of the billing usage lines that share a group key.
 type BillingUsageGroup struct {
-	Key            string  `json:"key"`
-	Lines          int     `json:"lines"`
-	Quantity       float64 `json:"quantity"`
-	UnitType       string  `json:"unitType"`
-	GrossAmount    float64 `json:"grossAmount"`
-	DiscountAmount float64 `json:"discountAmount"`
-	NetAmount      float64 `json:"netAmount"`
+	Key   string `json:"key"`
+	Lines int    `json:"lines"`
+	// Quantity is nil when the lines are measured in different units, as their quantities cannot be summed.
+	Quantity       *float64 `json:"quantity,omitempty"`
+	UnitType       string   `json:"unitType"`
+	GrossAmount    float64  `json:"grossAmount"`
+	DiscountAmount float64  `json:"discountAmount"`
+	NetAmount      float64  `json:"netAmount"`
 }
 
 // BillingMixedUnit is the UnitType of a group whose lines are measured in different units.
@@ -125,18 +126,20 @@ func BillingUsageRowsFromEnterpriseReport(report *github.EnterpriseUsageReport) 
 
 // FilterBillingUsageRows keeps the lines of product (all products when empty) and of repository,
 // given as OWNER/REPO (all repositories when empty). The API reports the repository
-// either as OWNER/REPO or as the bare name, so both forms match.
+// either as OWNER/REPO or as the bare name, so both forms match; a bare name matches only
+// when the line's organization is OWNER or unknown.
 func FilterBillingUsageRows(rows []BillingUsageRow, product, repository string) []BillingUsageRow {
 	if product == "" && repository == "" {
 		return rows
 	}
-	_, name, _ := strings.Cut(repository, "/")
+	owner, name, _ := strings.Cut(repository, "/")
 	filtered := make([]BillingUsageRow, 0, len(rows))
 	for _, row := range rows {
 		if product != "" && !strings.EqualFold(row.Product, product) {
 			continue
 		}
-		if repository != "" && !strings.EqualFold(row.Repository, repository) && !strings.EqualFold(row.Repository, name) {
+		if repository != "" && !strings.EqualFold(row.Repository, repository) &&
+			!(strings.EqualFold(row.Repository, name) && (row.Organization == "" || strings.EqualFold(row.Organization, owner))) {
 			continue
 		}
 		filtered = append(filtered, row)
@@ -153,6 +156,10 @@ func (by BillingGroupBy) key(row BillingUsageRow) string {
 	case BillingGroupByProduct:
 		return row.Product
 	case BillingGroupByRepository:
+		// Qualify a bare repository name so that same-named repositories of different organizations stay apart.
+		if row.Organization != "" && row.Repository != "" && !strings.Contains(row.Repository, "/") {
+			return row.Organization + "/" + row.Repository
+		}
 		return row.Repository
 	default:
 		return row.SKU
@@ -167,14 +174,17 @@ func GroupBillingUsageRows(rows []BillingUsageRow, by BillingGroupBy) []BillingU
 		key := by.key(row)
 		group, ok := index[key]
 		if !ok {
-			group = &BillingUsageGroup{Key: key, UnitType: row.UnitType}
+			group = &BillingUsageGroup{Key: key, UnitType: row.UnitType, Quantity: new(float64)}
 			index[key] = group
 			order = append(order, key)
 		} else if group.UnitType != row.UnitType {
 			group.UnitType = BillingMixedUnit
+			group.Quantity = nil
 		}
 		group.Lines++
-		group.Quantity += row.Quantity
+		if group.Quantity != nil {
+			*group.Quantity += row.Quantity
+		}
 		group.GrossAmount += row.GrossAmount
 		group.DiscountAmount += row.DiscountAmount
 		group.NetAmount += row.NetAmount

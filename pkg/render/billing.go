@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -65,8 +66,12 @@ func (r *Renderer) renderBillingUsageGroups(groups []gh.BillingUsageGroup, group
 	table := r.NewTableWriter([]string{strings.ToUpper(string(groupBy)), "LINES", "QUANTITY", "UNIT", "GROSS", "DISCOUNT", "NET"})
 	var gross, discount, net float64
 	for _, group := range groups {
+		quantity := ""
+		if group.Quantity != nil {
+			quantity = formatBillingNumber(*group.Quantity)
+		}
 		table.Append([]string{
-			group.Key, strconv.Itoa(group.Lines), formatBillingNumber(group.Quantity), group.UnitType,
+			group.Key, strconv.Itoa(group.Lines), quantity, group.UnitType,
 			formatBillingAmount(group.GrossAmount), formatBillingAmount(group.DiscountAmount), formatBillingAmount(group.NetAmount),
 		})
 		gross += group.GrossAmount
@@ -85,7 +90,7 @@ func (r *Renderer) RenderBillingSummary(summary *gh.BillingUsageSummary) error {
 	if r.HasExporter() {
 		return r.RenderExportedData(summary)
 	}
-	if summary == nil || len(summary.UsageItems) == 0 {
+	if summary == nil || !slices.ContainsFunc(summary.UsageItems, func(item *gh.BillingUsageSummaryItem) bool { return item != nil }) {
 		r.WriteLine("No billing usage.")
 		return nil
 	}

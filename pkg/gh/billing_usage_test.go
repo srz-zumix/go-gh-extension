@@ -59,7 +59,7 @@ func TestGroupBillingUsageRows(t *testing.T) {
 		t.Fatalf("got %d groups, want 3", len(groups))
 	}
 	linux := groups[0]
-	if linux.Key != "actions_linux" || linux.Lines != 2 || linux.Quantity != 15 || linux.UnitType != "minutes" {
+	if linux.Key != "actions_linux" || linux.Lines != 2 || linux.Quantity == nil || *linux.Quantity != 15 || linux.UnitType != "minutes" {
 		t.Errorf("unexpected group %+v", linux)
 	}
 	if linux.GrossAmount != 0.12 || linux.NetAmount != 0.04 {
@@ -69,7 +69,7 @@ func TestGroupBillingUsageRows(t *testing.T) {
 
 func TestGroupBillingUsageRowsMixedUnit(t *testing.T) {
 	groups := GroupBillingUsageRows(sampleBillingRows(), BillingGroupByDate)
-	if len(groups) != 2 || groups[1].Key != "2026-01-02" || groups[1].UnitType != BillingMixedUnit {
+	if len(groups) != 2 || groups[1].Key != "2026-01-02" || groups[1].UnitType != BillingMixedUnit || groups[1].Quantity != nil {
 		t.Errorf("unexpected groups %+v", groups)
 	}
 }
@@ -95,5 +95,21 @@ func TestBillingUsageRowsFromEnterpriseReport(t *testing.T) {
 	rows := BillingUsageRowsFromEnterpriseReport(report)
 	if len(rows) != 1 || rows[0].Organization != "example-org" || rows[0].Repository != "" {
 		t.Errorf("unexpected rows %+v", rows)
+	}
+}
+
+func TestFilterBillingUsageRowsBareRepositoryNameOtherOrganization(t *testing.T) {
+	rows := []BillingUsageRow{{Organization: "org-a", Repository: "shared"}, {Organization: "org-b", Repository: "shared"}, {Repository: "shared"}}
+	got := FilterBillingUsageRows(rows, "", "org-a/shared")
+	if len(got) != 2 || got[0].Organization != "org-a" || got[1].Organization != "" {
+		t.Fatalf("unexpected rows: %+v", got)
+	}
+}
+
+func TestGroupBillingUsageRowsBareRepositoryNameOtherOrganization(t *testing.T) {
+	rows := []BillingUsageRow{{Organization: "org-a", Repository: "shared"}, {Organization: "org-b", Repository: "shared"}, {Organization: "org-a", Repository: "org-a/shared"}}
+	groups := GroupBillingUsageRows(rows, BillingGroupByRepository)
+	if len(groups) != 2 || groups[0].Key != "org-a/shared" || groups[0].Lines != 2 || groups[1].Key != "org-b/shared" {
+		t.Fatalf("unexpected groups: %+v", groups)
 	}
 }
