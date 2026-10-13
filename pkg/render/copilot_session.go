@@ -120,7 +120,7 @@ func (r *Renderer) RenderCopilotPermissionStats(stats *copilotext.PermissionStat
 		return nil
 	}
 	r.writeLine("")
-	r.writeLine("AGENT_USAGE")
+	r.writeLine("ROLE_USAGE")
 	table := r.newTableWriter([]string{"ROLE", "SESSIONS", "REQUESTS", "PREMIUM_REQUESTS", "AIU", "INPUT", "CACHE_READ", "CACHE_WRITE", "OUTPUT"})
 	for _, c := range stats.ByRoleUsage {
 		table.Append([]string{

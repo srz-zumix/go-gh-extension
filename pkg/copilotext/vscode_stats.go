@@ -483,7 +483,8 @@ func CollectVSCodeStats(opts VSCodeStatsOptions) (*VSCodeStats, error) {
 					(opts.Until.IsZero() || ts.Before(opts.Until))
 				// Discover matching descendants even through unselected or older invocations.
 				if ev.Type == "child_session_ref" {
-					if !followRefs {
+					// Children start after their reference, so refs at/after Until cannot contribute.
+					if !followRefs || (!opts.Until.IsZero() && !ts.Before(opts.Until)) {
 						return nil
 					}
 				} else if !countActivity || !inWindow {

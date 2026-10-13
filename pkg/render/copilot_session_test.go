@@ -67,7 +67,7 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 	if !strings.Contains(out, "MODEL_USAGE") || !strings.Contains(out, "model-a") || !strings.Contains(out, "REQUESTS") {
 		t.Fatalf("output missing MODEL_USAGE table: %q", out)
 	}
-	if !strings.Contains(out, "AGENT_USAGE") || !strings.Contains(out, "subagent") ||
+	if !strings.Contains(out, "ROLE_USAGE") || !strings.Contains(out, "subagent") ||
 		!strings.Contains(out, "incomplete_usage_sessions: 1") {
 		t.Fatalf("output missing agent usage or incomplete notice: %q", out)
 	}
