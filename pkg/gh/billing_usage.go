@@ -139,7 +139,7 @@ func FilterBillingUsageRows(rows []BillingUsageRow, product, repository string) 
 			continue
 		}
 		if repository != "" && !strings.EqualFold(row.Repository, repository) &&
-			!(strings.EqualFold(row.Repository, name) && (row.Organization == "" || strings.EqualFold(row.Organization, owner))) {
+			(!strings.EqualFold(row.Repository, name) || (row.Organization != "" && !strings.EqualFold(row.Organization, owner))) {
 			continue
 		}
 		filtered = append(filtered, row)
