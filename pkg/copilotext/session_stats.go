@@ -212,6 +212,7 @@ type PermissionStats struct {
 	ByModelUsage            []UsageCount
 	ByRoleUsage             []UsageCount
 	AskUser                 *AskUserStats
+	PermissionWait          *PermissionWaitStats
 }
 
 // counter accumulates Count entries keyed by an arbitrary string, preserving first-seen
@@ -351,7 +352,10 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	byModelUsage := newUsageCounter()
 	byRoleUsage := newUsageCounter()
 
-	stats := &PermissionStats{Since: opts.Since, Until: opts.Until, Scope: opts.Scope, AskUser: &AskUserStats{}}
+	stats := &PermissionStats{
+		Since: opts.Since, Until: opts.Until, Scope: opts.Scope,
+		AskUser: &AskUserStats{}, PermissionWait: &PermissionWaitStats{},
+	}
 
 	for _, s := range sessions {
 		if opts.SessionID != "" && s.ID != opts.SessionID {
@@ -424,6 +428,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 
 			sessionCounted = true
 			stats.Requests++
+			stats.PermissionWait.add(rec)
 
 			byResult.add(rec.Result, rec.Result)
 			byDecisionSource.add(rec.DecisionSource, rec.Result)

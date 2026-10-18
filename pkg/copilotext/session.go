@@ -65,9 +65,10 @@ type PermissionRequest struct {
 // PermissionRecord pairs a PermissionRequest with its outcome (Result), regardless of
 // whether a matching "permission.completed" event was found.
 type PermissionRecord struct {
-	Session Session
-	Request PermissionRequest
-	Result  string
+	Session   Session
+	Request   PermissionRequest
+	Result    string
+	Completed bool
 	// DecisionSource is the CLI's own record of who or what produced Result (e.g.
 	// DecisionSourceHumanResponse), or DecisionSourceUnknown when the CLI version that
 	// wrote this event never recorded it. It does not distinguish a rule-based
@@ -267,21 +268,26 @@ type permissionCompletion struct {
 	decidedAt      time.Time
 }
 
+type permissionKey struct {
+	agentID   string
+	requestID string
+}
+
 // permissionCollector accumulates "permission.requested" and "permission.completed" events
 // of a single session so they can be gathered in a shared events.jsonl scan.
 type permissionCollector struct {
 	session  Session
-	requests map[string]PermissionRequest
-	order    []string
-	results  map[string]permissionCompletion
+	requests map[permissionKey]PermissionRequest
+	order    []permissionKey
+	results  map[permissionKey]permissionCompletion
 }
 
 // newPermissionCollector returns an empty permissionCollector for s.
 func newPermissionCollector(s Session) *permissionCollector {
 	return &permissionCollector{
 		session:  s,
-		requests: make(map[string]PermissionRequest),
-		results:  make(map[string]permissionCompletion),
+		requests: make(map[permissionKey]PermissionRequest),
+		results:  make(map[permissionKey]permissionCompletion),
 	}
 }
 
@@ -292,6 +298,14 @@ func (pc *permissionCollector) handle(ev rawEvent) {
 		var data rawPermissionRequested
 		if err := json.Unmarshal(ev.Data, &data); err != nil {
 			logger.Warn("skipping unparsable permission.requested event", "dir", pc.session.Dir, "error", err)
+			return
+		}
+		if data.RequestID == "" {
+			logger.Warn("skipping permission.requested without a request identity", "dir", pc.session.Dir)
+			return
+		}
+		key := permissionKey{agentID: ev.AgentID, requestID: data.RequestID}
+		if _, exists := pc.requests[key]; exists {
 			return
 		}
 		req := PermissionRequest{
@@ -309,17 +323,22 @@ func (pc *permissionCollector) handle(ev rawEvent) {
 		for _, u := range data.PermissionRequest.PossibleURLs {
 			req.URLs = append(req.URLs, string(u))
 		}
-		if _, exists := pc.requests[req.RequestID]; !exists {
-			pc.order = append(pc.order, req.RequestID)
-		}
-		pc.requests[req.RequestID] = req
+		pc.order = append(pc.order, key)
+		pc.requests[key] = req
 	case "permission.completed":
 		var data rawPermissionCompleted
 		if err := json.Unmarshal(ev.Data, &data); err != nil {
 			logger.Warn("skipping unparsable permission.completed event", "dir", pc.session.Dir, "error", err)
 			return
 		}
-		pc.results[data.RequestID] = permissionCompletion{result: data.Result.Kind, decisionSource: data.DecisionSource, decidedAt: ev.Timestamp}
+		if data.RequestID == "" || data.Result.Kind == "" {
+			logger.Warn("skipping permission.completed without a request identity or result", "dir", pc.session.Dir)
+			return
+		}
+		key := permissionKey{agentID: ev.AgentID, requestID: data.RequestID}
+		if _, exists := pc.results[key]; !exists {
+			pc.results[key] = permissionCompletion{result: data.Result.Kind, decisionSource: data.DecisionSource, decidedAt: ev.Timestamp}
+		}
 	}
 }
 
@@ -335,7 +354,9 @@ func (pc *permissionCollector) records() []PermissionRecord {
 		result := PermissionUnresolved
 		decisionSource := DecisionSourceUnknown
 		var decidedAt time.Time
+		completed := false
 		if r, ok := pc.results[id]; ok && r.result != "" {
+			completed = true
 			result = r.result
 			decidedAt = r.decidedAt
 			if r.decisionSource != "" {
@@ -346,6 +367,7 @@ func (pc *permissionCollector) records() []PermissionRecord {
 			Session:        pc.session,
 			Request:        pc.requests[id],
 			Result:         result,
+			Completed:      completed,
 			DecisionSource: decisionSource,
 			DecidedAt:      decidedAt,
 		})
