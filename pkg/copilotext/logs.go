@@ -138,6 +138,9 @@ func WalkLogFiles(opts LogOptions, fn func(LogFile) error) error {
 				rel = filepath.Base(path)
 			}
 			id := SessionIDFromPath(rel)
+			if id == "" && root.source == LogSourcePath {
+				id = SessionIDFromPath(path)
+			}
 			if len(prefixes) > 0 && !hasSessionPrefix(id, prefixes) {
 				return nil
 			}
@@ -150,7 +153,7 @@ func WalkLogFiles(opts LogOptions, fn func(LogFile) error) error {
 			return fn(LogFile{Source: root.source, Path: path, SessionID: id, ModifiedAt: info.ModTime(), Workspace: logWorkspace(path), SessionName: name})
 		})
 		if walkErr != nil {
-			return fmt.Errorf("failed to walk %q: %w", root.path, walkErr)
+			return walkErr
 		}
 	}
 	return nil
@@ -223,12 +226,12 @@ func readLogSessionName(path string) string {
 	for {
 		var entry struct {
 			Kind        int             `json:"kind"`
-			Key         []string        `json:"k"`
+			Key         []any           `json:"k"`
 			Value       json.RawMessage `json:"v"`
 			CustomTitle string          `json:"customTitle"`
 		}
 		if err := decoder.Decode(&entry); err != nil {
-			if err == io.EOF {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
 				return name
 			}
 			return ""
@@ -243,7 +246,7 @@ func readLogSessionName(path string) string {
 			if json.Unmarshal(entry.Value, &snapshot) == nil {
 				name = snapshot.CustomTitle
 			}
-		} else if entry.Kind == 1 && len(entry.Key) == 1 && entry.Key[0] == "customTitle" {
+		} else if entry.Kind == 1 && len(entry.Key) == 1 && entry.Key[0] == any("customTitle") {
 			var title string
 			if json.Unmarshal(entry.Value, &title) != nil {
 				return ""
