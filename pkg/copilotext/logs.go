@@ -207,7 +207,11 @@ func readLogSessionName(path string) string {
 	if err != nil {
 		return ""
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			logger.Warn("failed to close log session metadata", "path", path, "error", err)
+		}
+	}()
 	if filepath.Ext(path) == ".yaml" {
 		var metadata struct {
 			Name    string `yaml:"name"`
