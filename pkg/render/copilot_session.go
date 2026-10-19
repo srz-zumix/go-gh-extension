@@ -91,6 +91,28 @@ func (r *Renderer) RenderCopilotPermissionStats(stats *copilotext.PermissionStat
 			", unknown: " + strconv.Itoa(q.Unknown))
 		r.renderQuestionWait(q.TimedAnswers, q.UntimedAnswers, q.TotalWaitMs, q.AvgWaitMs, q.MaxWaitMs)
 	}
+	if w := stats.PermissionWait; w != nil && stats.Requests > 0 {
+		r.writeLine("")
+		r.writeLine("PERMISSION_WAIT")
+		r.writeLine("unresolved: " + strconv.Itoa(w.Unresolved))
+		for _, entry := range []struct {
+			name string
+			wait copilotext.PermissionDecisionWait
+		}{
+			{"human_response", w.HumanResponses},
+			{"non_human", w.NonHumanDecisions},
+			{"unknown_source", w.UnknownSourceDecisions},
+		} {
+			t := entry.wait
+			r.writeLine(entry.name + ": completed: " + strconv.Itoa(t.Completed) +
+				", timed: " + strconv.Itoa(t.Timed) + ", untimed: " + strconv.Itoa(t.Untimed) +
+				", total_wait_ms: " + strconv.FormatFloat(t.TotalWaitMs, 'f', 3, 64) +
+				", avg_wait_ms: " + optionalMilliseconds(t.AvgWaitMs) +
+				", max_wait_ms: " + optionalMilliseconds(t.MaxWaitMs))
+		}
+		r.writeLine("request-to-decision elapsed time includes UI/transport overhead; overlapping intervals are summed, not unique idle time")
+		r.writeLine("only human_response is confirmed user wait; other and unknown-source decisions remain separate; unresolved requests have no duration")
+	}
 
 	sections := []struct {
 		name   string
