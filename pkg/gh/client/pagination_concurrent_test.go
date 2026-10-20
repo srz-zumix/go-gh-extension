@@ -46,9 +46,10 @@ func TestConcurrentWorkflowRunEndpointsPreserveOrderAndFilters(t *testing.T) {
 				assert.Equal(t, "2026-10-01..2026-10-02", query.Get("created"))
 				assert.Equal(t, "100", query.Get("per_page"))
 				path := "/repos/example/project/actions/runs"
-				if endpoint == "workflow ID" {
+				switch endpoint {
+				case "workflow ID":
 					path = "/repos/example/project/actions/workflows/123/runs"
-				} else if endpoint == "workflow file" {
+				case "workflow file":
 					path = "/repos/example/project/actions/workflows/build.yml/runs"
 				}
 				assert.Equal(t, path, r.URL.Path)
