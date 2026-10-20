@@ -18,6 +18,8 @@ type ListWorkflowRunsOptions struct {
 	CheckSuiteID        int64
 	// Limit caps the number of runs to retrieve. 0 or less retrieves every run.
 	Limit int
+	// Concurrency bounds page requests in parallel. 1 or less keeps sequential pagination.
+	Concurrency int
 }
 
 // toGitHubListWorkflowRunsOptions converts gh.ListWorkflowRunsOptions to github.ListWorkflowRunsOptions
@@ -58,11 +60,17 @@ func GetWorkflowRunAttempt(ctx context.Context, g *GitHubClient, repo repository
 
 // ListRepositoryWorkflowRuns retrieves workflow runs for a repository.
 func ListRepositoryWorkflowRuns(ctx context.Context, g *GitHubClient, repo repository.Repository, options *ListWorkflowRunsOptions) ([]*github.WorkflowRun, error) {
+	if options != nil && options.Concurrency > 1 {
+		return g.ListRepositoryWorkflowRunsConcurrent(ctx, repo.Owner, repo.Name, toGitHubListWorkflowRunsOptions(options), options.Limit, options.Concurrency)
+	}
 	return g.ListRepositoryWorkflowRuns(ctx, repo.Owner, repo.Name, toGitHubListWorkflowRunsOptions(options), workflowRunsLimit(options))
 }
 
 // ListWorkflowRunsByID retrieves workflow runs for a specific workflow by workflow ID.
 func ListWorkflowRunsByID(ctx context.Context, g *GitHubClient, repo repository.Repository, workflowID int64, options *ListWorkflowRunsOptions) ([]*github.WorkflowRun, error) {
+	if options != nil && options.Concurrency > 1 {
+		return g.ListWorkflowRunsByIDConcurrent(ctx, repo.Owner, repo.Name, workflowID, toGitHubListWorkflowRunsOptions(options), options.Limit, options.Concurrency)
+	}
 	return g.ListWorkflowRunsByID(ctx, repo.Owner, repo.Name, workflowID, toGitHubListWorkflowRunsOptions(options), workflowRunsLimit(options))
 }
 
@@ -73,6 +81,9 @@ func GetWorkflowByFileName(ctx context.Context, g *GitHubClient, repo repository
 
 // ListWorkflowRunsByFileName retrieves workflow runs for a specific workflow by file name.
 func ListWorkflowRunsByFileName(ctx context.Context, g *GitHubClient, repo repository.Repository, workflowFileName string, options *ListWorkflowRunsOptions) ([]*github.WorkflowRun, error) {
+	if options != nil && options.Concurrency > 1 {
+		return g.ListWorkflowRunsByFileNameConcurrent(ctx, repo.Owner, repo.Name, workflowFileName, toGitHubListWorkflowRunsOptions(options), options.Limit, options.Concurrency)
+	}
 	return g.ListWorkflowRunsByFileName(ctx, repo.Owner, repo.Name, workflowFileName, toGitHubListWorkflowRunsOptions(options), workflowRunsLimit(options))
 }
 
