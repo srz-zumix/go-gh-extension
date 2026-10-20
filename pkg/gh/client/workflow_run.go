@@ -64,13 +64,21 @@ func (g *GitHubClient) GetWorkflowRunAttempt(ctx context.Context, owner string, 
 // ListRepositoryWorkflowRuns retrieves workflow runs for a repository.
 // A limit of 0 or less retrieves every run.
 func (g *GitHubClient) ListRepositoryWorkflowRuns(ctx context.Context, owner string, repo string, options *github.ListWorkflowRunsOptions, limit int) ([]*github.WorkflowRun, error) {
+	return g.ListRepositoryWorkflowRunsConcurrent(ctx, owner, repo, options, limit, 1)
+}
+
+// ListRepositoryWorkflowRunsConcurrent bounds parallel page requests and preserves page order.
+// A concurrency of 1 or less retains sequential pagination.
+func (g *GitHubClient) ListRepositoryWorkflowRunsConcurrent(ctx context.Context, owner string, repo string, options *github.ListWorkflowRunsOptions, limit, concurrency int) ([]*github.WorkflowRun, error) {
 	opt := github.ListWorkflowRunsOptions{}
 	if options != nil {
 		opt = *options
 	}
 
-	return paginate(ctx, &opt.ListOptions, limit, func(ctx context.Context) ([]*github.WorkflowRun, *github.Response, error) {
-		runs, resp, err := g.client.Actions.ListRepositoryWorkflowRuns(ctx, owner, repo, &opt)
+	return paginateConcurrent(ctx, opt.ListOptions, limit, concurrency, func(ctx context.Context, page github.ListOptions) ([]*github.WorkflowRun, *github.Response, error) {
+		pageOptions := opt
+		pageOptions.ListOptions = page
+		runs, resp, err := g.client.Actions.ListRepositoryWorkflowRuns(ctx, owner, repo, &pageOptions)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -81,13 +89,20 @@ func (g *GitHubClient) ListRepositoryWorkflowRuns(ctx context.Context, owner str
 // ListWorkflowRunsByID retrieves workflow runs for a specific workflow by workflow ID.
 // A limit of 0 or less retrieves every run.
 func (g *GitHubClient) ListWorkflowRunsByID(ctx context.Context, owner string, repo string, workflowID int64, options *github.ListWorkflowRunsOptions, limit int) ([]*github.WorkflowRun, error) {
+	return g.ListWorkflowRunsByIDConcurrent(ctx, owner, repo, workflowID, options, limit, 1)
+}
+
+// ListWorkflowRunsByIDConcurrent lists workflow runs with bounded, ordered page concurrency.
+func (g *GitHubClient) ListWorkflowRunsByIDConcurrent(ctx context.Context, owner string, repo string, workflowID int64, options *github.ListWorkflowRunsOptions, limit, concurrency int) ([]*github.WorkflowRun, error) {
 	opt := github.ListWorkflowRunsOptions{}
 	if options != nil {
 		opt = *options
 	}
 
-	return paginate(ctx, &opt.ListOptions, limit, func(ctx context.Context) ([]*github.WorkflowRun, *github.Response, error) {
-		runs, resp, err := g.client.Actions.ListWorkflowRunsByID(ctx, owner, repo, workflowID, &opt)
+	return paginateConcurrent(ctx, opt.ListOptions, limit, concurrency, func(ctx context.Context, page github.ListOptions) ([]*github.WorkflowRun, *github.Response, error) {
+		pageOptions := opt
+		pageOptions.ListOptions = page
+		runs, resp, err := g.client.Actions.ListWorkflowRunsByID(ctx, owner, repo, workflowID, &pageOptions)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -98,13 +113,20 @@ func (g *GitHubClient) ListWorkflowRunsByID(ctx context.Context, owner string, r
 // ListWorkflowRunsByFileName retrieves workflow runs for a specific workflow by file name.
 // A limit of 0 or less retrieves every run.
 func (g *GitHubClient) ListWorkflowRunsByFileName(ctx context.Context, owner string, repo string, workflowFileName string, options *github.ListWorkflowRunsOptions, limit int) ([]*github.WorkflowRun, error) {
+	return g.ListWorkflowRunsByFileNameConcurrent(ctx, owner, repo, workflowFileName, options, limit, 1)
+}
+
+// ListWorkflowRunsByFileNameConcurrent lists workflow runs with bounded, ordered page concurrency.
+func (g *GitHubClient) ListWorkflowRunsByFileNameConcurrent(ctx context.Context, owner string, repo string, workflowFileName string, options *github.ListWorkflowRunsOptions, limit, concurrency int) ([]*github.WorkflowRun, error) {
 	opt := github.ListWorkflowRunsOptions{}
 	if options != nil {
 		opt = *options
 	}
 
-	return paginate(ctx, &opt.ListOptions, limit, func(ctx context.Context) ([]*github.WorkflowRun, *github.Response, error) {
-		runs, resp, err := g.client.Actions.ListWorkflowRunsByFileName(ctx, owner, repo, workflowFileName, &opt)
+	return paginateConcurrent(ctx, opt.ListOptions, limit, concurrency, func(ctx context.Context, page github.ListOptions) ([]*github.WorkflowRun, *github.Response, error) {
+		pageOptions := opt
+		pageOptions.ListOptions = page
+		runs, resp, err := g.client.Actions.ListWorkflowRunsByFileName(ctx, owner, repo, workflowFileName, &pageOptions)
 		if err != nil {
 			return nil, nil, err
 		}
