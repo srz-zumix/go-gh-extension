@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // GetDefaultSetupConfiguration gets a code scanning default setup configuration for a repository.

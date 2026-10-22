@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // RunnerGroupFieldGetter renders a single field of a runner group

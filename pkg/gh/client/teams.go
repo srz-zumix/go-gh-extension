@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -90,7 +90,7 @@ func (g *GitHubClient) FindTeamBySlug(ctx context.Context, org string, teamSlug 
 }
 
 // CreateTeam creates a new team in the specified organization.
-func (g *GitHubClient) CreateTeam(ctx context.Context, org string, team *github.NewTeam) (*github.Team, error) {
+func (g *GitHubClient) CreateTeam(ctx context.Context, org string, team *github.CreateTeamRequest) (*github.Team, error) {
 	createdTeam, _, err := g.client.Teams.CreateTeam(ctx, org, *team)
 	if err != nil {
 		return nil, err
@@ -99,8 +99,9 @@ func (g *GitHubClient) CreateTeam(ctx context.Context, org string, team *github.
 }
 
 // UpdateTeam updates the details of a team in the specified organization.
-func (g *GitHubClient) UpdateTeam(ctx context.Context, owner string, teamSlug string, team *github.NewTeam, removeParent bool) (*github.Team, error) {
-	editedTeam, _, err := g.client.Teams.EditTeamBySlug(ctx, owner, teamSlug, *team, removeParent)
+// Set RemoveParentTeam in the request to detach the team from its parent.
+func (g *GitHubClient) UpdateTeam(ctx context.Context, owner string, teamSlug string, team *github.UpdateTeamRequest) (*github.Team, error) {
+	editedTeam, _, err := g.client.Teams.UpdateTeamBySlug(ctx, owner, teamSlug, *team)
 	if err != nil {
 		return nil, err
 	}
@@ -159,8 +160,9 @@ func (g *GitHubClient) RemoveTeamRepo(ctx context.Context, org string, teamSlug 
 
 // AddTeamRepo adds a repository to a team in the organization.
 func (g *GitHubClient) AddTeamRepo(ctx context.Context, org string, teamSlug string, owner string, repoName string, permission string) error {
-	opt := &github.TeamAddTeamRepoOptions{
-		Permission: permission,
+	opt := github.AddTeamRepoRequest{}
+	if permission != "" {
+		opt.Permission = github.Ptr(permission)
 	}
 	_, err := g.client.Teams.AddTeamRepoBySlug(ctx, org, teamSlug, owner, repoName, opt)
 	if err != nil {
@@ -171,8 +173,9 @@ func (g *GitHubClient) AddTeamRepo(ctx context.Context, org string, teamSlug str
 
 // AddOrUpdateTeamMembership adds or updates the membership of a user in a team.
 func (g *GitHubClient) AddOrUpdateTeamMembership(ctx context.Context, org string, teamSlug string, username string, role string) (*github.Membership, error) {
-	opt := &github.TeamAddTeamMembershipOptions{
-		Role: role,
+	opt := github.AddTeamMembershipRequest{}
+	if role != "" {
+		opt.Role = github.Ptr(role)
 	}
 	membership, _, err := g.client.Teams.AddTeamMembershipBySlug(ctx, org, teamSlug, username, opt)
 	if err != nil {

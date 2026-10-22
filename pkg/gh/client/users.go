@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // GetUser retrieves a user by their username.
@@ -55,8 +55,8 @@ func (g *GitHubClient) ListFollowing(ctx context.Context, user string) ([]*githu
 }
 
 // EditUser updates the authenticated user's profile.
-func (g *GitHubClient) EditUser(ctx context.Context, body *github.User) (*github.User, error) {
-	user, _, err := g.client.Users.Edit(ctx, body)
+func (g *GitHubClient) EditUser(ctx context.Context, body *github.UserUpdateRequest) (*github.User, error) {
+	user, _, err := g.client.Users.Update(ctx, *body)
 	if err != nil {
 		return nil, err
 	}

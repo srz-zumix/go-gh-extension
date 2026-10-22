@@ -10,7 +10,7 @@ require (
 	github.com/cli/shurcooL-graphql v0.0.4
 	github.com/ddddddO/gtree v1.14.9
 	github.com/fatih/color v1.19.0
-	github.com/google/go-github/v90 v90.0.0
+	github.com/google/go-github/v93 v93.0.0
 	github.com/google/go-querystring v1.2.0
 	github.com/olekukonko/tablewriter v1.1.5
 	github.com/shurcooL/githubv4 v0.0.0-20260209031235-2402fdf4a9ed

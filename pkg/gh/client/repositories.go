@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/srz-zumix/go-gh-extension/pkg/httputil"
 )
@@ -146,7 +146,11 @@ func (g *GitHubClient) RemoveRepositoryCollaborator(ctx context.Context, owner s
 
 // AddRepositoryCollaborator adds a collaborator to a specific repository with a given permission.
 func (g *GitHubClient) AddRepositoryCollaborator(ctx context.Context, owner string, repo string, username string, permission string) (*github.CollaboratorInvitation, error) {
-	invitation, _, err := g.client.Repositories.AddCollaborator(ctx, owner, repo, username, &github.RepositoryAddCollaboratorOptions{Permission: permission})
+	req := github.AddCollaboratorRequest{}
+	if permission != "" {
+		req.Permission = github.Ptr(permission)
+	}
+	invitation, _, err := g.client.Repositories.AddCollaborator(ctx, owner, repo, username, req)
 	if err != nil {
 		return nil, err
 	}
@@ -291,8 +295,8 @@ func (g *GitHubClient) UpdateFile(ctx context.Context, owner, repo, path string,
 
 // CreateRepository creates a new repository for the authenticated user.
 // Pass an empty string for org to create under the authenticated user.
-func (g *GitHubClient) CreateRepository(ctx context.Context, org string, repo *github.Repository) (*github.Repository, error) {
-	created, _, err := g.client.Repositories.Create(ctx, org, repo)
+func (g *GitHubClient) CreateRepository(ctx context.Context, org string, repo *github.CreateRepositoryRequest) (*github.Repository, error) {
+	created, _, err := g.client.Repositories.Create(ctx, org, *repo)
 	if err != nil {
 		return nil, err
 	}

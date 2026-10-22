@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // ListOrgSecretScanningPatternConfigs lists secret scanning pattern configurations for an organization.
@@ -16,8 +16,12 @@ func (g *GitHubClient) ListOrgSecretScanningPatternConfigs(ctx context.Context, 
 }
 
 // UpdateOrgSecretScanningPatternConfigs updates secret scanning pattern configurations for an organization.
-func (g *GitHubClient) UpdateOrgSecretScanningPatternConfigs(ctx context.Context, org string, opts *github.SecretScanningPatternConfigsUpdateOptions) (*github.SecretScanningPatternConfigsUpdate, error) {
-	update, _, err := g.client.SecretScanning.UpdatePatternConfigsForOrg(ctx, org, opts)
+func (g *GitHubClient) UpdateOrgSecretScanningPatternConfigs(ctx context.Context, org string, opts *github.UpdateSecretScanningPatternConfigsRequest) (*github.SecretScanningPatternConfigsUpdate, error) {
+	body := github.UpdateSecretScanningPatternConfigsRequest{}
+	if opts != nil {
+		body = *opts
+	}
+	update, _, err := g.client.SecretScanning.UpdatePatternConfigsForOrg(ctx, org, body)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +82,12 @@ func (g *GitHubClient) GetSecretScanningAlert(ctx context.Context, owner, repo s
 }
 
 // UpdateSecretScanningAlert updates a secret scanning alert for a repository.
-func (g *GitHubClient) UpdateSecretScanningAlert(ctx context.Context, owner, repo string, number int64, opts *github.SecretScanningAlertUpdateOptions) (*github.SecretScanningAlert, error) {
-	alert, _, err := g.client.SecretScanning.UpdateAlert(ctx, owner, repo, number, opts)
+func (g *GitHubClient) UpdateSecretScanningAlert(ctx context.Context, owner, repo string, number int64, opts *github.UpdateSecretScanningAlertRequest) (*github.SecretScanningAlert, error) {
+	body := github.UpdateSecretScanningAlertRequest{}
+	if opts != nil {
+		body = *opts
+	}
+	alert, _, err := g.client.SecretScanning.UpdateAlert(ctx, owner, repo, number, body)
 	if err != nil {
 		return nil, err
 	}

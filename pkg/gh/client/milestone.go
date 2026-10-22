@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 func (g *GitHubClient) GetMilestone(ctx context.Context, owner, repo string, number int) (*github.Milestone, error) {
@@ -14,12 +14,12 @@ func (g *GitHubClient) GetMilestone(ctx context.Context, owner, repo string, num
 	return milestone, nil
 }
 
-func (g *GitHubClient) CreateMilestone(ctx context.Context, owner, repo string, milestone *github.Milestone) (*github.Milestone, error) {
-	milestone, _, err := g.client.Issues.CreateMilestone(ctx, owner, repo, milestone)
+func (g *GitHubClient) CreateMilestone(ctx context.Context, owner, repo string, milestone *github.CreateMilestoneRequest) (*github.Milestone, error) {
+	created, _, err := g.client.Issues.CreateMilestone(ctx, owner, repo, *milestone)
 	if err != nil {
 		return nil, err
 	}
-	return milestone, nil
+	return created, nil
 }
 
 func (g *GitHubClient) ListMilestones(ctx context.Context, owner, repo string, opts *github.MilestoneListOptions) ([]*github.Milestone, error) {
@@ -47,12 +47,12 @@ func (g *GitHubClient) ListMilestones(ctx context.Context, owner, repo string, o
 	return allMilestones, nil
 }
 
-func (g *GitHubClient) EditMilestone(ctx context.Context, owner, repo string, number int, milestone *github.Milestone) (*github.Milestone, error) {
-	milestone, _, err := g.client.Issues.EditMilestone(ctx, owner, repo, number, milestone)
+func (g *GitHubClient) EditMilestone(ctx context.Context, owner, repo string, number int, milestone *github.UpdateMilestoneRequest) (*github.Milestone, error) {
+	updated, _, err := g.client.Issues.UpdateMilestone(ctx, owner, repo, number, *milestone)
 	if err != nil {
 		return nil, err
 	}
-	return milestone, nil
+	return updated, nil
 }
 
 func (g *GitHubClient) DeleteMilestone(ctx context.Context, owner, repo string, number int) error {

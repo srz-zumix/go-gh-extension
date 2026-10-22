@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // Organization is an alias for github.Organization, exposed so callers do not need to import the upstream package directly.
@@ -217,8 +217,14 @@ func UpdateOrgActionsPermissions(ctx context.Context, g *GitHubClient, repo repo
 // SetOrgAllowedActions sets which GitHub Actions are allowed to run in the organization.
 // allowedActions must be one of the OrgAllowedActions* constants.
 func SetOrgAllowedActions(ctx context.Context, g *GitHubClient, repo repository.Repository, allowedActions string) (*github.ActionsPermissions, error) {
+	// The update endpoint requires enabled_repositories, so carry over the current value.
+	current, err := GetOrgActionsPermissions(ctx, g, repo)
+	if err != nil {
+		return nil, err
+	}
 	return UpdateOrgActionsPermissions(ctx, g, repo, github.ActionsPermissions{
-		AllowedActions: &allowedActions,
+		EnabledRepositories: current.EnabledRepositories,
+		AllowedActions:      &allowedActions,
 	})
 }
 

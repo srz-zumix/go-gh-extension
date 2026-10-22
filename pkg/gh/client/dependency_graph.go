@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // GetDependencyGraphSBOM retrieves the SBOM (Software Bill of Materials) for a repository using the dependency-graph/sbom API.
@@ -160,8 +160,8 @@ func (g *GitHubClient) GetDependencyGraphDiff(ctx context.Context, owner, repo, 
 }
 
 // CreateDependencyGraphSnapshot creates a new snapshot of a repository's dependencies.
-func (g *GitHubClient) CreateDependencyGraphSnapshot(ctx context.Context, owner, repo string, snapshot *github.DependencyGraphSnapshot) (*github.DependencyGraphSnapshotCreationData, error) {
-	result, _, err := g.client.DependencyGraph.CreateSnapshot(ctx, owner, repo, snapshot)
+func (g *GitHubClient) CreateDependencyGraphSnapshot(ctx context.Context, owner, repo string, snapshot *github.CreateDependencyGraphSnapshotRequest) (*github.DependencyGraphSnapshotCreationData, error) {
+	result, _, err := g.client.DependencyGraph.CreateSnapshot(ctx, owner, repo, *snapshot)
 	if err != nil {
 		return nil, err
 	}

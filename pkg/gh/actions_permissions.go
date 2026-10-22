@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // Allowed values for the default_workflow_permissions field (organization and repository level).
@@ -94,9 +94,8 @@ func UpdateRepoActionsPermissions(ctx context.Context, g *GitHubClient, repo rep
 // allowedActions must be one of the OrgAllowedActions* constants (the allowed values are shared
 // between the organization and repository level allowed_actions policy).
 func SetRepoAllowedActions(ctx context.Context, g *GitHubClient, repo repository.Repository, allowedActions string) (*github.ActionsPermissionsRepository, error) {
-	enabled := true
 	return UpdateRepoActionsPermissions(ctx, g, repo, github.ActionsPermissionsRepository{
-		Enabled:        &enabled,
+		Enabled:        true,
 		AllowedActions: &allowedActions,
 	})
 }

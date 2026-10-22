@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
@@ -23,6 +23,37 @@ func (mp *MilestoneParameter) ToGitHubMilestone() *github.Milestone {
 		return &github.Milestone{}
 	}
 	return &github.Milestone{
+		Title:       mp.Title,
+		State:       mp.State,
+		Description: mp.Description,
+		DueOn:       mp.DueOn,
+	}
+}
+
+// ToCreateMilestoneRequest converts MilestoneParameter to github.CreateMilestoneRequest
+func (mp *MilestoneParameter) ToCreateMilestoneRequest() *github.CreateMilestoneRequest {
+	if mp == nil {
+		return &github.CreateMilestoneRequest{}
+	}
+	title := ""
+	if mp.Title != nil {
+		title = *mp.Title
+	}
+	return &github.CreateMilestoneRequest{
+		Title:       title,
+		State:       mp.State,
+		Description: mp.Description,
+		DueOn:       mp.DueOn,
+	}
+}
+
+// ToUpdateMilestoneRequest converts MilestoneParameter to github.UpdateMilestoneRequest.
+// Unset (nil) fields are left nil so they are omitted from the request.
+func (mp *MilestoneParameter) ToUpdateMilestoneRequest() *github.UpdateMilestoneRequest {
+	if mp == nil {
+		return &github.UpdateMilestoneRequest{}
+	}
+	return &github.UpdateMilestoneRequest{
 		Title:       mp.Title,
 		State:       mp.State,
 		Description: mp.Description,
@@ -85,12 +116,12 @@ func GetMilestone(ctx context.Context, g *GitHubClient, repo repository.Reposito
 }
 
 // CreateMilestone creates a new milestone for a repository (wrapper)
-func CreateMilestone(ctx context.Context, g *GitHubClient, repo repository.Repository, milestone *github.Milestone) (*github.Milestone, error) {
+func CreateMilestone(ctx context.Context, g *GitHubClient, repo repository.Repository, milestone *github.CreateMilestoneRequest) (*github.Milestone, error) {
 	return g.CreateMilestone(ctx, repo.Owner, repo.Name, milestone)
 }
 
 // EditMilestone edits an existing milestone for a repository (wrapper)
-func EditMilestone(ctx context.Context, g *GitHubClient, repo repository.Repository, milestone any, edit *github.Milestone) (*github.Milestone, error) {
+func EditMilestone(ctx context.Context, g *GitHubClient, repo repository.Repository, milestone any, edit *github.UpdateMilestoneRequest) (*github.Milestone, error) {
 	number, err := GetMilestoneNumber(milestone)
 	if err != nil {
 		return nil, err

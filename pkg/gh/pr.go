@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
@@ -415,16 +415,16 @@ func ListPullRequestReviewComments(ctx context.Context, g *GitHubClient, repo re
 	return comments, nil
 }
 
-func CreatePullRequestComment(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any, comment *github.PullRequestComment) (*github.PullRequestComment, error) {
+func CreatePullRequestComment(ctx context.Context, g *GitHubClient, repo repository.Repository, pull_request any, comment *github.CreatePullRequestCommentRequest) (*github.PullRequestComment, error) {
 	number, err := GetPullRequestNumber(pull_request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse pull request number from '%s': %w", pull_request, err)
 	}
-	comment, err = g.CreatePullRequestComment(ctx, repo.Owner, repo.Name, number, comment)
+	created, err := g.CreatePullRequestComment(ctx, repo.Owner, repo.Name, number, comment)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create comment for pull request #%d in repository '%s/%s': %w", number, repo.Owner, repo.Name, err)
 	}
-	return comment, nil
+	return created, nil
 }
 
 func DeletePullRequestComment(ctx context.Context, g *GitHubClient, repo repository.Repository, comment any) error {

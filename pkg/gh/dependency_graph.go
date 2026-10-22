@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
-type DependencyGraphSnapshot = github.DependencyGraphSnapshot
+type DependencyGraphSnapshot = github.CreateDependencyGraphSnapshotRequest
 
 // SBOMEcosystems is the list of valid SBOM package ecosystem prefixes
 // as used by the GitHub Dependency Graph API (e.g. "npm:package-name").
@@ -280,7 +280,7 @@ func GetRepositoryDependencyGraphDiff(ctx context.Context, g *GitHubClient, repo
 }
 
 // CreateRepositoryDependencyGraphSnapshot creates a new snapshot of a repository's dependencies.
-func CreateRepositoryDependencyGraphSnapshot(ctx context.Context, g *GitHubClient, repo repository.Repository, snapshot *github.DependencyGraphSnapshot) (*github.DependencyGraphSnapshotCreationData, error) {
+func CreateRepositoryDependencyGraphSnapshot(ctx context.Context, g *GitHubClient, repo repository.Repository, snapshot *github.CreateDependencyGraphSnapshotRequest) (*github.DependencyGraphSnapshotCreationData, error) {
 	result, err := g.CreateDependencyGraphSnapshot(ctx, repo.Owner, repo.Name, snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dependency snapshot for repository %s/%s: %w", repo.Owner, repo.Name, err)

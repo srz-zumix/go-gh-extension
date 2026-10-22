@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // RunnerLabelsResponse represents the response body returned by the runner labels endpoints.
 type RunnerLabelsResponse struct {
-	TotalCount int                     `json:"total_count"`
+	TotalCount int                    `json:"total_count"`
 	Labels     []*github.RunnerLabels `json:"labels"`
 }
 

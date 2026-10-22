@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // BillingUsageOptions selects the period of a billing usage report. Zero values are omitted from the request.

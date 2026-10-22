@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // GetWorkflowByID retrieves a workflow definition by its numeric ID.
@@ -256,7 +256,7 @@ func (g *GitHubClient) GetPendingDeployments(ctx context.Context, owner string, 
 
 // PendingDeployments reviews and approves or rejects pending deployments for a workflow run.
 func (g *GitHubClient) PendingDeployments(ctx context.Context, owner string, repo string, runID int64, request *github.PendingDeploymentsRequest) ([]*github.Deployment, error) {
-	deployments, _, err := g.client.Actions.PendingDeployments(ctx, owner, repo, runID, request)
+	deployments, _, err := g.client.Actions.PendingDeployments(ctx, owner, repo, runID, *request)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +265,7 @@ func (g *GitHubClient) PendingDeployments(ctx context.Context, owner string, rep
 
 // ReviewCustomDeploymentProtectionRule reviews and approves or rejects a custom deployment protection rule.
 func (g *GitHubClient) ReviewCustomDeploymentProtectionRule(ctx context.Context, owner string, repo string, runID int64, request *github.ReviewCustomDeploymentProtectionRuleRequest) error {
-	_, err := g.client.Actions.ReviewCustomDeploymentProtectionRule(ctx, owner, repo, runID, request)
+	_, err := g.client.Actions.ReviewCustomDeploymentProtectionRule(ctx, owner, repo, runID, *request)
 	return err
 }
 

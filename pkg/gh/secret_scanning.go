@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // SecretScanningPushProtectionSettings is the list of valid push protection settings.
@@ -97,11 +97,11 @@ type SecretScanningPatternConfigsUpdateOptions struct {
 }
 
 // toGitHubSecretScanningPatternConfigsUpdateOptions converts the wrapper type to a github.SecretScanningPatternConfigsUpdateOptions.
-func toGitHubSecretScanningPatternConfigsUpdateOptions(opts *SecretScanningPatternConfigsUpdateOptions) *github.SecretScanningPatternConfigsUpdateOptions {
+func toGitHubSecretScanningPatternConfigsUpdateOptions(opts *SecretScanningPatternConfigsUpdateOptions) *github.UpdateSecretScanningPatternConfigsRequest {
 	if opts == nil {
 		return nil
 	}
-	ghOpts := &github.SecretScanningPatternConfigsUpdateOptions{}
+	ghOpts := &github.UpdateSecretScanningPatternConfigsRequest{}
 	ghOpts.PatternConfigVersion = stringPtrIfSet(opts.PatternConfigVersion)
 	for _, p := range opts.ProviderPatternSettings {
 		if p == nil {
@@ -199,12 +199,12 @@ func toGitHubSecretScanningAlertListOptions(opts *ListSecretScanningAlertsOption
 }
 
 // toGitHubSecretScanningAlertUpdateOptions converts UpdateSecretScanningAlertOptions to github.SecretScanningAlertUpdateOptions.
-func toGitHubSecretScanningAlertUpdateOptions(opts *UpdateSecretScanningAlertOptions) *github.SecretScanningAlertUpdateOptions {
+func toGitHubSecretScanningAlertUpdateOptions(opts *UpdateSecretScanningAlertOptions) *github.UpdateSecretScanningAlertRequest {
 	if opts == nil {
 		return nil
 	}
-	o := &github.SecretScanningAlertUpdateOptions{
-		State: opts.State,
+	o := &github.UpdateSecretScanningAlertRequest{
+		State: stringPtrIfSet(opts.State),
 	}
 	if opts.Resolution != "" {
 		o.Resolution = &opts.Resolution

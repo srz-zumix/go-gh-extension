@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // ListRepoVariables lists all variables in a repository (wrapper).

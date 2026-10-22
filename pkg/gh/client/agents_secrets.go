@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // agentsSecrets is the response of the Agents secrets list endpoints.

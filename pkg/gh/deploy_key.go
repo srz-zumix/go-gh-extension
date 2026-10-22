@@ -6,7 +6,7 @@ import (
 	"context"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // ListDeployKeys retrieves all deploy keys for a repository.
@@ -21,9 +21,9 @@ func GetDeployKey(ctx context.Context, g *GitHubClient, repo repository.Reposito
 
 // CreateDeployKey adds a deploy key to a repository.
 func CreateDeployKey(ctx context.Context, g *GitHubClient, repo repository.Repository, title, key string, readOnly bool) (*github.Key, error) {
-	input := &github.Key{
+	input := &github.CreateDeployKeyRequest{
 		Title:    &title,
-		Key:      &key,
+		Key:      key,
 		ReadOnly: &readOnly,
 	}
 	return g.CreateDeployKey(ctx, repo.Owner, repo.Name, input)

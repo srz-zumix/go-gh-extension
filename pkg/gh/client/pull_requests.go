@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -265,12 +265,12 @@ func (g *GitHubClient) GetPullRequestComment(ctx context.Context, owner string, 
 	return comment, nil
 }
 
-func (g *GitHubClient) CreatePullRequestComment(ctx context.Context, owner string, repo string, number int, comment *github.PullRequestComment) (*github.PullRequestComment, error) {
-	comment, _, err := g.client.PullRequests.CreateComment(ctx, owner, repo, number, comment)
+func (g *GitHubClient) CreatePullRequestComment(ctx context.Context, owner string, repo string, number int, comment *github.CreatePullRequestCommentRequest) (*github.PullRequestComment, error) {
+	created, _, err := g.client.PullRequests.CreateComment(ctx, owner, repo, number, *comment)
 	if err != nil {
 		return nil, err
 	}
-	return comment, nil
+	return created, nil
 }
 
 func (g *GitHubClient) DeletePullRequestComment(ctx context.Context, owner string, repo string, commentID int64) error {
@@ -282,10 +282,7 @@ func (g *GitHubClient) DeletePullRequestComment(ctx context.Context, owner strin
 }
 
 func (g *GitHubClient) EditPullRequestComment(ctx context.Context, owner string, repo string, commentID int64, body string) (*github.PullRequestComment, error) {
-	comment := &github.PullRequestComment{
-		Body: &body,
-	}
-	comment, _, err := g.client.PullRequests.EditComment(ctx, owner, repo, commentID, comment)
+	comment, _, err := g.client.PullRequests.UpdateComment(ctx, owner, repo, commentID, github.UpdatePullRequestCommentRequest{Body: body})
 	if err != nil {
 		return nil, err
 	}

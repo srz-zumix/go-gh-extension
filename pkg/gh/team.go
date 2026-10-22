@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/gh/client"
 )
 
@@ -217,7 +217,7 @@ func GetTeamNodeID(ctx context.Context, g *GitHubClient, repo repository.Reposit
 
 // CreateTeam creates a new team in the specified organization.
 func CreateTeam(ctx context.Context, g *GitHubClient, repo repository.Repository, name string, description string, privacy string, enableNotification any, parentTeamSlug *string) (*github.Team, error) {
-	newTeam := &github.NewTeam{
+	newTeam := &github.CreateTeamRequest{
 		Name:                name,
 		Description:         &description,
 		Privacy:             &privacy,
@@ -243,8 +243,8 @@ func DeleteTeam(ctx context.Context, g *GitHubClient, repo repository.Repository
 
 // UpdateTeam updates the details of a team in the specified repository.
 func UpdateTeam(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, name *string, description *string, privacy *string, enableNotification any, parentTeamSlug *string) (*github.Team, error) {
-	team := &github.NewTeam{
-		Name:                teamSlug,
+	team := &github.UpdateTeamRequest{
+		Name:                github.Ptr(teamSlug),
 		Description:         description,
 		Privacy:             privacy,
 		NotificationSetting: getNotificationSetting(enableNotification),
@@ -252,10 +252,9 @@ func UpdateTeam(ctx context.Context, g *GitHubClient, repo repository.Repository
 	}
 
 	if name != nil {
-		team.Name = *name
+		team.Name = github.Ptr(*name)
 	}
 
-	removeParent := false
 	if parentTeamSlug != nil {
 		if *parentTeamSlug != "" {
 			parentTeamID, err := GetTeamID(ctx, g, repo, *parentTeamSlug)
@@ -265,11 +264,11 @@ func UpdateTeam(ctx context.Context, g *GitHubClient, repo repository.Repository
 			team.ParentTeamID = parentTeamID
 		} else {
 			// If parentTeamSlug is empty, remove the parent association
-			removeParent = true
+			team.RemoveParentTeam = true
 		}
 	}
 
-	return g.UpdateTeam(ctx, repo.Owner, teamSlug, team, removeParent)
+	return g.UpdateTeam(ctx, repo.Owner, teamSlug, team)
 }
 
 func CreateOrUpdateTeam(ctx context.Context, g *GitHubClient, repo repository.Repository, teamSlug string, name *string, description string, privacy string, enableNotification any, parentTeamSlug *string) (*github.Team, error) {

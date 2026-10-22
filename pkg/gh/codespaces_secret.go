@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // ListCodespacesRepoSecrets lists all Codespaces secrets in a repository (wrapper).
