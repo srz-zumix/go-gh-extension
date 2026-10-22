@@ -30,6 +30,37 @@ func (mp *MilestoneParameter) ToGitHubMilestone() *github.Milestone {
 	}
 }
 
+// ToCreateMilestoneRequest converts MilestoneParameter to github.CreateMilestoneRequest
+func (mp *MilestoneParameter) ToCreateMilestoneRequest() *github.CreateMilestoneRequest {
+	if mp == nil {
+		return &github.CreateMilestoneRequest{}
+	}
+	title := ""
+	if mp.Title != nil {
+		title = *mp.Title
+	}
+	return &github.CreateMilestoneRequest{
+		Title:       title,
+		State:       mp.State,
+		Description: mp.Description,
+		DueOn:       mp.DueOn,
+	}
+}
+
+// ToUpdateMilestoneRequest converts MilestoneParameter to github.UpdateMilestoneRequest.
+// Unset (nil) fields are left nil so they are omitted from the request.
+func (mp *MilestoneParameter) ToUpdateMilestoneRequest() *github.UpdateMilestoneRequest {
+	if mp == nil {
+		return &github.UpdateMilestoneRequest{}
+	}
+	return &github.UpdateMilestoneRequest{
+		Title:       mp.Title,
+		State:       mp.State,
+		Description: mp.Description,
+		DueOn:       mp.DueOn,
+	}
+}
+
 // MilestoneListOptions represents options for listing milestones
 type MilestoneListOptions struct {
 	// State filters milestones based on their state. Possible values are:

@@ -217,8 +217,14 @@ func UpdateOrgActionsPermissions(ctx context.Context, g *GitHubClient, repo repo
 // SetOrgAllowedActions sets which GitHub Actions are allowed to run in the organization.
 // allowedActions must be one of the OrgAllowedActions* constants.
 func SetOrgAllowedActions(ctx context.Context, g *GitHubClient, repo repository.Repository, allowedActions string) (*github.ActionsPermissions, error) {
+	// The update endpoint requires enabled_repositories, so carry over the current value.
+	current, err := GetOrgActionsPermissions(ctx, g, repo)
+	if err != nil {
+		return nil, err
+	}
 	return UpdateOrgActionsPermissions(ctx, g, repo, github.ActionsPermissions{
-		AllowedActions: &allowedActions,
+		EnabledRepositories: current.EnabledRepositories,
+		AllowedActions:      &allowedActions,
 	})
 }
 
