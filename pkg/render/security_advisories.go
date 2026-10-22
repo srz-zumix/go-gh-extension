@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // RenderRepositorySecurityAdvisories renders a list of repository security advisories as a table.
@@ -209,4 +209,3 @@ func (r *Renderer) RenderGlobalSecurityAdvisory(advisory *github.GlobalSecurityA
 
 	return nil
 }
-

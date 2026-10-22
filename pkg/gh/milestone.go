@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/srz-zumix/go-gh-extension/pkg/parser"
 )
 
@@ -85,12 +85,12 @@ func GetMilestone(ctx context.Context, g *GitHubClient, repo repository.Reposito
 }
 
 // CreateMilestone creates a new milestone for a repository (wrapper)
-func CreateMilestone(ctx context.Context, g *GitHubClient, repo repository.Repository, milestone *github.Milestone) (*github.Milestone, error) {
+func CreateMilestone(ctx context.Context, g *GitHubClient, repo repository.Repository, milestone *github.CreateMilestoneRequest) (*github.Milestone, error) {
 	return g.CreateMilestone(ctx, repo.Owner, repo.Name, milestone)
 }
 
 // EditMilestone edits an existing milestone for a repository (wrapper)
-func EditMilestone(ctx context.Context, g *GitHubClient, repo repository.Repository, milestone any, edit *github.Milestone) (*github.Milestone, error) {
+func EditMilestone(ctx context.Context, g *GitHubClient, repo repository.Repository, milestone any, edit *github.UpdateMilestoneRequest) (*github.Milestone, error) {
 	number, err := GetMilestoneNumber(milestone)
 	if err != nil {
 		return nil, err

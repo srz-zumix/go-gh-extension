@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // GetGitCommit returns the git commit object for the given SHA.

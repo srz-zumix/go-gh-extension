@@ -3,7 +3,7 @@ package render
 import (
 	"fmt"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // RenderBranchProtections renders a list of protected branches in a table format.

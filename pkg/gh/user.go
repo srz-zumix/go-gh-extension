@@ -9,7 +9,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // GitHubUser is an alias for github.User, exposed so callers do not need to import the upstream package directly.
@@ -32,7 +32,7 @@ func FindUserByID(ctx context.Context, g *GitHubClient, id int64) (*GitHubUser, 
 }
 
 // UpdateLoginUser updates the authenticated user's profile.
-func UpdateLoginUser(ctx context.Context, g *GitHubClient, body *GitHubUser) (*GitHubUser, error) {
+func UpdateLoginUser(ctx context.Context, g *GitHubClient, body *github.UserUpdateRequest) (*GitHubUser, error) {
 	return g.EditUser(ctx, body)
 }
 

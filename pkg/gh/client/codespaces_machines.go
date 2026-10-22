@@ -6,7 +6,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // ListCodespacesRepoMachineTypes lists the machine types available for a given repository based on its configuration.

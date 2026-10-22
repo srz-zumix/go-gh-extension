@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // ListGists lists gists for the specified user. Pass an empty string for the

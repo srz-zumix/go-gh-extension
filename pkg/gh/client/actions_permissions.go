@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // GetOrgDefaultWorkflowPermissions gets the default GITHUB_TOKEN workflow permissions for the organization.

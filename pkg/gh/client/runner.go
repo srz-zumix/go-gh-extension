@@ -1,12 +1,12 @@
 package client
 
 // GitHub Actions Runner API functions
-// See: https://pkg.go.dev/github.com/google/go-github/v90/github#ActionsService
+// See: https://pkg.go.dev/github.com/google/go-github/v93/github#ActionsService
 
 import (
 	"context"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // ListRunners lists all self-hosted runners for a repository
@@ -171,7 +171,7 @@ func (g *GitHubClient) GetOrgRunnerGroup(ctx context.Context, owner string, grou
 // CreateOrgRunnerGroup creates a new organization runner group
 func (g *GitHubClient) CreateOrgRunnerGroup(ctx context.Context, owner string, name string) (*github.RunnerGroup, error) {
 	return g.CreateOrgRunnerGroupWithRequest(ctx, owner, github.CreateRunnerGroupRequest{
-		Name: github.Ptr(name),
+		Name: name,
 	})
 }
 

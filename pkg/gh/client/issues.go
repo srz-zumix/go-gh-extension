@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -118,7 +118,7 @@ func (g *GitHubClient) UpdateIssueBody(ctx context.Context, owner, repo string, 
 }
 
 func (g *GitHubClient) CreateIssueComment(ctx context.Context, owner string, repo string, number int, body string) (*github.IssueComment, error) {
-	comment, _, err := g.client.Issues.CreateComment(ctx, owner, repo, number, &github.IssueComment{Body: &body})
+	comment, _, err := g.client.Issues.CreateComment(ctx, owner, repo, number, github.IssueCommentRequest{Body: body})
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func (g *GitHubClient) GetIssueComment(ctx context.Context, owner string, repo s
 }
 
 func (g *GitHubClient) EditIssueComment(ctx context.Context, owner string, repo string, commentID int64, body string) (*github.IssueComment, error) {
-	comment, _, err := g.client.Issues.EditComment(ctx, owner, repo, commentID, &github.IssueComment{Body: &body})
+	comment, _, err := g.client.Issues.UpdateComment(ctx, owner, repo, commentID, github.IssueCommentRequest{Body: body})
 	if err != nil {
 		return nil, err
 	}

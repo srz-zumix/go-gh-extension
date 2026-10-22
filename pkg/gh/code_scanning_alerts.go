@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // CodeScanningAlertStates is the list of valid state values for filtering code scanning alerts.

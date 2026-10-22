@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/google/go-github/v90/github"
+	"github.com/google/go-github/v93/github"
 )
 
 // ListRunners lists all self-hosted runners for a repository (wrapper)
@@ -248,8 +248,12 @@ type RunnerGroupSettings struct {
 
 // CreateOrgRunnerGroupWithSettings creates a new organization runner group with the given settings (wrapper)
 func CreateOrgRunnerGroupWithSettings(ctx context.Context, g *GitHubClient, repo repository.Repository, settings RunnerGroupSettings) (*github.RunnerGroup, error) {
+	name := ""
+	if settings.Name != nil {
+		name = *settings.Name
+	}
 	return g.CreateOrgRunnerGroupWithRequest(ctx, repo.Owner, github.CreateRunnerGroupRequest{
-		Name:                     settings.Name,
+		Name:                     name,
 		Visibility:               settings.Visibility,
 		AllowsPublicRepositories: settings.AllowsPublicRepositories,
 		RestrictedToWorkflows:    settings.RestrictedToWorkflows,
@@ -260,8 +264,19 @@ func CreateOrgRunnerGroupWithSettings(ctx context.Context, g *GitHubClient, repo
 
 // UpdateOrgRunnerGroup updates the settings of an organization runner group (wrapper)
 func UpdateOrgRunnerGroup(ctx context.Context, g *GitHubClient, repo repository.Repository, groupID int64, settings RunnerGroupSettings) (*github.RunnerGroup, error) {
+	// The API requires name on update, so keep the current name when the caller leaves it nil.
+	var name string
+	if settings.Name != nil {
+		name = *settings.Name
+	} else {
+		current, err := GetOrgRunnerGroup(ctx, g, repo, groupID)
+		if err != nil {
+			return nil, err
+		}
+		name = current.GetName()
+	}
 	return g.UpdateOrgRunnerGroup(ctx, repo.Owner, groupID, github.UpdateRunnerGroupRequest{
-		Name:                     settings.Name,
+		Name:                     name,
 		Visibility:               settings.Visibility,
 		AllowsPublicRepositories: settings.AllowsPublicRepositories,
 		RestrictedToWorkflows:    settings.RestrictedToWorkflows,
