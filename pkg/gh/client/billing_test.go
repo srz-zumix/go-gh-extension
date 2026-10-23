@@ -122,6 +122,117 @@ func TestGetUsageReport(t *testing.T) {
 	}
 }
 
+func TestUsageSummaryFromReport(t *testing.T) {
+	t.Run("nil report yields empty summary", func(t *testing.T) {
+		got := usageSummaryFromReport(nil)
+		require.NotNil(t, got)
+		assert.Equal(t, BillingUsageSummary{}, *got)
+	})
+
+	t.Run("all fields are copied", func(t *testing.T) {
+		month, day := 5, 6
+		report := &github.UsageSummaryReport{
+			TimePeriod:   github.UsageSummaryTimePeriod{Year: 2025, Month: &month, Day: &day},
+			Organization: github.Ptr("example-org"),
+			User:         github.Ptr("example-user"),
+			Repository:   github.Ptr("example/repo"),
+			Product:      github.Ptr("actions"),
+			SKU:          github.Ptr("actions_linux"),
+			UsageItems: []*github.UsageSummaryItem{{
+				Product:          "actions",
+				SKU:              "actions_linux",
+				UnitType:         "minutes",
+				PricePerUnit:     0.008,
+				GrossQuantity:    200,
+				GrossAmount:      1.6,
+				DiscountQuantity: 100,
+				DiscountAmount:   0.8,
+				NetQuantity:      100,
+				NetAmount:        0.8,
+			}},
+		}
+		got := usageSummaryFromReport(report)
+		require.NotNil(t, got)
+		assert.Equal(t, 2025, got.TimePeriod.Year)
+		require.NotNil(t, got.TimePeriod.Month)
+		assert.Equal(t, 5, *got.TimePeriod.Month)
+		require.NotNil(t, got.TimePeriod.Day)
+		assert.Equal(t, 6, *got.TimePeriod.Day)
+		require.NotNil(t, got.Organization)
+		assert.Equal(t, "example-org", *got.Organization)
+		require.NotNil(t, got.User)
+		assert.Equal(t, "example-user", *got.User)
+		require.NotNil(t, got.Repository)
+		assert.Equal(t, "example/repo", *got.Repository)
+		require.NotNil(t, got.Product)
+		assert.Equal(t, "actions", *got.Product)
+		require.NotNil(t, got.SKU)
+		assert.Equal(t, "actions_linux", *got.SKU)
+		assert.Nil(t, got.Enterprise)
+		require.Len(t, got.UsageItems, 1)
+		item := got.UsageItems[0]
+		assert.Equal(t, "actions", item.Product)
+		assert.Equal(t, "actions_linux", item.SKU)
+		assert.Equal(t, "minutes", item.UnitType)
+		assert.InDelta(t, 0.008, item.PricePerUnit, 1e-9)
+		assert.InDelta(t, 200, item.GrossQuantity, 1e-9)
+		assert.InDelta(t, 1.6, item.GrossAmount, 1e-9)
+		assert.InDelta(t, 100, item.DiscountQuantity, 1e-9)
+		assert.InDelta(t, 0.8, item.DiscountAmount, 1e-9)
+		assert.InDelta(t, 100, item.NetQuantity, 1e-9)
+		assert.InDelta(t, 0.8, item.NetAmount, 1e-9)
+	})
+
+	t.Run("nil and empty usage items keep their shape", func(t *testing.T) {
+		assert.Nil(t, usageSummaryFromReport(&github.UsageSummaryReport{}).UsageItems)
+		got := usageSummaryFromReport(&github.UsageSummaryReport{UsageItems: []*github.UsageSummaryItem{}})
+		require.NotNil(t, got.UsageItems)
+		assert.Empty(t, got.UsageItems)
+	})
+
+	t.Run("nil items are preserved", func(t *testing.T) {
+		got := usageSummaryFromReport(&github.UsageSummaryReport{
+			UsageItems: []*github.UsageSummaryItem{nil, {SKU: "actions_linux"}},
+		})
+		require.Len(t, got.UsageItems, 2)
+		assert.Nil(t, got.UsageItems[0])
+		require.NotNil(t, got.UsageItems[1])
+		assert.Equal(t, "actions_linux", got.UsageItems[1].SKU)
+	})
+}
+
+func TestBillingUsageSummaryOptionsToUsageSummaryOptions(t *testing.T) {
+	t.Run("nil receiver", func(t *testing.T) {
+		var opts *BillingUsageSummaryOptions
+		assert.Nil(t, opts.toUsageSummaryOptions())
+	})
+
+	t.Run("enterprise-only fields are dropped and the input is not mutated", func(t *testing.T) {
+		in := &BillingUsageSummaryOptions{
+			Year:         2025,
+			Month:        3,
+			Day:          4,
+			CostCenterID: "cc-1",
+			Organization: "example-org",
+			Repository:   "example/repo",
+			Product:      "actions",
+			SKU:          "actions_linux",
+		}
+		got := in.toUsageSummaryOptions()
+		require.NotNil(t, got)
+		assert.Equal(t, github.UsageSummaryOptions{
+			Year:       2025,
+			Month:      3,
+			Day:        4,
+			Repository: "example/repo",
+			Product:    "actions",
+			SKU:        "actions_linux",
+		}, *got)
+		assert.Equal(t, "cc-1", in.CostCenterID)
+		assert.Equal(t, "example-org", in.Organization)
+	})
+}
+
 func TestGetUsageSummary(t *testing.T) {
 	opts := &BillingUsageSummaryOptions{
 		Year:         2025,

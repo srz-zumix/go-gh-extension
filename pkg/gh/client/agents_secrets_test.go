@@ -149,3 +149,110 @@ func TestDeleteAgentsRepoSecret(t *testing.T) {
 	assert.Equal(t, http.MethodDelete, gotMethod)
 	assert.Equal(t, "/repos/owner/repo/agents/secrets/MY_SECRET", gotPath)
 }
+
+func TestListSelectedReposForAgentsOrgSecretPagination(t *testing.T) {
+	var gotPaths, gotPages []string
+	tr := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		gotPaths = append(gotPaths, r.URL.EscapedPath())
+		gotPages = append(gotPages, r.URL.Query().Get("page"))
+		header := make(http.Header)
+		body := `{"total_count":2,"repositories":[{"id":2,"name":"second"}]}`
+		if r.URL.Query().Get("page") == "1" {
+			header.Set("Link", `<https://api.github.com/orgs/octo-org/agents/secrets/MY_SECRET/repositories?page=2>; rel="next"`)
+			body = `{"total_count":2,"repositories":[{"id":1,"name":"first"}]}`
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     header,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    r,
+		}, nil
+	})
+	g := newTestClient(t, "https://api.github.com/", tr)
+
+	repos, err := g.ListSelectedReposForAgentsOrgSecret(t.Context(), "octo-org", "MY_SECRET")
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"/orgs/octo-org/agents/secrets/MY_SECRET/repositories",
+		"/orgs/octo-org/agents/secrets/MY_SECRET/repositories",
+	}, gotPaths)
+	assert.Equal(t, []string{"1", "2"}, gotPages)
+	require.Len(t, repos, 2)
+	assert.Equal(t, int64(1), repos[0].GetID())
+	assert.Equal(t, int64(2), repos[1].GetID())
+}
+
+func TestSetSelectedReposForAgentsOrgSecretBody(t *testing.T) {
+	tests := []struct {
+		name string
+		ids  github.SelectedRepoIDs
+		want string
+	}{
+		{name: "nil sends null", ids: nil, want: `{"selected_repository_ids":null}`},
+		{name: "empty sends empty array", ids: github.SelectedRepoIDs{}, want: `{"selected_repository_ids":[]}`},
+		{name: "ids are sent in order", ids: github.SelectedRepoIDs{1, 2}, want: `{"selected_repository_ids":[1,2]}`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotMethod, gotPath, gotBody string
+			tr := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				gotMethod = r.Method
+				gotPath = r.URL.EscapedPath()
+				raw, _ := io.ReadAll(r.Body)
+				gotBody = string(raw)
+				return &http.Response{
+					StatusCode: http.StatusNoContent,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(``)),
+					Request:    r,
+				}, nil
+			})
+			g := newTestClient(t, "https://api.github.com/", tr)
+
+			require.NoError(t, g.SetSelectedReposForAgentsOrgSecret(t.Context(), "octo-org", "MY_SECRET", tc.ids))
+			assert.Equal(t, http.MethodPut, gotMethod)
+			assert.Equal(t, "/orgs/octo-org/agents/secrets/MY_SECRET/repositories", gotPath)
+			assert.JSONEq(t, tc.want, gotBody)
+		})
+	}
+}
+
+func TestAgentsEmptyResponsesDoNotPanic(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "empty body", body: ``},
+		{name: "json null", body: `null`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tr := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(tc.body)),
+					Request:    r,
+				}, nil
+			})
+			g := newTestClient(t, "https://api.github.com/", tr)
+
+			repoSecrets, err := g.ListAgentsRepoSecrets(t.Context(), "owner", "repo")
+			require.NoError(t, err)
+			assert.Empty(t, repoSecrets)
+
+			orgSecrets, err := g.ListAgentsOrgSecrets(t.Context(), "org")
+			require.NoError(t, err)
+			assert.Empty(t, orgSecrets)
+
+			selected, err := g.ListSelectedReposForAgentsOrgSecret(t.Context(), "org", "NAME")
+			require.NoError(t, err)
+			assert.Empty(t, selected)
+
+			key, err := g.GetAgentsRepoPublicKey(t.Context(), "owner", "repo")
+			require.NoError(t, err)
+			require.NotNil(t, key)
+			assert.Empty(t, key.GetKeyID())
+		})
+	}
+}
