@@ -113,25 +113,80 @@ func (g *GitHubClient) GetEnterpriseUsageReport(ctx context.Context, enterprise 
 	return report, err
 }
 
-// withoutEnterpriseOnlyFields drops the fields that only the enterprise summary endpoint accepts.
-func (o *BillingUsageSummaryOptions) withoutEnterpriseOnlyFields() *BillingUsageSummaryOptions {
+// toUsageSummaryOptions converts the options for the organization and user summary endpoints.
+// The fields that only the enterprise summary endpoint accepts are dropped.
+func (o *BillingUsageSummaryOptions) toUsageSummaryOptions() *github.UsageSummaryOptions {
 	if o == nil {
 		return nil
 	}
-	sanitized := *o
-	sanitized.CostCenterID = ""
-	sanitized.Organization = ""
-	return &sanitized
+	return &github.UsageSummaryOptions{
+		Year:       o.Year,
+		Month:      o.Month,
+		Day:        o.Day,
+		Repository: o.Repository,
+		Product:    o.Product,
+		SKU:        o.SKU,
+	}
+}
+
+// usageSummaryFromReport converts an organization or user usage summary into the
+// BillingUsageSummary type shared with the enterprise summary.
+func usageSummaryFromReport(report *github.UsageSummaryReport) *BillingUsageSummary {
+	if report == nil {
+		return &BillingUsageSummary{}
+	}
+	summary := &BillingUsageSummary{
+		TimePeriod: BillingUsageSummaryTimePeriod{
+			Year:  report.TimePeriod.Year,
+			Month: report.TimePeriod.Month,
+			Day:   report.TimePeriod.Day,
+		},
+		Organization: report.Organization,
+		User:         report.User,
+		Repository:   report.Repository,
+		Product:      report.Product,
+		SKU:          report.SKU,
+	}
+	if report.UsageItems != nil {
+		summary.UsageItems = make([]*BillingUsageSummaryItem, 0, len(report.UsageItems))
+	}
+	for _, item := range report.UsageItems {
+		if item == nil {
+			summary.UsageItems = append(summary.UsageItems, nil)
+			continue
+		}
+		summary.UsageItems = append(summary.UsageItems, &BillingUsageSummaryItem{
+			Product:          item.Product,
+			SKU:              item.SKU,
+			UnitType:         item.UnitType,
+			PricePerUnit:     item.PricePerUnit,
+			GrossQuantity:    item.GrossQuantity,
+			GrossAmount:      item.GrossAmount,
+			DiscountQuantity: item.DiscountQuantity,
+			DiscountAmount:   item.DiscountAmount,
+			NetQuantity:      item.NetQuantity,
+			NetAmount:        item.NetAmount,
+		})
+	}
+	return summary
 }
 
 // GetOrgUsageSummary gets the billing usage summary of an organization.
 func (g *GitHubClient) GetOrgUsageSummary(ctx context.Context, org string, opts *BillingUsageSummaryOptions) (*BillingUsageSummary, error) {
-	return g.getUsageSummary(ctx, fmt.Sprintf("organizations/%v/settings/billing/usage/summary", org), opts.withoutEnterpriseOnlyFields())
+	report, _, err := g.client.Billing.GetOrganizationUsageSummary(ctx, org, opts.toUsageSummaryOptions())
+	if err != nil {
+		return nil, err
+	}
+	return usageSummaryFromReport(report), nil
 }
 
 // GetUserUsageSummary gets the billing usage summary of a user.
 func (g *GitHubClient) GetUserUsageSummary(ctx context.Context, user string, opts *BillingUsageSummaryOptions) (*BillingUsageSummary, error) {
-	return g.getUsageSummary(ctx, fmt.Sprintf("users/%v/settings/billing/usage/summary", user), opts.withoutEnterpriseOnlyFields())
+	report, _, err := g.client.Billing.GetUserUsageSummary(ctx, user, opts.toUsageSummaryOptions())
+	if err != nil {
+		return nil, err
+	}
+	return usageSummaryFromReport(report), nil
 }
 
 // GetEnterpriseUsageSummary gets the billing usage summary of an enterprise.

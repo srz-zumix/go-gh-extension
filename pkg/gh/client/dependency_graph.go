@@ -2,21 +2,79 @@ package client
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
+	"time"
 
 	"github.com/google/go-github/v93/github"
 )
 
-// GetDependencyGraphSBOM retrieves the SBOM (Software Bill of Materials) for a repository using the dependency-graph/sbom API.
+const (
+	sbomPollInterval = 2 * time.Second
+	sbomPollTimeout  = 5 * time.Minute
+)
+
+// GetDependencyGraphSBOM retrieves the SBOM (Software Bill of Materials) for a repository.
+// GitHub builds the SBOM asynchronously, so this requests generation and polls until the
+// report is ready. The whole operation is bounded by a timeout.
 func (g *GitHubClient) GetDependencyGraphSBOM(ctx context.Context, owner, repo string) (*github.SBOM, error) {
-	sbom, _, err := g.client.DependencyGraph.GetSBOM(ctx, owner, repo)
+	return g.getDependencyGraphSBOM(ctx, owner, repo, sbomPollInterval, sbomPollTimeout)
+}
+
+func (g *GitHubClient) getDependencyGraphSBOM(ctx context.Context, owner, repo string, interval, timeout time.Duration) (*github.SBOM, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	generation, _, err := g.client.DependencyGraph.GenerateSBOM(ctx, owner, repo)
 	if err != nil {
 		return nil, err
 	}
-	return sbom, nil
+	if generation == nil {
+		return nil, errors.New("empty SBOM generation response")
+	}
+	sbomUUID, err := sbomUUIDFromURL(generation.GetSBOMURL())
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		report, err := g.FetchDependencyGraphSBOMReport(ctx, owner, repo, sbomUUID)
+		if err != nil {
+			return nil, err
+		}
+		if !report.Pending {
+			if report.SBOM == nil {
+				return nil, errors.New("SBOM report has no content")
+			}
+			return &github.SBOM{SBOM: report.SBOM}, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(interval):
+		}
+	}
+}
+
+// sbomUUIDFromURL extracts the report UUID from an SBOM fetch URL of the form
+// .../dependency-graph/sbom/fetch-report/{uuid}. Query strings are ignored.
+func sbomUUIDFromURL(rawURL string) (string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid SBOM URL: %w", err)
+	}
+	segments := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
+	if len(segments) < 2 {
+		return "", errors.New("unexpected SBOM URL format")
+	}
+	id := segments[len(segments)-1]
+	if segments[len(segments)-2] != "fetch-report" || id == "" || id == "." || id == ".." {
+		return "", errors.New("unexpected SBOM URL format")
+	}
+	return id, nil
 }
 
 // SBOMReportGeneration is the response of requesting generation of an SBOM report.
@@ -28,17 +86,11 @@ type SBOMReportGeneration struct {
 // using the dependency-graph/sbom/generate-report API. GitHub schedules a background job;
 // the returned SBOMURL can be polled via FetchDependencyGraphSBOMReport once ready.
 func (g *GitHubClient) GenerateDependencyGraphSBOMReport(ctx context.Context, owner, repo string) (*SBOMReportGeneration, error) {
-	u := fmt.Sprintf("repos/%v/%v/dependency-graph/sbom/generate-report", owner, repo)
-	req, err := g.client.NewRequest(ctx, "GET", u, nil)
+	generation, _, err := g.client.DependencyGraph.GenerateSBOM(ctx, owner, repo)
 	if err != nil {
 		return nil, err
 	}
-	result := new(SBOMReportGeneration)
-	_, err = g.client.Do(req, result)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
+	return &SBOMReportGeneration{SBOMURL: generation.GetSBOMURL()}, nil
 }
 
 // SBOMReport is the result of fetching a previously requested SBOM report.
@@ -53,73 +105,19 @@ type SBOMReport struct {
 // dependency-graph/sbom/fetch-report/{sbom_uuid} API.
 //
 // When the report is ready, GitHub responds with a redirect to a temporary download URL
-// that is not hosted on the GitHub API host. Redirects are followed manually here so the
-// GitHub authentication token is never sent to that third-party host.
+// that is not hosted on the GitHub API host. go-github downloads it with http.DefaultClient,
+// which carries no credentials, so the GitHub authentication token is never sent to that host.
 func (g *GitHubClient) FetchDependencyGraphSBOMReport(ctx context.Context, owner, repo, sbomUUID string) (*SBOMReport, error) {
-	u := fmt.Sprintf("repos/%v/%v/dependency-graph/sbom/fetch-report/%v", owner, repo, url.PathEscape(sbomUUID))
-	req, err := g.client.NewRequest(ctx, "GET", u, nil)
+	sbom, _, resp, err := g.client.DependencyGraph.FetchSBOM(ctx, owner, repo, url.PathEscape(sbomUUID), http.DefaultClient)
 	if err != nil {
+		// Only a 202 from the GitHub API means "still generating". A 202 from the
+		// download host also yields *AcceptedError but comes with the API's 302 response.
+		if _, ok := errors.AsType[*github.AcceptedError](err); ok && resp != nil && resp.StatusCode == http.StatusAccepted {
+			return &SBOMReport{Pending: true}, nil
+		}
 		return nil, err
 	}
-
-	// Reuse the same authenticated transport as the main client, but disable
-	// automatic redirect following so we can decide per-hop whether to forward
-	// the authentication header.
-	authClient := &http.Client{
-		Transport: g.client.Client().Transport,
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	resp, err := authClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	switch {
-	case resp.StatusCode == http.StatusAccepted:
-		return &SBOMReport{Pending: true}, nil
-	case resp.StatusCode >= 300 && resp.StatusCode < 400:
-		loc := resp.Header.Get("Location")
-		if loc == "" {
-			return nil, fmt.Errorf("redirect response missing Location header")
-		}
-		parsedLoc, err := url.Parse(loc)
-		if err != nil {
-			return nil, fmt.Errorf("invalid redirect Location header: %w", err)
-		}
-		downloadURL := resp.Request.URL.ResolveReference(parsedLoc)
-
-		// The download URL is a temporary, pre-signed link; fetch it without
-		// forwarding any GitHub credentials.
-		downloadReq, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL.String(), nil)
-		if err != nil {
-			return nil, err
-		}
-		downloadResp, err := http.DefaultClient.Do(downloadReq)
-		if err != nil {
-			return nil, err
-		}
-		defer func() { _ = downloadResp.Body.Close() }()
-		// The download host is not the GitHub API, so validate the status code
-		// directly instead of using github.CheckResponse, which expects GitHub's
-		// error response format and would produce misleading errors here.
-		if downloadResp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("unexpected status downloading SBOM report: %s", downloadResp.Status)
-		}
-		sbomInfo := new(github.SBOMInfo)
-		if err := json.NewDecoder(downloadResp.Body).Decode(sbomInfo); err != nil {
-			return nil, fmt.Errorf("failed to decode SBOM report: %w", err)
-		}
-		return &SBOMReport{SBOM: sbomInfo}, nil
-	default:
-		if err := github.CheckResponse(resp); err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("unexpected status %d fetching SBOM report", resp.StatusCode)
-	}
+	return &SBOMReport{SBOM: sbom.SBOM}, nil
 }
 
 // DependencyVulnerability represents a vulnerability associated with a dependency change.
