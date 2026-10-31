@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-github/v93/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -112,4 +113,31 @@ func TestDownloadCopilotMetricsRetriesTransientFailures(t *testing.T) {
 			assert.Equal(t, "2030-01-28", m.ReportEndDay)
 		})
 	}
+}
+
+// opaqueAuthTransport injects an Authorization header but exposes neither Unwrap() nor RawTransport().
+type opaqueAuthTransport struct{}
+
+func (opaqueAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	return nil, assert.AnError
+}
+
+func TestCopilotMetricsDownloadClientDoesNotFallBackToOpaqueAuthTransport(t *testing.T) {
+	g := newTestClient(t, "https://api.example.test/", opaqueAuthTransport{})
+	c, err := g.copilotMetricsDownloadClient()
+	require.NoError(t, err)
+	assert.Equal(t, http.DefaultTransport, c.Client().Transport)
+}
+
+func TestRetryCopilotMetricsReturnsContextErrorOnCancelDuringBackoff(t *testing.T) {
+	orig := copilotMetricsRetryBackoff
+	copilotMetricsRetryBackoff = func(int) time.Duration { return time.Hour }
+	t.Cleanup(func() { copilotMetricsRetryBackoff = orig })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(10*time.Millisecond, cancel)
+	_, err := retryCopilotMetrics(ctx, func() (int, *github.Response, error) {
+		return 0, nil, fakeTimeoutError{}
+	})
+	assert.ErrorIs(t, err, context.Canceled)
 }

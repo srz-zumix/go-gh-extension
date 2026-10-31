@@ -55,7 +55,7 @@ func retryCopilotMetrics[T any](ctx context.Context, request func() (T, *github.
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return zero, err
+			return zero, ctx.Err()
 		case <-timer.C:
 		}
 	}
@@ -75,10 +75,16 @@ func downloadCopilotMetrics[T any](ctx context.Context, g *GitHubClient, downloa
 // copilotMetricsDownloadClient returns a go-github client for downloading report payloads.
 // Download links are pre-signed storage URLs, and the storage backend may reject a request
 // that also carries the GitHub Authorization header, so payloads are fetched without the
-// GitHub credentials.
+// GitHub credentials. When the transport chain does not expose a raw transport, it may be a
+// custom authentication transport, so http.DefaultTransport is used instead of falling back to it.
 func (g *GitHubClient) copilotMetricsDownloadClient() (*github.Client, error) {
 	clone := *g.client.Client()
-	clone.Transport = g.rawHTTPTransport()
+	clone.Transport = http.DefaultTransport
+	if rtg, ok := unwrapTransport(g.client.Client().Transport).(rawTransportGetter); ok {
+		if raw := rtg.RawTransport(); raw != nil {
+			clone.Transport = raw
+		}
+	}
 	return github.NewClient(github.WithHTTPClient(&clone))
 }
 
