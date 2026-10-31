@@ -76,14 +76,19 @@ func downloadCopilotMetrics[T any](ctx context.Context, g *GitHubClient, downloa
 // Download links are pre-signed storage URLs, and the storage backend may reject a request
 // that also carries the GitHub Authorization header, so payloads are fetched without the
 // GitHub credentials. When the transport chain does not expose a raw transport, it may be a
-// custom authentication transport, so http.DefaultTransport is used instead of falling back to it.
+// custom authentication transport, so http.DefaultTransport is used instead of falling back to it,
+// except for a bare *http.Transport, which carries no credentials and is reused as is.
 func (g *GitHubClient) copilotMetricsDownloadClient() (*github.Client, error) {
 	clone := *g.client.Client()
 	clone.Transport = http.DefaultTransport
-	if rtg, ok := unwrapTransport(g.client.Client().Transport).(rawTransportGetter); ok {
-		if raw := rtg.RawTransport(); raw != nil {
+	switch tr := unwrapTransport(g.client.Client().Transport).(type) {
+	case rawTransportGetter:
+		if raw := tr.RawTransport(); raw != nil {
 			clone.Transport = raw
 		}
+	case *http.Transport:
+		// A bare *http.Transport carries no credentials; keep its proxy, TLS, and dial settings.
+		clone.Transport = tr
 	}
 	return github.NewClient(github.WithHTTPClient(&clone))
 }
