@@ -52,6 +52,11 @@ func (f *fixtureTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	return &http.Response{StatusCode: res.Status, Header: header, Body: io.NopCloser(bytes.NewBufferString(res.Body)), Request: req}, nil
 }
 
+// RawTransport returns the fixture itself because it does not inject authentication.
+func (f *fixtureTransport) RawTransport() http.RoundTripper {
+	return f
+}
+
 func newFixtureClient(t *testing.T, responses map[string]fixtureResponse) (*GitHubClient, *fixtureTransport) {
 	t.Helper()
 	tr := &fixtureTransport{responses: responses}
