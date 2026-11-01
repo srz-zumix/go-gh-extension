@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v93/github"
@@ -35,8 +36,9 @@ func PlanTeamRepoPermissionChanges(source, destinationDirect, destinationEffecti
 			continue
 		}
 		name := repo.GetName()
+		key := repositoryKey(repo)
 		permission := GetRepositoryPermissions(repo)
-		directRepo := directByName[name]
+		directRepo := directByName[key]
 		if directRepo != nil {
 			if GetRepositoryPermissions(directRepo) == permission {
 				continue
@@ -48,10 +50,10 @@ func PlanTeamRepoPermissionChanges(source, destinationDirect, destinationEffecti
 			plan.Grant = append(plan.Grant, TeamRepoPermissionChange{Repository: repo, Permission: permission})
 			continue
 		}
-		if effectiveRepo := effectiveByName[name]; effectiveRepo != nil && GetRepositoryPermissions(effectiveRepo) == permission && !sync {
+		if effectiveRepo := effectiveByName[key]; effectiveRepo != nil && GetRepositoryPermissions(effectiveRepo) == permission && !sync {
 			continue
 		}
-		if effectiveRepo := effectiveByName[name]; effectiveRepo != nil && !force && !sync {
+		if effectiveRepo := effectiveByName[key]; effectiveRepo != nil && !force && !sync {
 			plan.Warnings = append(plan.Warnings, fmt.Sprintf("repository %s has a different effective permission; skipped", name))
 			continue
 		}
@@ -61,7 +63,7 @@ func PlanTeamRepoPermissionChanges(source, destinationDirect, destinationEffecti
 	if sync {
 		for _, repo := range destinationDirect {
 			if repo != nil && repo.GetName() != "" {
-				if _, exists := sourceByName[repo.GetName()]; !exists {
+				if _, exists := sourceByName[repositoryKey(repo)]; !exists {
 					plan.Revoke = append(plan.Revoke, repo)
 				}
 			}
@@ -71,10 +73,11 @@ func PlanTeamRepoPermissionChanges(source, destinationDirect, destinationEffecti
 				continue
 			}
 			name := repo.GetName()
-			if _, direct := directByName[name]; direct {
+			key := repositoryKey(repo)
+			if directRepo := directByName[key]; directRepo != nil && GetRepositoryPermissions(directRepo) == GetRepositoryPermissions(repo) {
 				continue
 			}
-			sourceRepo := sourceByName[name]
+			sourceRepo := sourceByName[key]
 			if sourceRepo == nil {
 				plan.Warnings = append(plan.Warnings, fmt.Sprintf("repository %s remains accessible through an inherited permission", name))
 			} else if GetRepositoryPermissions(repo) != GetRepositoryPermissions(sourceRepo) {
@@ -97,6 +100,9 @@ func SyncTeamRepoPermissions(ctx context.Context, srcClient *GitHubClient, src r
 }
 
 func syncTeamRepoPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, srcTeamSlug string, dstClient *GitHubClient, dst repository.Repository, dstTeamSlug string, force, sync bool) ([]string, error) {
+	if srcTeamSlug == "" || dstTeamSlug == "" {
+		return nil, fmt.Errorf("source and destination team slugs must not be empty")
+	}
 	source, err := ListTeamRepos(ctx, srcClient, src, srcTeamSlug, nil, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list source team repositories: %w", err)
@@ -137,8 +143,12 @@ func repositoryMap(repos []*github.Repository) map[string]*github.Repository {
 	result := make(map[string]*github.Repository, len(repos))
 	for _, repo := range repos {
 		if repo != nil && repo.GetName() != "" {
-			result[repo.GetName()] = repo
+			result[repositoryKey(repo)] = repo
 		}
 	}
 	return result
+}
+
+func repositoryKey(repo *github.Repository) string {
+	return strings.ToLower(repo.GetName())
 }

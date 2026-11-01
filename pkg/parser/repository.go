@@ -53,11 +53,11 @@ func RepositoryInOwner(input string, owner repository.Repository) (repository.Re
 	if ownerHost == "" {
 		ownerHost, _ = auth.DefaultHost()
 	}
-	if !strings.Contains(input, "/") {
-		input = owner.Owner + "/" + input
-		if ownerHost != defaultHost {
-			input = ownerHost + "/" + input
-		}
+	switch strings.Count(input, "/") {
+	case 0:
+		input = ownerHost + "/" + owner.Owner + "/" + input
+	case 1:
+		input = ownerHost + "/" + input
 	}
 	repo, err := Repository(RepositoryInput(input))
 	if err != nil {
