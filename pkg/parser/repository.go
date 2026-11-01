@@ -66,6 +66,8 @@ func RepositoryInOwner(input string, owner repository.Repository) (repository.Re
 	if !strings.EqualFold(repo.Owner, owner.Owner) || !strings.EqualFold(repo.Host, ownerHost) {
 		return repository.Repository{}, fmt.Errorf("repository %q must belong to %s/%s", input, ownerHost, owner.Owner)
 	}
+	// Normalize the host to the owner's host so that downstream case-sensitive comparisons work.
+	repo.Host = ownerHost
 	return repo, nil
 }
 

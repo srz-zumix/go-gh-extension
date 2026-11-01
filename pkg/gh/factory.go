@@ -1,6 +1,7 @@
 package gh
 
 import (
+	"strings"
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/auth"
@@ -18,7 +19,7 @@ func RepositoryOption(repo repository.Repository) factory.Option {
 	return func(c *factory.Config) error {
 		host := repo.Host
 		if host != "" {
-			if host == defaultHost {
+			if strings.EqualFold(host, defaultHost) {
 				c.Endpoint = defaultV3Endpoint
 			} else {
 				c.Endpoint = "https://" + host + "/api/v3"
@@ -102,7 +103,7 @@ func NewGitHubClientWithToken(repo repository.Repository, token string) (*GitHub
 		host = defaultHost
 	}
 	endpoint := defaultV3Endpoint
-	if host != defaultHost {
+	if !strings.EqualFold(host, defaultHost) {
 		endpoint = "https://" + host + "/api/v3"
 	}
 	c, err := factory.NewGithubClient(

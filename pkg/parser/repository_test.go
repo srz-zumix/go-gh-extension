@@ -101,7 +101,7 @@ func TestRepositoryInOwner(t *testing.T) {
 			name:     "owner and host differ only in case",
 			input:    "GitHub.com/Example-Org/example-repo",
 			owner:    repository.Repository{Host: "github.com", Owner: "example-org"},
-			expected: repository.Repository{Host: "GitHub.com", Owner: "Example-Org", Name: "example-repo"},
+			expected: repository.Repository{Host: "github.com", Owner: "Example-Org", Name: "example-repo"},
 		},
 		{
 			name:      "empty repository",
