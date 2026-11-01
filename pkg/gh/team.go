@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v93/github"
@@ -494,7 +495,7 @@ func ListUserTeams(ctx context.Context, g *GitHubClient, repo repository.Reposit
 			return nil, err
 		}
 		for _, member := range members {
-			if *member.Login == username {
+			if strings.EqualFold(member.GetLogin(), username) {
 				userTeams = append(userTeams, team)
 				break
 			}

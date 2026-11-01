@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
@@ -160,7 +161,7 @@ func ExcludeUsers(users []*GitHubUser, excludeUsernames []string) []*GitHubUser 
 	var filteredUsers []*GitHubUser
 	for _, user := range users {
 		if !slices.ContainsFunc(excludeUsernames, func(excludeName string) bool {
-			return user.Login != nil && *user.Login == excludeName
+			return user.Login != nil && strings.EqualFold(*user.Login, excludeName)
 		}) {
 			filteredUsers = append(filteredUsers, user)
 		}

@@ -47,12 +47,12 @@ func FilterRepositoriesByNames(repos []*github.Repository, names []string, owner
 		if !strings.Contains(name, "/") {
 			name = owner + "/" + name
 		}
-		nameSet[name] = struct{}{}
+		nameSet[strings.ToLower(name)] = struct{}{}
 	}
 
 	var filteredRepos []*github.Repository
 	for _, repo := range repos {
-		repoFullName := repo.GetFullName() // owner/repo
+		repoFullName := strings.ToLower(repo.GetFullName()) // owner/repo
 		if _, exists := nameSet[repoFullName]; exists {
 			filteredRepos = append(filteredRepos, repo)
 		}
@@ -66,7 +66,7 @@ func FilterTeamByNames(teams []*github.Team, slugs []string) []*github.Team {
 	var filteredTeams []*github.Team
 	for _, team := range teams {
 		teamSlug := team.GetSlug()
-		if slices.Contains(slugs, teamSlug) {
+		if slices.ContainsFunc(slugs, func(slug string) bool { return strings.EqualFold(slug, teamSlug) }) {
 			filteredTeams = append(filteredTeams, team)
 		}
 	}
