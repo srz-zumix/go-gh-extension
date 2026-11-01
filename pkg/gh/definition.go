@@ -188,6 +188,9 @@ func (opt *RespositorySearchOptions) Filter(repos []*github.Repository) []*githu
 
 func GetRepositoryPermissions(repo *github.Repository) string {
 	if repo != nil {
+		if repo.GetRoleName() != "" {
+			return repo.GetRoleName()
+		}
 		if repo.Permissions != nil {
 			return GetPermissionName(repo.Permissions)
 		}

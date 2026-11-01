@@ -44,6 +44,31 @@ func RepositoryInput(input string) RepositoryOption {
 	}
 }
 
+// RepositoryInOwner parses a repository name or full repository reference and ensures it belongs to owner.
+func RepositoryInOwner(input string, owner repository.Repository) (repository.Repository, error) {
+	if input == "" {
+		return repository.Repository{}, fmt.Errorf("repository name must not be empty")
+	}
+	ownerHost := owner.Host
+	if ownerHost == "" {
+		ownerHost, _ = auth.DefaultHost()
+	}
+	if !strings.Contains(input, "/") {
+		input = owner.Owner + "/" + input
+		if ownerHost != defaultHost {
+			input = ownerHost + "/" + input
+		}
+	}
+	repo, err := Repository(RepositoryInput(input))
+	if err != nil {
+		return repository.Repository{}, err
+	}
+	if repo.Owner != owner.Owner || repo.Host != ownerHost {
+		return repository.Repository{}, fmt.Errorf("repository %q must belong to %s/%s", input, ownerHost, owner.Owner)
+	}
+	return repo, nil
+}
+
 func RepositoryInputOptional(input string) RepositoryOption {
 	return func(r *repository.Repository) error {
 		_ = RepositoryInput(input)(r)

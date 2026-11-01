@@ -53,6 +53,70 @@ func TestRepositoryInput(t *testing.T) {
 	}
 }
 
+func TestRepositoryInOwner(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		owner     repository.Repository
+		expected  repository.Repository
+		expectErr bool
+	}{
+		{
+			name:     "repository name",
+			input:    "example-repo",
+			owner:    repository.Repository{Host: "github.com", Owner: "example-org"},
+			expected: repository.Repository{Host: "github.com", Owner: "example-org", Name: "example-repo"},
+		},
+		{
+			name:     "owner and repository",
+			input:    "example-org/example-repo",
+			owner:    repository.Repository{Host: "github.com", Owner: "example-org"},
+			expected: repository.Repository{Host: "github.com", Owner: "example-org", Name: "example-repo"},
+		},
+		{
+			name:      "different owner",
+			input:     "other-org/example-repo",
+			owner:     repository.Repository{Host: "github.com", Owner: "example-org"},
+			expectErr: true,
+		},
+		{
+			name:      "different host",
+			input:     "ghe.example.com/example-org/example-repo",
+			owner:     repository.Repository{Host: "github.com", Owner: "example-org"},
+			expectErr: true,
+		},
+		{
+			name:     "owner without host",
+			input:    "example-org/example-repo",
+			owner:    repository.Repository{Owner: "example-org"},
+			expected: repository.Repository{Host: "github.com", Owner: "example-org", Name: "example-repo"},
+		},
+		{
+			name:     "matching enterprise host",
+			input:    "ghe.example.com/example-org/example-repo",
+			owner:    repository.Repository{Host: "ghe.example.com", Owner: "example-org"},
+			expected: repository.Repository{Host: "ghe.example.com", Owner: "example-org", Name: "example-repo"},
+		},
+		{
+			name:      "empty repository",
+			input:     "",
+			owner:     repository.Repository{Host: "github.com", Owner: "example-org"},
+			expectErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := RepositoryInOwner(tt.input, tt.owner)
+			if tt.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, got)
+			}
+		})
+	}
+}
+
 func TestRepositoryOwner(t *testing.T) {
 	tests := []struct {
 		name      string
