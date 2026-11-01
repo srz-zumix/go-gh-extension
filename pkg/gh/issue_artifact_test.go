@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
+	"github.com/google/go-github/v93/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +35,7 @@ func TestUpsertIssueArtifact(t *testing.T) {
 			list: ok(`[{"number":3,"type":"embedded_html","name":"other"},{"number":4,"type":"embedded_html","name":"report"}]`),
 			"PATCH " + fixtureAPI + "repos/example-org/example-repo/issues/5/artifacts/4": ok(`{"number":4,"type":"embedded_html","name":"report","html_url":"https://example.test/a/4"}`),
 		})
-		a, created, err := UpsertIssueArtifact(t.Context(), g, repo, 5, &IssueArtifactRequest{Type: IssueArtifactTypeEmbeddedHTML, Name: "report", Body: "<p>x</p>"})
+		a, created, err := UpsertIssueArtifact(t.Context(), g, repo, 5, &IssueArtifactRequest{Type: IssueArtifactTypeEmbeddedHTML, Name: "report", Body: github.Ptr("<p>x</p>")})
 		require.NoError(t, err)
 		assert.False(t, created)
 		assert.Equal(t, 4, a.Number)
@@ -51,7 +52,7 @@ func TestUpsertIssueArtifact(t *testing.T) {
 			list: ok(`[]`),
 			"POST " + fixtureAPI + "repos/example-org/example-repo/issues/5/artifacts": {Status: http.StatusCreated, Body: `{"number":9,"type":"embedded_html","name":"report"}`},
 		})
-		a, created, err := UpsertIssueArtifact(t.Context(), g, repo, 5, &IssueArtifactRequest{Type: IssueArtifactTypeEmbeddedHTML, Name: "report", Body: "<p>x</p>"})
+		a, created, err := UpsertIssueArtifact(t.Context(), g, repo, 5, &IssueArtifactRequest{Type: IssueArtifactTypeEmbeddedHTML, Name: "report", Body: github.Ptr("<p>x</p>")})
 		require.NoError(t, err)
 		assert.True(t, created)
 		assert.Equal(t, 9, a.Number)
@@ -65,8 +66,21 @@ func TestUpsertIssueArtifact(t *testing.T) {
 			list: ok(`[]`),
 			"POST " + fixtureAPI + "repos/example-org/example-repo/issues/5/artifacts": {Status: http.StatusUnprocessableEntity, Body: `{"message":"Validation Failed"}`},
 		})
-		_, created, err := UpsertIssueArtifact(t.Context(), g, repo, 5, &IssueArtifactRequest{Type: IssueArtifactTypeEmbeddedHTML, Name: "report", Body: "x"})
+		_, created, err := UpsertIssueArtifact(t.Context(), g, repo, 5, &IssueArtifactRequest{Type: IssueArtifactTypeEmbeddedHTML, Name: "report", Body: github.Ptr("x")})
 		require.Error(t, err)
 		assert.False(t, created)
 	})
+}
+
+func TestUpdateIssueArtifactClearBody(t *testing.T) {
+	repo := repository.Repository{Owner: "example-org", Name: "example-repo"}
+	g, tr := newFixtureClient(t, map[string]fixtureResponse{
+		"PATCH " + fixtureAPI + "repos/example-org/example-repo/issues/5/artifacts/4": ok(`{"number":4,"type":"generic","name":"report","body":""}`),
+	})
+	_, err := UpdateIssueArtifact(t.Context(), g, repo, 5, 4, &IssueArtifactRequest{Body: github.Ptr("")})
+	require.NoError(t, err)
+	require.Len(t, tr.requests, 1)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal([]byte(tr.requests[0].Body), &body))
+	assert.Equal(t, map[string]any{"body": ""}, body, "explicitly empty body is sent to clear it")
 }

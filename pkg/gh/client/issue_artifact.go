@@ -42,11 +42,12 @@ type IssueArtifact struct {
 }
 
 // IssueArtifactRequest is the request body to create or update an issue artifact.
-// Type is only honored on creation.
+// Type is only honored on creation. Body is a pointer so that an explicitly empty body
+// (pointer to "") can be distinguished from an omitted one (nil).
 type IssueArtifactRequest struct {
-	Type string `json:"type,omitempty"`
-	Name string `json:"name,omitempty"`
-	Body string `json:"body,omitempty"`
+	Type string  `json:"type,omitempty"`
+	Name string  `json:"name,omitempty"`
+	Body *string `json:"body,omitempty"`
 }
 
 type issueArtifactListOptions struct {
