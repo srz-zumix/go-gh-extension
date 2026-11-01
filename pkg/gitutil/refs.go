@@ -84,11 +84,11 @@ func remoteURLMatchesRepo(repo repository.Repository, url *url.URL) bool {
 		return false
 	}
 
-	if parsedRepo.Owner != repo.Owner || parsedRepo.Name != repo.Name {
+	if !strings.EqualFold(parsedRepo.Owner, repo.Owner) || !strings.EqualFold(parsedRepo.Name, repo.Name) {
 		return false
 	}
 
-	return repo.Host == "" || parsedRepo.Host == repo.Host
+	return repo.Host == "" || strings.EqualFold(parsedRepo.Host, repo.Host)
 }
 
 // repoMatchesRemote checks if the repository matches any of the git remotes

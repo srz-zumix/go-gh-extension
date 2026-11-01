@@ -2,6 +2,7 @@ package gh
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/google/go-github/v93/github"
 )
@@ -72,7 +73,7 @@ func CompareRepositories(left, right []*github.Repository) RepositoryPermissions
 	// Map right repositories by their name
 	for _, r := range right {
 		if r.Name != nil {
-			rightMap[*r.Name] = r
+			rightMap[strings.ToLower(*r.Name)] = r
 		}
 	}
 
@@ -81,12 +82,13 @@ func CompareRepositories(left, right []*github.Repository) RepositoryPermissions
 		if l.Name == nil {
 			continue
 		}
-		r := rightMap[*l.Name]
+		key := strings.ToLower(*l.Name)
+		r := rightMap[key]
 		diff := CompareRepository(l, r)
 		if diff != nil {
 			diffs = append(diffs, *diff)
 		}
-		delete(rightMap, *l.Name) // Remove matched repository from rightMap
+		delete(rightMap, key) // Remove matched repository from rightMap
 	}
 
 	// Add remaining repositories in rightMap as differences

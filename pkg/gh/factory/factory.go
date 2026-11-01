@@ -406,7 +406,7 @@ func detectInstallationID(c *Config, appID int64, privateKey []byte, ep string) 
 			return 0, err
 		}
 		for _, i := range is {
-			if owner == i.GetAccount().GetLogin() {
+			if strings.EqualFold(owner, i.GetAccount().GetLogin()) {
 				return i.GetID(), nil
 			}
 		}

@@ -98,6 +98,12 @@ func TestRepositoryInOwner(t *testing.T) {
 			expected: repository.Repository{Host: "ghe.example.com", Owner: "example-org", Name: "example-repo"},
 		},
 		{
+			name:     "owner and host differ only in case",
+			input:    "GitHub.com/Example-Org/example-repo",
+			owner:    repository.Repository{Host: "github.com", Owner: "example-org"},
+			expected: repository.Repository{Host: "github.com", Owner: "Example-Org", Name: "example-repo"},
+		},
+		{
 			name:      "empty repository",
 			input:     "",
 			owner:     repository.Repository{Host: "github.com", Owner: "example-org"},
@@ -321,4 +327,16 @@ func TestRepository(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRepositoryOptionsIgnoreCaseWhenCheckingConflicts(t *testing.T) {
+	got, err := Repository(RepositoryInput("github.com/Example-Org/Example-Repo"), RepositoryOwner("example-org"))
+	assert.NoError(t, err)
+	assert.Equal(t, "example-org", got.Owner)
+
+	_, err = Repository(RepositoryInput("github.com/example-org/example-repo"), RepositoryOwnerOrRepo("GitHub.com/Example-Org/Example-Repo"))
+	assert.NoError(t, err)
+
+	_, err = Repository(RepositoryInput("github.com/example-org/example-repo"), RepositoryOwner("other-org"))
+	assert.Error(t, err)
 }

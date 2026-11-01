@@ -287,10 +287,13 @@ func ListTeamRepos(ctx context.Context, g *GitHubClient, repo repository.Reposit
 					if err != nil {
 						return nil, err
 					}
-					if slices.ContainsFunc(teams, func(t *github.Team) bool {
-						return *t.Slug == teamName
-					}) {
-						noInheritRepos = append(noInheritRepos, repo)
+					idx := slices.IndexFunc(teams, func(t *github.Team) bool {
+						return strings.EqualFold(t.GetSlug(), teamName)
+					})
+					if idx >= 0 {
+						// The team repository listing reports the effective permission, which may
+						// come from the parent team. Use the team's direct permission instead.
+						noInheritRepos = append(noInheritRepos, withTeamDirectPermission(repo, teams[idx]))
 					}
 				}
 			}
@@ -299,6 +302,44 @@ func ListTeamRepos(ctx context.Context, g *GitHubClient, repo repository.Reposit
 	}
 
 	return FilterByRepositoryPermissions(repos, roles), nil
+}
+
+// withTeamDirectPermission returns a copy of repo whose permissions reflect the team's direct permission.
+func withTeamDirectPermission(repo *github.Repository, team *github.Team) *github.Repository {
+	r := *repo
+	// Preserve the direct role name (including custom repository roles).
+	if permission := team.GetPermission(); permission != "" {
+		r.RoleName = &permission
+	} else {
+		r.RoleName = nil
+	}
+	var names []string
+	for name, granted := range team.Permissions {
+		if granted {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 && team.GetPermission() != "" {
+		names = expandRepositoryPermission(team.GetPermission())
+	}
+	r.Permissions = CreateRepositoryPermissions(names)
+	return &r
+}
+
+// expandRepositoryPermission expands a standard repository role into the role and all lower-level roles it implies.
+func expandRepositoryPermission(permission string) []string {
+	hierarchy := []string{"pull", "triage", "push", "maintain", "admin"}
+	switch permission {
+	case "read":
+		permission = "pull"
+	case "write":
+		permission = "push"
+	}
+	idx := slices.Index(hierarchy, permission)
+	if idx < 0 {
+		return []string{permission}
+	}
+	return hierarchy[:idx+1]
 }
 
 func ListUserAccessableRepositories(ctx context.Context, g *GitHubClient, repo repository.Repository, username string, roles []string, opt *RespositorySearchOptions) ([]*github.Repository, error) {
@@ -324,7 +365,7 @@ func ListUserAccessableRepositories(ctx context.Context, g *GitHubClient, repo r
 			return nil, err
 		}
 		if permissions == nil {
-			if username == *loginUser.Login {
+			if strings.EqualFold(username, loginUser.GetLogin()) {
 				r.RoleName = github.Ptr("pull")
 				r.Permissions = CreateRepositoryPermissions([]string{"pull"})
 			}

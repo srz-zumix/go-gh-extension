@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/google/go-github/v93/github"
@@ -194,7 +195,7 @@ func ListOnlyTeamMembers(ctx context.Context, g *GitHubClient, repo repository.R
 
 	// Iterate other teams and remove candidates found in them; stop early if none remain
 	for _, team := range teams {
-		if team.GetSlug() == teamSlug {
+		if strings.EqualFold(team.GetSlug(), teamSlug) {
 			continue
 		}
 		members, err := ListTeamMembers(ctx, g, repo, team.GetSlug(), nil, false)

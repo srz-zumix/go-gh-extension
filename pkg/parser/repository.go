@@ -28,13 +28,13 @@ func RepositoryInput(input string) RepositoryOption {
 				return fmt.Errorf(`expected the "[HOST/]OWNER/REPO" format or PATH, got %q`, input)
 			}
 		}
-		if r.Host != "" && r.Host != repo.Host {
+		if r.Host != "" && !strings.EqualFold(r.Host, repo.Host) {
 			return errors.New("conflicting host")
 		}
-		if r.Name != "" && r.Name != repo.Name {
+		if r.Name != "" && !strings.EqualFold(r.Name, repo.Name) {
 			return errors.New("conflicting name")
 		}
-		if r.Owner != "" && r.Owner != repo.Owner {
+		if r.Owner != "" && !strings.EqualFold(r.Owner, repo.Owner) {
 			return errors.New("conflicting owner")
 		}
 		r.Host = repo.Host
@@ -63,9 +63,11 @@ func RepositoryInOwner(input string, owner repository.Repository) (repository.Re
 	if err != nil {
 		return repository.Repository{}, err
 	}
-	if repo.Owner != owner.Owner || repo.Host != ownerHost {
+	if !strings.EqualFold(repo.Owner, owner.Owner) || !strings.EqualFold(repo.Host, ownerHost) {
 		return repository.Repository{}, fmt.Errorf("repository %q must belong to %s/%s", input, ownerHost, owner.Owner)
 	}
+	// Normalize the host to the owner's host so that downstream case-sensitive comparisons work.
+	repo.Host = ownerHost
 	return repo, nil
 }
 
@@ -87,13 +89,13 @@ func RepositoryFromURL(input string) RepositoryOption {
 			return fmt.Errorf(`failed to parse repository from URL %q: %w`, input, err)
 		}
 		if githubURL != nil && githubURL.Repo != nil {
-			if r.Host != "" && r.Host != githubURL.Repo.Host {
+			if r.Host != "" && !strings.EqualFold(r.Host, githubURL.Repo.Host) {
 				return errors.New("conflicting host")
 			}
-			if r.Name != "" && r.Name != githubURL.Repo.Name {
+			if r.Name != "" && !strings.EqualFold(r.Name, githubURL.Repo.Name) {
 				return errors.New("conflicting name")
 			}
-			if r.Owner != "" && r.Owner != githubURL.Repo.Owner {
+			if r.Owner != "" && !strings.EqualFold(r.Owner, githubURL.Repo.Owner) {
 				return errors.New("conflicting owner")
 			}
 			r.Host = githubURL.Repo.Host
@@ -112,7 +114,7 @@ func RepositoryOwner(input string) RepositoryOption {
 		if strings.Contains(input, "/") {
 			return fmt.Errorf(`expected owner name without '/', got %q`, input)
 		}
-		if r.Owner != "" && r.Owner != input {
+		if r.Owner != "" && !strings.EqualFold(r.Owner, input) {
 			return errors.New("conflicting owner")
 		}
 		if r.Host == "" {
@@ -132,10 +134,10 @@ func RepositoryOwnerWithHost(input string) RepositoryOption {
 		if err != nil {
 			return fmt.Errorf(`expected the "[HOST/]OWNER" format, got %q`, input)
 		}
-		if r.Owner != "" && r.Owner != parsed.Owner {
+		if r.Owner != "" && !strings.EqualFold(r.Owner, parsed.Owner) {
 			return errors.New("conflicting owner")
 		}
-		if r.Host != "" && r.Host != parsed.Host {
+		if r.Host != "" && !strings.EqualFold(r.Host, parsed.Host) {
 			return errors.New("conflicting host")
 		}
 		r.Host = parsed.Host
@@ -160,10 +162,10 @@ func RepositoryOwnerOrRepo(input string) RepositoryOption {
 			if err != nil {
 				return fmt.Errorf(`expected the "[HOST/]OWNER[/REPO]" format, got %q`, input)
 			}
-			if r.Owner != "" && r.Owner != parsed.Owner {
+			if r.Owner != "" && !strings.EqualFold(r.Owner, parsed.Owner) {
 				return errors.New("conflicting owner")
 			}
-			if r.Host != "" && r.Host != parsed.Host {
+			if r.Host != "" && !strings.EqualFold(r.Host, parsed.Host) {
 				return errors.New("conflicting host")
 			}
 			r.Host = parsed.Host
@@ -175,13 +177,13 @@ func RepositoryOwnerOrRepo(input string) RepositoryOption {
 		parsed, err := repository.Parse(input)
 		if err == nil {
 			// Successfully parsed as full [HOST/]OWNER/REPO format
-			if r.Owner != "" && r.Owner != parsed.Owner {
+			if r.Owner != "" && !strings.EqualFold(r.Owner, parsed.Owner) {
 				return errors.New("conflicting owner")
 			}
-			if r.Host != "" && r.Host != parsed.Host {
+			if r.Host != "" && !strings.EqualFold(r.Host, parsed.Host) {
 				return errors.New("conflicting host")
 			}
-			if r.Name != "" && r.Name != parsed.Name {
+			if r.Name != "" && !strings.EqualFold(r.Name, parsed.Name) {
 				return errors.New("conflicting repo name")
 			}
 			r.Host = parsed.Host
@@ -195,10 +197,10 @@ func RepositoryOwnerOrRepo(input string) RepositoryOption {
 		if err != nil {
 			return fmt.Errorf(`expected the "[HOST/]OWNER[/REPO]" format, got %q`, input)
 		}
-		if r.Owner != "" && r.Owner != parsed.Owner {
+		if r.Owner != "" && !strings.EqualFold(r.Owner, parsed.Owner) {
 			return errors.New("conflicting owner")
 		}
-		if r.Host != "" && r.Host != parsed.Host {
+		if r.Host != "" && !strings.EqualFold(r.Host, parsed.Host) {
 			return errors.New("conflicting host")
 		}
 		r.Host = parsed.Host
@@ -214,7 +216,7 @@ func RepositoryOwners(inputs []string) RepositoryOption {
 			if input == "" {
 				continue
 			}
-			if r.Owner != "" && r.Owner != input {
+			if r.Owner != "" && !strings.EqualFold(r.Owner, input) {
 				return errors.New("conflicting owner")
 			}
 			r.Owner = input
