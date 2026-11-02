@@ -128,6 +128,35 @@ func TestPlanTeamRepoPermissionChanges(t *testing.T) {
 	}
 }
 
+func TestTeamRepoAccessPlanChanges(t *testing.T) {
+	alpha := &github.Repository{Name: github.Ptr("alpha"), RoleName: github.Ptr("pull")}
+	beta := &github.Repository{Name: github.Ptr("beta"), RoleName: github.Ptr("push")}
+	plan := &TeamRepoAccessPlan{
+		Plan: TeamRepoPermissionPlan{
+			Grant:  []TeamRepoPermissionChange{{Repository: alpha, Permission: "push"}},
+			Revoke: []*github.Repository{beta},
+		},
+		DestinationDirect:   []*github.Repository{alpha, beta},
+		destination:         repository.Repository{Host: "github.com", Owner: "destination-org"},
+		destinationTeamSlug: "destination-team",
+	}
+
+	changes := plan.Changes()
+	if len(changes) != 2 {
+		t.Fatalf("got %d changes, want 2: %#v", len(changes), changes)
+	}
+	if changes[0].Destination != "github.com/destination-org/destination-team" ||
+		changes[0].Action != SyncChangeUpdate ||
+		changes[0].Target != "alpha" ||
+		changes[0].Permission != "push" ||
+		changes[0].Current != "pull" {
+		t.Errorf("unexpected grant change: %#v", changes[0])
+	}
+	if changes[1].Action != SyncChangeRemove || changes[1].Target != "beta" || changes[1].Current != "push" {
+		t.Errorf("unexpected revoke change: %#v", changes[1])
+	}
+}
+
 func TestCompareRepositoryDetectsCustomRoleDifferences(t *testing.T) {
 	left := &github.Repository{RoleName: github.Ptr("custom-read"), Permissions: CreateRepositoryPermissions([]string{"pull"})}
 	right := &github.Repository{RoleName: github.Ptr("custom-write"), Permissions: CreateRepositoryPermissions([]string{"pull"})}

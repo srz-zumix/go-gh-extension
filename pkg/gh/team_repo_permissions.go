@@ -91,15 +91,119 @@ func PlanTeamRepoPermissionChanges(source, destinationDirect, destinationEffecti
 
 // CopyTeamRepoPermissions adds the source team's direct repository permissions to the destination team.
 func CopyTeamRepoPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, srcTeamSlug string, dstClient *GitHubClient, dst repository.Repository, dstTeamSlug string, force bool) ([]string, error) {
-	return syncTeamRepoPermissions(ctx, srcClient, src, srcTeamSlug, dstClient, dst, dstTeamSlug, force, false)
+	plan, err := PlanCopyTeamRepoPermissions(ctx, srcClient, src, srcTeamSlug, dstClient, dst, dstTeamSlug, force)
+	if err != nil {
+		if plan == nil {
+			return nil, err
+		}
+		warnings := plan.Warnings()
+		if plan.Sync {
+			warnings = append([]string(nil), plan.skippedWarnings...)
+		}
+		if applyErr := applyTeamRepoPermissionGrants(ctx, dstClient, dst, dstTeamSlug, plan.Plan.Grant); applyErr != nil {
+			return warnings, applyErr
+		}
+		return warnings, err
+	}
+	return ApplyTeamRepoAccessPlan(ctx, dstClient, dst, dstTeamSlug, plan)
 }
 
 // SyncTeamRepoPermissions makes the destination team's direct repository permissions match the source team's.
 func SyncTeamRepoPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, srcTeamSlug string, dstClient *GitHubClient, dst repository.Repository, dstTeamSlug string) ([]string, error) {
-	return syncTeamRepoPermissions(ctx, srcClient, src, srcTeamSlug, dstClient, dst, dstTeamSlug, true, true)
+	plan, err := PlanSyncTeamRepoPermissions(ctx, srcClient, src, srcTeamSlug, dstClient, dst, dstTeamSlug)
+	if err != nil {
+		if plan == nil {
+			return nil, err
+		}
+		warnings := append([]string(nil), plan.skippedWarnings...)
+		if applyErr := applyTeamRepoPermissionGrants(ctx, dstClient, dst, dstTeamSlug, plan.Plan.Grant); applyErr != nil {
+			return warnings, applyErr
+		}
+		return warnings, err
+	}
+	return ApplyTeamRepoAccessPlan(ctx, dstClient, dst, dstTeamSlug, plan)
 }
 
-func syncTeamRepoPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, srcTeamSlug string, dstClient *GitHubClient, dst repository.Repository, dstTeamSlug string, force, sync bool) ([]string, error) {
+// TeamRepoAccessPlan contains the planned direct grants and revocations for a team.
+type TeamRepoAccessPlan struct {
+	Plan                 TeamRepoPermissionPlan
+	Source               []*github.Repository
+	DestinationDirect    []*github.Repository
+	DestinationEffective []*github.Repository
+	Skipped              map[string]struct{}
+	Sync                 bool
+	skippedWarnings      []string
+	destination          repository.Repository
+	destinationTeamSlug  string
+}
+
+// Changes returns the changes required to apply the team repository access plan.
+func (p *TeamRepoAccessPlan) Changes() []SyncChange {
+	if p == nil {
+		return nil
+	}
+	directByName := repositoryMap(p.DestinationDirect)
+	effectiveByName := repositoryMap(p.DestinationEffective)
+	destination := syncChangeTeamDestination(p.destination, p.destinationTeamSlug)
+	var changes []SyncChange
+	for _, grant := range p.Plan.Grant {
+		if grant.Repository == nil || grant.Repository.GetName() == "" {
+			continue
+		}
+		key := repositoryKey(grant.Repository)
+		if _, skipped := p.Skipped[key]; skipped {
+			continue
+		}
+		current := ""
+		action := SyncChangeAdd
+		if direct := directByName[key]; direct != nil {
+			current = GetRepositoryPermissions(direct)
+			action = SyncChangeUpdate
+		} else if effective := effectiveByName[key]; effective != nil {
+			current = GetRepositoryPermissions(effective)
+		}
+		changes = append(changes, SyncChange{
+			Destination: destination,
+			Action:      action,
+			Target:      grant.Repository.GetName(),
+			Permission:  grant.Permission,
+			Current:     current,
+		})
+	}
+	for _, repo := range p.Plan.Revoke {
+		if repo == nil || repo.GetName() == "" {
+			continue
+		}
+		changes = append(changes, SyncChange{
+			Destination: destination,
+			Action:      SyncChangeRemove,
+			Target:      repo.GetName(),
+			Current:     GetRepositoryPermissions(repo),
+		})
+	}
+	return changes
+}
+
+// Warnings returns warnings found while planning, including destination repositories that do not exist.
+func (p *TeamRepoAccessPlan) Warnings() []string {
+	if p == nil {
+		return nil
+	}
+	warnings := append([]string(nil), p.Plan.Warnings...)
+	return append(warnings, p.skippedWarnings...)
+}
+
+// PlanCopyTeamRepoPermissions calculates changes to add source team repositories to the destination team.
+func PlanCopyTeamRepoPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, srcTeamSlug string, dstClient *GitHubClient, dst repository.Repository, dstTeamSlug string, force bool) (*TeamRepoAccessPlan, error) {
+	return planTeamRepoPermissions(ctx, srcClient, src, srcTeamSlug, dstClient, dst, dstTeamSlug, force, false)
+}
+
+// PlanSyncTeamRepoPermissions calculates changes to match destination team repositories to the source team.
+func PlanSyncTeamRepoPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, srcTeamSlug string, dstClient *GitHubClient, dst repository.Repository, dstTeamSlug string) (*TeamRepoAccessPlan, error) {
+	return planTeamRepoPermissions(ctx, srcClient, src, srcTeamSlug, dstClient, dst, dstTeamSlug, true, true)
+}
+
+func planTeamRepoPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, srcTeamSlug string, dstClient *GitHubClient, dst repository.Repository, dstTeamSlug string, force, sync bool) (*TeamRepoAccessPlan, error) {
 	if srcTeamSlug == "" || dstTeamSlug == "" {
 		return nil, fmt.Errorf("source and destination team slugs must not be empty")
 	}
@@ -116,39 +220,70 @@ func syncTeamRepoPermissions(ctx context.Context, srcClient *GitHubClient, src r
 		return nil, fmt.Errorf("failed to list destination team's repositories: %w", err)
 	}
 
-	plan := PlanTeamRepoPermissionChanges(source, destinationDirect, destinationEffective, force, sync)
-	if sync {
-		plan.Warnings = nil
+	plan := &TeamRepoAccessPlan{
+		Plan:                 PlanTeamRepoPermissionChanges(source, destinationDirect, destinationEffective, force, sync),
+		Source:               source,
+		DestinationDirect:    destinationDirect,
+		DestinationEffective: destinationEffective,
+		Skipped:              make(map[string]struct{}),
+		Sync:                 sync,
+		destination:          dst,
+		destinationTeamSlug:  dstTeamSlug,
 	}
-	skipped := make(map[string]struct{})
-	for _, change := range plan.Grant {
+	grants := make([]TeamRepoPermissionChange, 0, len(plan.Plan.Grant))
+	for _, change := range plan.Plan.Grant {
 		repoName := change.Repository.GetName()
 		if _, err := dstClient.GetRepository(ctx, dst.Owner, repoName); err != nil {
 			var response *github.ErrorResponse
 			if errors.As(err, &response) && response.Response != nil && response.Response.StatusCode == http.StatusNotFound {
-				skipped[repositoryKey(change.Repository)] = struct{}{}
-				plan.Warnings = append(plan.Warnings, fmt.Sprintf("repository %s does not exist in destination organization %s; skipped", repoName, dst.Owner))
+				plan.Skipped[repositoryKey(change.Repository)] = struct{}{}
+				plan.skippedWarnings = append(plan.skippedWarnings, fmt.Sprintf("repository %s does not exist in destination organization %s; skipped", repoName, dst.Owner))
 				continue
 			}
-			return plan.Warnings, fmt.Errorf("failed to check destination repository %s/%s: %w", dst.Owner, repoName, err)
+			plan.Plan.Grant = grants
+			return plan, fmt.Errorf("failed to check destination repository %s/%s: %w", dst.Owner, repoName, err)
 		}
-		if err := dstClient.AddTeamRepo(ctx, dst.Owner, dstTeamSlug, dst.Owner, repoName, change.Permission); err != nil {
-			return plan.Warnings, fmt.Errorf("failed to grant team %s access to repository %s/%s: %w", dstTeamSlug, dst.Owner, repoName, err)
-		}
+		grants = append(grants, change)
 	}
-	for _, repo := range plan.Revoke {
+	plan.Plan.Grant = grants
+	return plan, nil
+}
+
+// ApplyTeamRepoAccessPlan applies planned direct grants and revocations.
+func ApplyTeamRepoAccessPlan(ctx context.Context, dstClient *GitHubClient, dst repository.Repository, dstTeamSlug string, plan *TeamRepoAccessPlan) ([]string, error) {
+	if plan == nil {
+		return nil, fmt.Errorf("team repository access plan must not be nil")
+	}
+	warnings := plan.Warnings()
+	if plan.Sync {
+		warnings = append([]string(nil), plan.skippedWarnings...)
+	}
+	if err := applyTeamRepoPermissionGrants(ctx, dstClient, dst, dstTeamSlug, plan.Plan.Grant); err != nil {
+		return warnings, err
+	}
+	for _, repo := range plan.Plan.Revoke {
 		if err := dstClient.RemoveTeamRepo(ctx, dst.Owner, dstTeamSlug, dst.Owner, repo.GetName()); err != nil {
-			return plan.Warnings, fmt.Errorf("failed to revoke team %s access to repository %s/%s: %w", dstTeamSlug, dst.Owner, repo.GetName(), err)
+			return warnings, fmt.Errorf("failed to revoke team %s access to repository %s/%s: %w", dstTeamSlug, dst.Owner, repo.GetName(), err)
 		}
 	}
-	if sync {
+	if plan.Sync {
 		destinationAfterSync, err := ListTeamRepos(ctx, dstClient, dst, dstTeamSlug, nil, true)
 		if err != nil {
-			return plan.Warnings, fmt.Errorf("failed to verify destination team permissions after sync; changes may already have been applied: %w", err)
+			return warnings, fmt.Errorf("failed to verify destination team permissions after sync; changes may already have been applied: %w", err)
 		}
-		plan.Warnings = append(plan.Warnings, teamRepoPermissionWarnings(source, destinationAfterSync, skipped)...)
+		warnings = append(warnings, teamRepoPermissionWarnings(plan.Source, destinationAfterSync, plan.Skipped)...)
 	}
-	return plan.Warnings, nil
+	return warnings, nil
+}
+
+func applyTeamRepoPermissionGrants(ctx context.Context, dstClient *GitHubClient, dst repository.Repository, dstTeamSlug string, grants []TeamRepoPermissionChange) error {
+	for _, grant := range grants {
+		repoName := grant.Repository.GetName()
+		if err := dstClient.AddTeamRepo(ctx, dst.Owner, dstTeamSlug, dst.Owner, repoName, grant.Permission); err != nil {
+			return fmt.Errorf("failed to grant team %s access to repository %s/%s: %w", dstTeamSlug, dst.Owner, repoName, err)
+		}
+	}
+	return nil
 }
 
 func teamRepoPermissionWarnings(source, destinationEffective []*github.Repository, skipped map[string]struct{}) []string {
