@@ -117,11 +117,16 @@ func syncTeamRepoPermissions(ctx context.Context, srcClient *GitHubClient, src r
 	}
 
 	plan := PlanTeamRepoPermissionChanges(source, destinationDirect, destinationEffective, force, sync)
+	if sync {
+		plan.Warnings = nil
+	}
+	skipped := make(map[string]struct{})
 	for _, change := range plan.Grant {
 		repoName := change.Repository.GetName()
 		if _, err := dstClient.GetRepository(ctx, dst.Owner, repoName); err != nil {
 			var response *github.ErrorResponse
 			if errors.As(err, &response) && response.Response != nil && response.Response.StatusCode == http.StatusNotFound {
+				skipped[repositoryKey(change.Repository)] = struct{}{}
 				plan.Warnings = append(plan.Warnings, fmt.Sprintf("repository %s does not exist in destination organization %s; skipped", repoName, dst.Owner))
 				continue
 			}
@@ -136,7 +141,62 @@ func syncTeamRepoPermissions(ctx context.Context, srcClient *GitHubClient, src r
 			return plan.Warnings, fmt.Errorf("failed to revoke team %s access to repository %s/%s: %w", dstTeamSlug, dst.Owner, repo.GetName(), err)
 		}
 	}
+	if sync {
+		destinationAfterSync, err := ListTeamRepos(ctx, dstClient, dst, dstTeamSlug, nil, true)
+		if err != nil {
+			return plan.Warnings, fmt.Errorf("failed to verify destination team permissions after sync; changes may already have been applied: %w", err)
+		}
+		plan.Warnings = append(plan.Warnings, teamRepoPermissionWarnings(source, destinationAfterSync, skipped)...)
+	}
 	return plan.Warnings, nil
+}
+
+func teamRepoPermissionWarnings(source, destinationEffective []*github.Repository, skipped map[string]struct{}) []string {
+	sourceByName := repositoryMap(source)
+	destinationByName := repositoryMap(destinationEffective)
+	warned := make(map[string]struct{})
+	var warnings []string
+	appendWarning := func(category, key, warning string) {
+		warningKey := category + "\x00" + key
+		if _, exists := warned[warningKey]; exists {
+			return
+		}
+		warned[warningKey] = struct{}{}
+		warnings = append(warnings, warning)
+	}
+
+	for _, repo := range destinationEffective {
+		if repo == nil || repo.GetName() == "" {
+			continue
+		}
+		key := repositoryKey(repo)
+		sourceRepo := sourceByName[key]
+		if sourceRepo == nil {
+			appendWarning("extra", key, fmt.Sprintf("repository %s remains accessible after synchronization", repo.GetName()))
+			continue
+		}
+		actual := GetRepositoryPermissions(repo)
+		expected := GetRepositoryPermissions(sourceRepo)
+		if actual != expected {
+			appendWarning("permission", key, fmt.Sprintf("repository %s has effective permission %s after synchronization; expected %s", repo.GetName(), actual, expected))
+		}
+	}
+
+	for _, repo := range source {
+		if repo == nil || repo.GetName() == "" {
+			continue
+		}
+		key := repositoryKey(repo)
+		if destinationByName[key] != nil {
+			continue
+		}
+		if _, wasSkipped := skipped[key]; wasSkipped {
+			continue
+		}
+		appendWarning("missing", key, fmt.Sprintf("repository %s is missing from destination effective access after synchronization", repo.GetName()))
+	}
+
+	return warnings
 }
 
 func repositoryMap(repos []*github.Repository) map[string]*github.Repository {
