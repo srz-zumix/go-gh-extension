@@ -113,7 +113,7 @@ func newExtensionInstallCmd(cfg Config) *cobra.Command {
 	}
 	addScopeFlags(cmd, &scope, &opts.Prefix)
 	cmd.Flags().StringVar(&opts.Ref, "ref", "", "git ref to install, overriding the extension's default ref")
-	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "resolve and print what would be installed without writing any files")
+	cmd.Flags().BoolVarP(&opts.DryRun, "dryrun", "n", false, "resolve and print what would be installed without writing any files")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "overwrite an existing, unmanaged destination directory")
 	return cmd
 }
@@ -151,7 +151,7 @@ func newExtensionUpdateCmd(cfg Config) *cobra.Command {
 	}
 	addScopeFlags(cmd, &scope, &opts.Prefix)
 	cmd.Flags().StringVar(&opts.Ref, "ref", "", "git ref to update to, overriding the extension's default ref")
-	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "resolve and print what would be updated without writing any files")
+	cmd.Flags().BoolVarP(&opts.DryRun, "dryrun", "n", false, "resolve and print what would be updated without writing any files")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "re-install even if already up to date, or overwrite an unmanaged destination directory")
 	return cmd
 }
@@ -186,7 +186,7 @@ func newExtensionUninstallCmd(cfg Config) *cobra.Command {
 		},
 	}
 	addScopeFlags(cmd, &scope, &prefix)
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print what would be uninstalled without removing any files")
+	cmd.Flags().BoolVarP(&dryRun, "dryrun", "n", false, "print what would be uninstalled without removing any files")
 	cmd.Flags().BoolVar(&force, "force", false, "remove the destination directory even if it is not managed by this command")
 	return cmd
 }
