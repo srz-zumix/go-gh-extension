@@ -279,18 +279,14 @@ func PlanCopyTeamMembers(ctx context.Context, srcClient *GitHubClient, srcRepo r
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch members from source team: %w", err)
 	}
-	dstMembers, err := ListTeamMembers(ctx, dstClient, dstRepo, dstTeamSlug, nil, true)
+	dstMembers, err := ListTeamMembers(ctx, dstClient, dstRepo, dstTeamSlug, nil, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch members from destination team: %w", err)
 	}
-	dstMemberMap := make(map[string]string)
+	dstMemberSet := make(map[string]struct{})
 	for _, m := range dstMembers {
 		if m.Login != nil {
-			role, err := teamMemberRole(m)
-			if err != nil {
-				return nil, err
-			}
-			dstMemberMap[*m.Login] = role
+			dstMemberSet[*m.Login] = struct{}{}
 		}
 	}
 	var changes []SyncChange
@@ -299,7 +295,7 @@ func PlanCopyTeamMembers(ctx context.Context, srcClient *GitHubClient, srcRepo r
 			continue
 		}
 		username := *m.Login
-		if _, exists := dstMemberMap[username]; exists {
+		if _, exists := dstMemberSet[username]; exists {
 			continue
 		}
 		role, err := teamMemberRole(m)

@@ -336,10 +336,12 @@ func planCopyRepoTeamsAndPermissions(ctx context.Context, srcClient *GitHubClien
 		existingPermission := ""
 		if existingRepo != nil {
 			existingPermission = GetRepositoryPermissions(existingRepo)
-			if existingPermission == permission {
+			if existingPermission == permission && !force {
+				// Skip only for non-forced copies; the permission may be inherited from a parent team,
+				// and a forced copy always grants it directly.
 				continue
 			}
-			if !force {
+			if existingPermission != permission && !force {
 				return changes, fmt.Errorf("team %s already has %s permissions on the destination repository", team.GetSlug(), existingPermission)
 			}
 		}
