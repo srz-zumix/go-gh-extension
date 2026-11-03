@@ -403,95 +403,154 @@ func RemoveRepositoryCollaborator(ctx context.Context, g *GitHubClient, repo rep
 
 // CopyRepoUserPermissions copies direct user collaborator permissions from the source repository to the destination repository.
 func CopyRepoUserPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository, force bool) error {
+	changes, err := planCopyRepoUserPermissions(ctx, srcClient, src, dstClient, dst, force, !force)
+	if applyErr := applyRepoUserChanges(ctx, dstClient, dst, changes, "add"); applyErr != nil {
+		return applyErr
+	}
+	return err
+}
+
+// PlanCopyRepoUserPermissions returns the changes required to copy direct user permissions.
+func PlanCopyRepoUserPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository, force bool) ([]SyncChange, error) {
+	return planCopyRepoUserPermissions(ctx, srcClient, src, dstClient, dst, force, true)
+}
+
+func planCopyRepoUserPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository, force, checkDestination bool) ([]SyncChange, error) {
 	srcCollaborators, err := srcClient.ListRepositoryCollaborators(ctx, src.Owner, src.Name, "direct")
 	if err != nil {
-		return fmt.Errorf("failed to fetch collaborators from source repository: %w", err)
+		return nil, fmt.Errorf("failed to fetch collaborators from source repository: %w", err)
 	}
 
-	var dstCollaboratorMap map[string]string
-	if !force {
+	dstCollaboratorMap := make(map[string]string)
+	if checkDestination {
 		dstCollaborators, err := dstClient.ListRepositoryCollaborators(ctx, dst.Owner, dst.Name, "direct")
 		if err != nil {
-			return fmt.Errorf("failed to fetch collaborators from destination repository: %w", err)
+			return nil, fmt.Errorf("failed to fetch collaborators from destination repository: %w", err)
 		}
-		dstCollaboratorMap = make(map[string]string)
+		dstCollaboratorMap = make(map[string]string, len(dstCollaborators))
 		for _, u := range dstCollaborators {
 			dstCollaboratorMap[u.GetLogin()] = GetPermissionName(u.Permissions)
 		}
 	}
 
+	var changes []SyncChange
 	for _, u := range srcCollaborators {
 		permission := GetPermissionName(u.Permissions)
 		if permission == "none" {
 			continue
 		}
 
-		if !force {
-			if existingPermission, exists := dstCollaboratorMap[u.GetLogin()]; exists {
-				if existingPermission == permission {
-					continue
-				}
-				return fmt.Errorf("user %s already has %s permissions on the destination repository", u.GetLogin(), existingPermission)
+		existingPermission, exists := dstCollaboratorMap[u.GetLogin()]
+		if exists {
+			if existingPermission == permission {
+				continue
+			}
+			if !force {
+				return changes, fmt.Errorf("user %s already has %s permissions on the destination repository", u.GetLogin(), existingPermission)
 			}
 		}
-
-		if _, err := dstClient.AddRepositoryCollaborator(ctx, dst.Owner, dst.Name, u.GetLogin(), permission); err != nil {
-			return fmt.Errorf("failed to add user %s to destination repository: %w", u.GetLogin(), err)
+		action := SyncChangeAdd
+		if exists {
+			action = SyncChangeUpdate
 		}
+		changes = append(changes, SyncChange{
+			Destination: syncChangeDestination(dst),
+			Action:      action,
+			Target:      u.GetLogin(),
+			Permission:  permission,
+			Current:     existingPermission,
+		})
 	}
-
-	return nil
+	return changes, nil
 }
 
 // SyncRepoUserPermissions syncs direct user collaborator permissions from the source repository to the destination repository.
 func SyncRepoUserPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository) error {
+	changes, err := PlanSyncRepoUserPermissions(ctx, srcClient, src, dstClient, dst)
+	if err != nil {
+		return err
+	}
+	return applyRepoUserChanges(ctx, dstClient, dst, changes, "sync")
+}
+
+// PlanSyncRepoUserPermissions returns the changes required to match direct user permissions to the source repository.
+func PlanSyncRepoUserPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository) ([]SyncChange, error) {
 	srcCollaborators, err := srcClient.ListRepositoryCollaborators(ctx, src.Owner, src.Name, "direct")
 	if err != nil {
-		return fmt.Errorf("failed to fetch collaborators from source repository: %w", err)
+		return nil, fmt.Errorf("failed to fetch collaborators from source repository: %w", err)
 	}
-
 	dstCollaborators, err := dstClient.ListRepositoryCollaborators(ctx, dst.Owner, dst.Name, "direct")
 	if err != nil {
-		return fmt.Errorf("failed to fetch collaborators from destination repository: %w", err)
+		return nil, fmt.Errorf("failed to fetch collaborators from destination repository: %w", err)
 	}
 
-	dstCollaboratorMap := make(map[string]string)
+	dstCollaboratorMap := make(map[string]string, len(dstCollaborators))
 	for _, u := range dstCollaborators {
 		dstCollaboratorMap[u.GetLogin()] = GetPermissionName(u.Permissions)
 	}
 
-	srcCollaboratorMap := make(map[string]string)
+	srcCollaboratorMap := make(map[string]string, len(srcCollaborators))
 	for _, u := range srcCollaborators {
 		srcCollaboratorMap[u.GetLogin()] = GetPermissionName(u.Permissions)
 	}
 
-	// Add or update collaborators in the destination to match the source
+	var changes []SyncChange
 	for _, u := range srcCollaborators {
 		permission := GetPermissionName(u.Permissions)
 		if permission == "none" {
 			continue
 		}
-
-		if existingPermission, exists := dstCollaboratorMap[u.GetLogin()]; exists {
-			if existingPermission == permission {
-				continue
-			}
+		current, exists := dstCollaboratorMap[u.GetLogin()]
+		if exists && current == permission {
+			continue
 		}
-
-		if _, err := dstClient.AddRepositoryCollaborator(ctx, dst.Owner, dst.Name, u.GetLogin(), permission); err != nil {
-			return fmt.Errorf("failed to sync user %s to destination repository: %w", u.GetLogin(), err)
+		action := SyncChangeAdd
+		if exists {
+			action = SyncChangeUpdate
 		}
+		changes = append(changes, SyncChange{
+			Destination: syncChangeDestination(dst),
+			Action:      action,
+			Target:      u.GetLogin(),
+			Permission:  permission,
+			Current:     current,
+		})
 	}
 
-	// Remove collaborators from the destination that are not in the source
 	for _, u := range dstCollaborators {
-		if _, exists := srcCollaboratorMap[u.GetLogin()]; !exists {
-			if err := dstClient.RemoveRepositoryCollaborator(ctx, dst.Owner, dst.Name, u.GetLogin()); err != nil {
-				return fmt.Errorf("failed to remove user %s from destination repository: %w", u.GetLogin(), err)
+		if _, exists := srcCollaboratorMap[u.GetLogin()]; exists {
+			continue
+		}
+		changes = append(changes, SyncChange{
+			Destination: syncChangeDestination(dst),
+			Action:      SyncChangeRemove,
+			Target:      u.GetLogin(),
+			Current:     dstCollaboratorMap[u.GetLogin()],
+		})
+	}
+	return changes, nil
+}
+
+// ApplyRepoUserChanges applies planned direct user permission changes.
+func ApplyRepoUserChanges(ctx context.Context, dstClient *GitHubClient, dst repository.Repository, changes []SyncChange) error {
+	return applyRepoUserChanges(ctx, dstClient, dst, changes, "apply")
+}
+
+func applyRepoUserChanges(ctx context.Context, dstClient *GitHubClient, dst repository.Repository, changes []SyncChange, verb string) error {
+	for _, change := range changes {
+		switch change.Action {
+		case SyncChangeAdd, SyncChangeUpdate:
+			if _, err := dstClient.AddRepositoryCollaborator(ctx, dst.Owner, dst.Name, change.Target, change.Permission); err != nil {
+				return fmt.Errorf("failed to %s user %s to destination repository: %w", verb, change.Target, err)
 			}
+		case SyncChangeRemove:
+			if err := dstClient.RemoveRepositoryCollaborator(ctx, dst.Owner, dst.Name, change.Target); err != nil {
+				return fmt.Errorf("failed to remove user %s from destination repository: %w", change.Target, err)
+			}
+		default:
+			return fmt.Errorf("unsupported repository user permission change action %q", change.Action)
 		}
 	}
-
 	return nil
 }
 

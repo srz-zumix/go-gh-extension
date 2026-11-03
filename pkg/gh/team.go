@@ -304,50 +304,81 @@ func RenameTeam(ctx context.Context, g *GitHubClient, repo repository.Repository
 
 // CopyRepoTeamsAndPermissions copies teams and permissions from the source repository to the destination repository.
 func CopyRepoTeamsAndPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository, force bool) error {
-	// Fetch teams and permissions from the source repository
+	changes, err := planCopyRepoTeamsAndPermissions(ctx, srcClient, src, dstClient, dst, force, !force)
+	if applyErr := applyRepoTeamChanges(ctx, dstClient, dst, changes, "add"); applyErr != nil {
+		return applyErr
+	}
+	return err
+}
+
+// PlanCopyRepoTeamsAndPermissions returns the changes required to copy team permissions.
+func PlanCopyRepoTeamsAndPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository, force bool) ([]SyncChange, error) {
+	return planCopyRepoTeamsAndPermissions(ctx, srcClient, src, dstClient, dst, force, true)
+}
+
+func planCopyRepoTeamsAndPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository, force, checkDestination bool) ([]SyncChange, error) {
 	srcTeams, err := srcClient.ListRepositoryTeams(ctx, src.Owner, src.Name)
 	if err != nil {
-		return fmt.Errorf("failed to fetch teams from source repository: %w", err)
+		return nil, fmt.Errorf("failed to fetch teams from source repository: %w", err)
 	}
 
-	// Iterate over each team and copy permissions to the destination repository
+	var changes []SyncChange
 	for _, team := range srcTeams {
 		permission := team.GetPermission()
 
-		// Check if the team already has permissions on the destination repository
-		if !force {
-			existingRepo, err := dstClient.CheckTeamPermissions(ctx, dst.Owner, team.GetSlug(), dst.Owner, dst.Name)
+		var existingRepo *github.Repository
+		if checkDestination {
+			existingRepo, err = dstClient.CheckTeamPermissions(ctx, dst.Owner, team.GetSlug(), dst.Owner, dst.Name)
 			if err != nil {
-				return fmt.Errorf("failed to check existing permissions for team %s: %w", team.GetSlug(), err)
-			}
-			if existingRepo != nil {
-				existingPermission := GetRepositoryPermissions(existingRepo)
-				if existingPermission == permission {
-					continue // Skip if the permission is already the same
-				}
-				return fmt.Errorf("team %s already has %s permissions on the destination repository", team.GetSlug(), existingPermission)
+				return changes, fmt.Errorf("failed to check existing permissions for team %s: %w", team.GetSlug(), err)
 			}
 		}
-
-		if err := dstClient.AddTeamRepo(ctx, src.Owner, team.GetSlug(), dst.Owner, dst.Name, permission); err != nil {
-			return fmt.Errorf("failed to add team %s to destination repository: %w", team.GetSlug(), err)
+		existingPermission := ""
+		if existingRepo != nil {
+			existingPermission = GetRepositoryPermissions(existingRepo)
+			if existingPermission == permission && !force {
+				// Skip only for non-forced copies; the permission may be inherited from a parent team,
+				// and a forced copy always grants it directly.
+				continue
+			}
+			if existingPermission != permission && !force {
+				return changes, fmt.Errorf("team %s already has %s permissions on the destination repository", team.GetSlug(), existingPermission)
+			}
 		}
+		action := SyncChangeAdd
+		if existingRepo != nil {
+			action = SyncChangeUpdate
+		}
+		changes = append(changes, SyncChange{
+			Destination: syncChangeDestination(dst),
+			Action:      action,
+			Target:      syncChangeTeamTarget(src.Owner, team.GetSlug()),
+			Permission:  permission,
+			Current:     existingPermission,
+			TeamOwner:   src.Owner,
+		})
 	}
-
-	return nil
+	return changes, nil
 }
 
 func SyncRepoTeamsAndPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository) error {
-	// Fetch teams and permissions from the source repository
+	changes, err := PlanSyncRepoTeamsAndPermissions(ctx, srcClient, src, dstClient, dst)
+	if err != nil {
+		return err
+	}
+	return applyRepoTeamChanges(ctx, dstClient, dst, changes, "sync")
+}
+
+// PlanSyncRepoTeamsAndPermissions returns the changes required to match team permissions to the source repository.
+func PlanSyncRepoTeamsAndPermissions(ctx context.Context, srcClient *GitHubClient, src repository.Repository, dstClient *GitHubClient, dst repository.Repository) ([]SyncChange, error) {
 	srcTeams, err := srcClient.ListRepositoryTeams(ctx, src.Owner, src.Name)
 	if err != nil {
-		return fmt.Errorf("failed to fetch teams from source repository: %w", err)
+		return nil, fmt.Errorf("failed to fetch teams from source repository: %w", err)
 	}
 
-	// Fetch existing teams and permissions from the destination repository
 	dstTeams, err := dstClient.ListRepositoryTeams(ctx, dst.Owner, dst.Name)
 	if err != nil {
-		return fmt.Errorf("failed to fetch teams from destination repository: %w", err)
+		return nil, fmt.Errorf("failed to fetch teams from destination repository: %w", err)
 	}
 
 	dstTeamMap := make(map[string]string)
@@ -360,30 +391,62 @@ func SyncRepoTeamsAndPermissions(ctx context.Context, srcClient *GitHubClient, s
 		srcTeamMap[team.GetSlug()] = team.GetPermission()
 	}
 
-	// Sync teams and permissions
+	var changes []SyncChange
 	for _, team := range srcTeams {
 		permission := team.GetPermission()
-
-		if existingPermission, exists := dstTeamMap[team.GetSlug()]; exists {
-			if existingPermission == permission {
-				continue // Skip if the permission is already the same
-			}
+		existingPermission, exists := dstTeamMap[team.GetSlug()]
+		if exists && existingPermission == permission {
+			continue
 		}
-
-		if err := dstClient.AddTeamRepo(ctx, src.Owner, team.GetSlug(), dst.Owner, dst.Name, permission); err != nil {
-			return fmt.Errorf("failed to sync team %s to destination repository: %w", team.GetSlug(), err)
+		action := SyncChangeAdd
+		if exists {
+			action = SyncChangeUpdate
 		}
+		changes = append(changes, SyncChange{
+			Destination: syncChangeDestination(dst),
+			Action:      action,
+			Target:      syncChangeTeamTarget(src.Owner, team.GetSlug()),
+			Permission:  permission,
+			Current:     existingPermission,
+			TeamOwner:   src.Owner,
+		})
 	}
 
-	// Remove teams from the destination repository that are not in the source repository
 	for _, team := range dstTeams {
 		if _, exists := srcTeamMap[team.GetSlug()]; !exists {
-			if err := dstClient.RemoveTeamRepo(ctx, dst.Owner, team.GetSlug(), dst.Owner, dst.Name); err != nil {
-				return fmt.Errorf("failed to remove team %s from destination repository: %w", team.GetSlug(), err)
-			}
+			changes = append(changes, SyncChange{
+				Destination: syncChangeDestination(dst),
+				Action:      SyncChangeRemove,
+				Target:      syncChangeTeamTarget(dst.Owner, team.GetSlug()),
+				Current:     team.GetPermission(),
+				TeamOwner:   dst.Owner,
+			})
 		}
 	}
+	return changes, nil
+}
 
+// ApplyRepoTeamChanges applies planned team permission changes.
+func ApplyRepoTeamChanges(ctx context.Context, dstClient *GitHubClient, dst repository.Repository, changes []SyncChange) error {
+	return applyRepoTeamChanges(ctx, dstClient, dst, changes, "apply")
+}
+
+func applyRepoTeamChanges(ctx context.Context, dstClient *GitHubClient, dst repository.Repository, changes []SyncChange, verb string) error {
+	for _, change := range changes {
+		slug := strings.TrimPrefix(change.Target, change.TeamOwner+"/")
+		switch change.Action {
+		case SyncChangeAdd, SyncChangeUpdate:
+			if err := dstClient.AddTeamRepo(ctx, change.TeamOwner, slug, dst.Owner, dst.Name, change.Permission); err != nil {
+				return fmt.Errorf("failed to %s team %s to destination repository: %w", verb, slug, err)
+			}
+		case SyncChangeRemove:
+			if err := dstClient.RemoveTeamRepo(ctx, dst.Owner, slug, dst.Owner, dst.Name); err != nil {
+				return fmt.Errorf("failed to remove team %s from destination repository: %w", slug, err)
+			}
+		default:
+			return fmt.Errorf("unsupported repository team permission change action %q", change.Action)
+		}
+	}
 	return nil
 }
 
