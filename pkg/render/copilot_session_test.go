@@ -22,6 +22,10 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 			{Key: "human_response", Total: 2, Approved: 2},
 			{Key: "unattended_fallback", Total: 1, Denied: 1},
 		},
+		ByAgentMode: []copilotext.Count{
+			{Key: "interactive", Total: 2, Approved: 2},
+			{Key: "unknown", Total: 1, Denied: 1},
+		},
 		ByCommand: []copilotext.Count{
 			{Key: "ls", Total: 2, Approved: 2},
 		},
@@ -58,6 +62,9 @@ func TestRenderCopilotPermissionStatsTable(t *testing.T) {
 	if !strings.Contains(out, "DECISION_SOURCE") || !strings.Contains(out, "human_response") {
 		t.Fatalf("output missing DECISION_SOURCE table: %q", out)
 	}
+	if !strings.Contains(out, "AGENT_MODE") || !strings.Contains(out, "interactive") || !strings.Contains(out, "unknown") {
+		t.Fatalf("output missing AGENT_MODE table: %q", out)
+	}
 	if !strings.Contains(out, "COMMAND") || !strings.Contains(out, "ls") {
 		t.Fatalf("output missing COMMAND table: %q", out)
 	}
@@ -81,6 +88,7 @@ func TestRenderCopilotPermissionStatsJSON(t *testing.T) {
 	sr := NewStringRenderer(cmdutil.NewJSONExporter())
 	stats := &copilotext.PermissionStats{
 		Sessions: 1, Requests: 1,
+		ByAgentMode:             []copilotext.Count{{Key: "plan", Total: 1, Denied: 1}},
 		UsageIncompleteSessions: 1,
 		UsageRequests:           2,
 		ByModelUsage:            []copilotext.UsageCount{{Key: "model-a", Sessions: 1, Requests: 2, PremiumRequests: 3, AIU: 1.5}},
@@ -101,6 +109,9 @@ func TestRenderCopilotPermissionStatsJSON(t *testing.T) {
 	}
 	if len(decoded.ByModelUsage) != 1 || decoded.ByModelUsage[0] != stats.ByModelUsage[0] {
 		t.Fatalf("ByModelUsage = %+v, want %+v", decoded.ByModelUsage, stats.ByModelUsage)
+	}
+	if len(decoded.ByAgentMode) != 1 || decoded.ByAgentMode[0] != stats.ByAgentMode[0] {
+		t.Fatalf("ByAgentMode = %+v, want %+v", decoded.ByAgentMode, stats.ByAgentMode)
 	}
 	if decoded.UsageRequests != 2 || decoded.UsageIncompleteSessions != 1 ||
 		len(decoded.ByRoleUsage) != 1 || decoded.ByRoleUsage[0] != stats.ByRoleUsage[0] {

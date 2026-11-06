@@ -224,6 +224,7 @@ func TestCollectPermissionStatsLiveUsageScopeAndTime(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			test.opts.Root = root
+			test.opts.AgentMode = []string{"plan"}
 			test.opts.Kind = []string{"write"}
 			stats, err := CollectPermissionStats(test.opts)
 			if err != nil {

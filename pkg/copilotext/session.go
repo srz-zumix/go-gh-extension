@@ -60,6 +60,9 @@ type PermissionRequest struct {
 	Paths           []string
 	URLs            []string
 	RequestedAt     time.Time
+	// AgentMode is captured by the owning turn when permission evaluation begins.
+	// Empty means no usable mode was recorded.
+	AgentMode string
 }
 
 // PermissionRecord pairs a PermissionRequest with its outcome (Result), regardless of
@@ -183,7 +186,8 @@ func (e *possibleURLEntry) UnmarshalJSON(data []byte) error {
 
 // rawPermissionRequested is the data payload of a "permission.requested" event.
 type rawPermissionRequested struct {
-	RequestID         string `json:"requestId"`
+	RequestID         string          `json:"requestId"`
+	AgentMode         json.RawMessage `json:"agentMode"`
 	PermissionRequest struct {
 		Kind            string `json:"kind"`
 		ToolCallID      string `json:"toolCallId"`
@@ -308,9 +312,16 @@ func (pc *permissionCollector) handle(ev rawEvent) {
 		if _, exists := pc.requests[key]; exists {
 			return
 		}
+		var agentMode string
+		if len(data.AgentMode) > 0 {
+			if err := json.Unmarshal(data.AgentMode, &agentMode); err != nil {
+				logger.Warn("ignoring unparsable permission.requested agent mode", "dir", pc.session.Dir, "error", err)
+			}
+		}
 		req := PermissionRequest{
 			RequestID:       data.RequestID,
 			ToolCallID:      data.PermissionRequest.ToolCallID,
+			AgentMode:       agentMode,
 			Kind:            data.PermissionRequest.Kind,
 			FullCommandText: data.PermissionRequest.FullCommandText,
 			Intention:       data.PermissionRequest.Intention,
