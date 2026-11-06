@@ -115,7 +115,7 @@ func TestCollectQuestionStatsScopeTimeAndPermissionIndependence(t *testing.T) {
 	for _, s := range []struct{ id, cwd string }{{"a", "/repo/a"}, {"b", "/repo/b"}} {
 		writeSessionDir(t, root, s.id, fmt.Sprintf("id: %s\ncwd: %s\n", s.id, s.cwd), events)
 	}
-	opts := PermissionStatsOptions{Root: root, Scope: SessionScope{ExactCWD: "/repo/a"}, Kind: []string{"never"}, Top: 1}
+	opts := PermissionStatsOptions{Root: root, Scope: SessionScope{ExactCWD: "/repo/a"}, AgentMode: []string{"plan"}, Kind: []string{"never"}, Top: 1}
 	stats, err := CollectPermissionStats(opts)
 	if err != nil {
 		t.Fatal(err)

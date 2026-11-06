@@ -130,6 +130,9 @@ type PermissionStatsOptions struct {
 	// values ("read" or "write"). A request is "read" when its Kind is "read", or when
 	// its Kind is "shell" and every command is read-only; otherwise it is "write".
 	Operations []string
+	// AgentMode, when non-empty, restricts to requests whose recorded agent mode
+	// exactly matches any of these values. Missing or invalid modes are "unknown".
+	AgentMode []string
 	// Kind, when non-empty, restricts to requests whose Kind matches any of these exact
 	// values (e.g. "shell", "read", "write").
 	Kind []string
@@ -196,6 +199,8 @@ type PermissionStats struct {
 	ByPath           []Count
 	ByURL            []Count
 	ByCWD            []Count
+	// ByAgentMode groups requests by recorded mode, or "unknown" when unavailable.
+	ByAgentMode []Count
 
 	// UsageSessions counts sessions with any recorded usage, including active sessions.
 	UsageSessions           int
@@ -342,6 +347,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 
 	byResult := newCounter()
 	byDecisionSource := newCounter()
+	byAgentMode := newCounter()
 	byKind := newCounter()
 	byReadOnly := newCounter()
 	byCommand := newCounter()
@@ -432,6 +438,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 
 			byResult.add(rec.Result, rec.Result)
 			byDecisionSource.add(rec.DecisionSource, rec.Result)
+			byAgentMode.add(agentModeKey(rec.Request.AgentMode), rec.Result)
 			byKind.add(rec.Request.Kind, rec.Result)
 			byCWD.add(s.CWD, rec.Result)
 
@@ -472,6 +479,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 
 	stats.ByResult = byResult.finish(opts.Top)
 	stats.ByDecisionSource = byDecisionSource.finish(opts.Top)
+	stats.ByAgentMode = byAgentMode.finish(opts.Top)
 	stats.ByKind = byKind.finish(opts.Top)
 	stats.ByReadOnly = byReadOnly.finish(opts.Top)
 	stats.ByCommand = byCommand.finish(opts.Top)
@@ -485,11 +493,11 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	return stats, nil
 }
 
-// permissionFilters is the compiled form of PermissionStatsOptions' Operations/Kind/
-// Command/Path/URL filters, built once per CollectPermissionStats call so that regular
-// expressions aren't recompiled per record.
+// permissionFilters is the compiled form of the permission filters, built once
+// per CollectPermissionStats call so regular expressions are not recompiled per record.
 type permissionFilters struct {
 	operations      map[string]bool
+	agentModes      map[string]bool
 	kinds           map[string]bool
 	decisionSources map[string]bool
 	commands        map[string]bool
@@ -497,8 +505,7 @@ type permissionFilters struct {
 	urls            []*regexp.Regexp
 }
 
-// newPermissionFilters compiles opts' filters, validating Operations values and Path/URL
-// regular expressions.
+// newPermissionFilters compiles and validates opts' filters.
 func newPermissionFilters(opts PermissionStatsOptions) (*permissionFilters, error) {
 	f := &permissionFilters{}
 
@@ -510,6 +517,14 @@ func newPermissionFilters(opts PermissionStatsOptions) (*permissionFilters, erro
 			}
 			f.operations[op] = true
 		}
+	}
+	if len(opts.AgentMode) > 0 {
+		for _, mode := range opts.AgentMode {
+			if mode == "" {
+				return nil, fmt.Errorf("invalid agent mode %q: use %q for missing modes", mode, "unknown")
+			}
+		}
+		f.agentModes = toSet(opts.AgentMode)
 	}
 	if len(opts.Kind) > 0 {
 		f.kinds = toSet(opts.Kind)
@@ -547,6 +562,13 @@ func toSet(values []string) map[string]bool {
 	return set
 }
 
+func agentModeKey(mode string) string {
+	if mode == "" {
+		return "unknown"
+	}
+	return mode
+}
+
 // matches reports whether req satisfies all configured filters. A filter with no values
 // always matches.
 func (f *permissionFilters) matches(req PermissionRequest) bool {
@@ -558,6 +580,9 @@ func (f *permissionFilters) matches(req PermissionRequest) bool {
 		if !f.operations[op] {
 			return false
 		}
+	}
+	if len(f.agentModes) > 0 && !f.agentModes[agentModeKey(req.AgentMode)] {
+		return false
 	}
 	if len(f.kinds) > 0 && !f.kinds[req.Kind] {
 		return false

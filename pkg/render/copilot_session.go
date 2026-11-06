@@ -120,6 +120,7 @@ func (r *Renderer) RenderCopilotPermissionStats(stats *copilotext.PermissionStat
 	}{
 		{"RESULT", stats.ByResult},
 		{"DECISION_SOURCE", stats.ByDecisionSource},
+		{"AGENT_MODE", stats.ByAgentMode},
 		{"KIND", stats.ByKind},
 		{"READONLY", stats.ByReadOnly},
 		{"COMMAND", stats.ByCommand},
