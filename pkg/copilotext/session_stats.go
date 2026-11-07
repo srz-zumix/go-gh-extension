@@ -133,6 +133,11 @@ type PermissionStatsOptions struct {
 	// AgentMode, when non-empty, restricts to requests whose recorded agent mode
 	// exactly matches any of these values. Missing or invalid modes are "unknown".
 	AgentMode []string
+	// UsageByAgentMode, when true and AgentMode is non-empty, restricts the session usage
+	// aggregates to sessions with at least one in-window permission request whose recorded
+	// agent mode matches AgentMode. Usage records carry no agent mode, so every usage record
+	// of a matching session is counted. Other permission filters never affect usage.
+	UsageByAgentMode bool
 	// Kind, when non-empty, restricts to requests whose Kind matches any of these exact
 	// values (e.g. "shell", "read", "write").
 	Kind []string
@@ -391,6 +396,9 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 		if questionSession {
 			stats.AskUser.Sessions++
 		}
+		if found && opts.UsageByAgentMode && !filters.hasAgentModeRequest(records, opts.Since, opts.Until) {
+			found = false
+		}
 		if found {
 			stats.UsageSessions++
 			if usage.Incomplete {
@@ -581,7 +589,7 @@ func (f *permissionFilters) matches(req PermissionRequest) bool {
 			return false
 		}
 	}
-	if len(f.agentModes) > 0 && !f.agentModes[agentModeKey(req.AgentMode)] {
+	if !f.matchesAgentMode(req.AgentMode) {
 		return false
 	}
 	if len(f.kinds) > 0 && !f.kinds[req.Kind] {
@@ -597,6 +605,33 @@ func (f *permissionFilters) matches(req PermissionRequest) bool {
 		return false
 	}
 	return true
+}
+
+// matchesAgentMode reports whether mode satisfies the configured agent mode filter.
+// A filter with no values always matches.
+func (f *permissionFilters) matchesAgentMode(mode string) bool {
+	return len(f.agentModes) == 0 || f.agentModes[agentModeKey(mode)]
+}
+
+// hasAgentModeRequest reports whether records include a request within [since, until)
+// whose agent mode satisfies the agent mode filter. It always reports true when no
+// agent mode filter is configured.
+func (f *permissionFilters) hasAgentModeRequest(records []PermissionRecord, since, until time.Time) bool {
+	if len(f.agentModes) == 0 {
+		return true
+	}
+	for _, rec := range records {
+		if !since.IsZero() && rec.Request.RequestedAt.Before(since) {
+			continue
+		}
+		if !until.IsZero() && !rec.Request.RequestedAt.Before(until) {
+			continue
+		}
+		if f.matchesAgentMode(rec.Request.AgentMode) {
+			return true
+		}
+	}
+	return false
 }
 
 // matchesDecisionSource reports whether decisionSource satisfies the configured
