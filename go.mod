@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/Songmu/skillsmith v0.2.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.19.0
-	github.com/cli/cli/v2 v2.103.0
+	github.com/cli/cli/v2 v2.103.3
 	github.com/cli/go-gh/v2 v2.17.0
 	github.com/cli/shurcooL-graphql v0.0.4
 	github.com/ddddddO/gtree v1.14.9
