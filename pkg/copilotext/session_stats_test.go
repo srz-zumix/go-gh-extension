@@ -276,6 +276,7 @@ func TestCollectPermissionStatsFilters(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CollectPermissionStats() error = %v", err)
 		}
+
 		if stats.Requests != 2 {
 			t.Fatalf("Requests = %d, want 2 (req-read, req-shell-ro)", stats.Requests)
 		}
@@ -384,6 +385,65 @@ func TestCollectPermissionStatsFilters(t *testing.T) {
 			t.Fatalf("Requests = %d, want 1 (req-shell-rw)", stats.Requests)
 		}
 	})
+}
+
+func TestCollectPermissionStatsResultAndCommandAccessFilters(t *testing.T) {
+	root := t.TempDir()
+	events := `{"type":"permission.requested","timestamp":"2026-01-01T00:00:00Z","data":{"requestId":"req-mixed","permissionRequest":{"kind":"shell","commands":[{"identifier":"list","readOnly":true},{"identifier":"remove","readOnly":false}]}}}
+{"type":"permission.completed","timestamp":"2026-01-01T00:00:01Z","data":{"requestId":"req-mixed","result":{"kind":"approved"}}}
+{"type":"permission.requested","timestamp":"2026-01-01T00:00:02Z","data":{"requestId":"req-denied","permissionRequest":{"kind":"shell","commands":[{"identifier":"remove","readOnly":false}]}}}
+{"type":"permission.completed","timestamp":"2026-01-01T00:00:03Z","data":{"requestId":"req-denied","result":{"kind":"denied-no-approval-rule"}}}
+{"type":"permission.requested","timestamp":"2026-01-01T00:00:04Z","data":{"requestId":"req-read","permissionRequest":{"kind":"read","commands":[]}}}
+{"type":"permission.completed","timestamp":"2026-01-01T00:00:05Z","data":{"requestId":"req-read","result":{"kind":"approved-for-location"}}}
+{"type":"permission.requested","timestamp":"2026-01-01T00:00:06Z","data":{"requestId":"req-pending","permissionRequest":{"kind":"shell","commands":[{"identifier":"list","readOnly":true}]}}}
+`
+	writeSessionDir(t, root, "session-a",
+		"id: session-a\ncwd: /repo/a\ncreated_at: 2026-01-01T00:00:00Z\nupdated_at: 2026-01-01T00:00:00Z\n",
+		events,
+	)
+
+	t.Run("exact result", func(t *testing.T) {
+		stats, err := CollectPermissionStats(PermissionStatsOptions{Root: root, Results: []string{"denied-no-approval-rule"}})
+		if err != nil {
+			t.Fatalf("CollectPermissionStats() error = %v", err)
+		}
+		if stats.Requests != 1 || len(stats.ByResult) != 1 || stats.ByResult[0].Key != "denied-no-approval-rule" {
+			t.Fatalf("Requests/ByResult = %d/%+v, want exact denied variant", stats.Requests, stats.ByResult)
+		}
+	})
+
+	t.Run("read-only command access", func(t *testing.T) {
+		stats, err := CollectPermissionStats(PermissionStatsOptions{Root: root, CommandAccess: []string{"read-only"}})
+		if err != nil {
+			t.Fatalf("CollectPermissionStats() error = %v", err)
+		}
+		if stats.Requests != 2 || len(stats.ByReadOnly) != 2 ||
+			stats.ByReadOnly[0].Key != "read-only" || stats.ByReadOnly[0].Total != 2 ||
+			stats.ByReadOnly[1].Key != "read-write" || stats.ByReadOnly[1].Total != 1 {
+			t.Fatalf("Requests/ByReadOnly = %d/%+v, want the mixed and pending requests, preserving both command classifications", stats.Requests, stats.ByReadOnly)
+		}
+	})
+
+	t.Run("filters combine", func(t *testing.T) {
+		stats, err := CollectPermissionStats(PermissionStatsOptions{
+			Root: root, Results: []string{"approved"}, CommandAccess: []string{"read-only"},
+		})
+		if err != nil {
+			t.Fatalf("CollectPermissionStats() error = %v", err)
+		}
+		if stats.Requests != 1 || len(stats.ByResult) != 1 || stats.ByResult[0].Key != "approved" {
+			t.Fatalf("Requests/ByResult = %d/%+v, want only the approved mixed request", stats.Requests, stats.ByResult)
+		}
+	})
+
+	for _, opts := range []PermissionStatsOptions{
+		{Root: root, Results: []string{""}},
+		{Root: root, CommandAccess: []string{"read"}},
+	} {
+		if _, err := CollectPermissionStats(opts); err == nil {
+			t.Fatalf("CollectPermissionStats(%+v) error = nil, want validation error", opts)
+		}
+	}
 }
 
 func TestCollectPermissionStatsTop(t *testing.T) {

@@ -24,6 +24,10 @@ type SessionScope struct {
 	UnderDir string
 }
 
+func (f *permissionFilters) matchesResult(result string) bool {
+	return len(f.results) == 0 || f.results[result]
+}
+
 // normalizePath resolves path to an absolute, symlink-free form so that scope comparisons
 // are not fooled by relative paths or OS symlinks (e.g. macOS's /tmp -> /private/tmp).
 // It falls back to the cleaned absolute path when the path does not exist yet.
@@ -133,6 +137,12 @@ type PermissionStatsOptions struct {
 	// AgentMode, when non-empty, restricts to requests whose recorded agent mode
 	// exactly matches any of these values. Missing or invalid modes are "unknown".
 	AgentMode []string
+	// Results, when non-empty, restricts to requests whose recorded result exactly
+	// matches any of these values.
+	Results []string
+	// CommandAccess, when non-empty, restricts to requests containing a command whose
+	// read-only classification matches any of these values ("read-only" or "read-write").
+	CommandAccess []string
 	// UsageByAgentMode, when true and AgentMode is non-empty, restricts the session usage
 	// aggregates to sessions with at least one in-window permission request whose recorded
 	// agent mode matches AgentMode. Usage records carry no agent mode, so every usage record
@@ -433,7 +443,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 			if !opts.Until.IsZero() && !rec.Request.RequestedAt.Before(opts.Until) {
 				continue
 			}
-			if !filters.matches(rec.Request) {
+			if !filters.matches(rec.Request) || !filters.matchesResult(rec.Result) {
 				continue
 			}
 			if !filters.matchesDecisionSource(rec.DecisionSource) {
@@ -506,6 +516,8 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 type permissionFilters struct {
 	operations      map[string]bool
 	agentModes      map[string]bool
+	results         map[string]bool
+	commandAccess   map[string]bool
 	kinds           map[string]bool
 	decisionSources map[string]bool
 	commands        map[string]bool
@@ -533,6 +545,23 @@ func newPermissionFilters(opts PermissionStatsOptions) (*permissionFilters, erro
 			}
 		}
 		f.agentModes = toSet(opts.AgentMode)
+	}
+	if len(opts.Results) > 0 {
+		for _, result := range opts.Results {
+			if result == "" {
+				return nil, fmt.Errorf("invalid result %q: value must not be empty", result)
+			}
+		}
+		f.results = toSet(opts.Results)
+	}
+	if len(opts.CommandAccess) > 0 {
+		f.commandAccess = make(map[string]bool, len(opts.CommandAccess))
+		for _, access := range opts.CommandAccess {
+			if access != "read-only" && access != "read-write" {
+				return nil, fmt.Errorf("invalid command access %q: want %q or %q", access, "read-only", "read-write")
+			}
+			f.commandAccess[access] = true
+		}
 	}
 	if len(opts.Kind) > 0 {
 		f.kinds = toSet(opts.Kind)
@@ -591,6 +620,18 @@ func (f *permissionFilters) matches(req PermissionRequest) bool {
 	}
 	if !f.matchesAgentMode(req.AgentMode) {
 		return false
+	}
+	if len(f.commandAccess) > 0 {
+		matched := false
+		for _, command := range req.Commands {
+			if f.commandAccess[readOnlyKey(command.ReadOnly)] {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
 	}
 	if len(f.kinds) > 0 && !f.kinds[req.Kind] {
 		return false
