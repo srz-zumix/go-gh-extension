@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -236,6 +237,51 @@ func TestCollectPermissionStatsLiveUsageScopeAndTime(t *testing.T) {
 			}
 			if test.want > 0 && len(stats.ByRoleUsage) != 2 {
 				t.Fatalf("roles = %+v, want both roles regardless of top limit", stats.ByRoleUsage)
+			}
+		})
+	}
+}
+
+func TestCollectPermissionStatsUsageByAgentMode(t *testing.T) {
+	root := t.TempDir()
+	usage := usageRecordEvent(t, "main", "model-a", "user", "root", 2000000000)
+	request := func(id, mode, at string) string {
+		return `{"type":"permission.requested","timestamp":"` + at + `","data":{"requestId":"` + id +
+			`","agentMode":"` + mode + `","permissionRequest":{"kind":"write"}}}` + "\n"
+	}
+	writeSessionDir(t, root, "session-plan", "id: session-plan\ncwd: /repo/a\n",
+		request("p", "plan", "2026-01-01T01:30:00Z")+usage)
+	writeSessionDir(t, root, "session-auto", "id: session-auto\ncwd: /repo/b\n",
+		request("a", "autopilot", "2026-01-01T01:30:00Z")+usage)
+	writeSessionDir(t, root, "session-late", "id: session-late\ncwd: /repo/c\n",
+		request("l", "plan", "2026-01-01T03:00:00Z")+usage)
+	writeSessionDir(t, root, "session-none", "id: session-none\ncwd: /repo/d\n", usage)
+	for _, test := range []struct {
+		name string
+		opts PermissionStatsOptions
+		want []string
+	}{
+		{"disabled keeps every session", PermissionStatsOptions{AgentMode: []string{"plan"}}, []string{"/repo/a", "/repo/b", "/repo/c", "/repo/d"}},
+		{"no mode filter keeps every session", PermissionStatsOptions{UsageByAgentMode: true}, []string{"/repo/a", "/repo/b", "/repo/c", "/repo/d"}},
+		{"plan", PermissionStatsOptions{AgentMode: []string{"plan"}, UsageByAgentMode: true}, []string{"/repo/a", "/repo/c"}},
+		{"multiple modes", PermissionStatsOptions{AgentMode: []string{"plan", "autopilot"}, UsageByAgentMode: true}, []string{"/repo/a", "/repo/b", "/repo/c"}},
+		{"other filters do not apply", PermissionStatsOptions{AgentMode: []string{"plan"}, Kind: []string{"read"}, UsageByAgentMode: true}, []string{"/repo/a", "/repo/c"}},
+		{"request window", PermissionStatsOptions{AgentMode: []string{"plan"}, Until: time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC), UsageByAgentMode: true}, []string{"/repo/a"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			test.opts.Root = root
+			stats, err := CollectPermissionStats(test.opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := make([]string, 0, len(stats.ByCWDUsage))
+			for _, entry := range stats.ByCWDUsage {
+				got = append(got, entry.Key)
+			}
+			sort.Strings(got)
+			if strings.Join(got, ",") != strings.Join(test.want, ",") || stats.UsageSessions != len(test.want) ||
+				stats.UsageAIU != float64(len(test.want))*2 {
+				t.Fatalf("usage sessions = %v (stats %+v), want %v", got, stats, test.want)
 			}
 		})
 	}
