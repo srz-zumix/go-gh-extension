@@ -265,7 +265,13 @@ func (g *GitHubClient) GetPullRequestComment(ctx context.Context, owner string, 
 	return comment, nil
 }
 
+// CreatePullRequestComment uses a reply-only payload when InReplyTo is set.
+// GitHub validates commit_id and path if they are sent, even for replies.
 func (g *GitHubClient) CreatePullRequestComment(ctx context.Context, owner string, repo string, number int, comment *github.CreatePullRequestCommentRequest) (*github.PullRequestComment, error) {
+	if comment.InReplyTo != nil {
+		created, _, err := g.client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, number, comment.Body, *comment.InReplyTo)
+		return created, err
+	}
 	created, _, err := g.client.PullRequests.CreateComment(ctx, owner, repo, number, *comment)
 	if err != nil {
 		return nil, err

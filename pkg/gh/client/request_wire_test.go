@@ -88,22 +88,91 @@ func TestAddOrUpdateTeamMembership_EmptyRoleIsOmitted(t *testing.T) {
 	assert.NotContains(t, cap.body, "role")
 }
 
-func TestCreatePullRequestComment_SendsInReplyTo(t *testing.T) {
-	var cap captureRequest
-	g := newTestClient(t, "https://api.github.com/", newCaptureTransport(t, &cap))
+func TestCreatePullRequestComment_RequestPayload(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		comment github.CreatePullRequestCommentRequest
+		want    map[string]any
+	}{
+		{
+			name: "new comment",
+			comment: github.CreatePullRequestCommentRequest{
+				Body: "review body", CommitID: strings.Repeat("0", 40), Path: "example.go",
+				Line: github.Ptr(5), Side: github.Ptr("RIGHT"),
+			},
+			want: map[string]any{
+				"body": "review body", "commit_id": strings.Repeat("0", 40), "path": "example.go",
+				"line": float64(5), "side": "RIGHT",
+			},
+		},
+		{
+			name:    "reply without commit or path",
+			comment: github.CreatePullRequestCommentRequest{Body: "reply body", InReplyTo: github.Ptr(int64(42))},
+			want:    map[string]any{"body": "reply body", "in_reply_to": float64(42)},
+		},
+		{
+			name: "reply ignores creation fields",
+			comment: github.CreatePullRequestCommentRequest{
+				Body: "reply body", InReplyTo: github.Ptr(int64(42)),
+				CommitID: strings.Repeat("0", 40), Path: "example.go",
+				Line: github.Ptr(5), Side: github.Ptr("RIGHT"),
+			},
+			want: map[string]any{"body": "reply body", "in_reply_to": float64(42)},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var cap captureRequest
+			g := newTestClient(t, "https://api.github.com/", newCaptureTransport(t, &cap))
+			before, err := json.Marshal(tt.comment)
+			require.NoError(t, err)
 
-	_, err := g.CreatePullRequestComment(t.Context(), "example-org", "example-repo", 7, &github.CreatePullRequestCommentRequest{
-		Body:      "reply body",
-		CommitID:  "0000000000000000000000000000000000000000",
-		Path:      "README.md",
-		InReplyTo: github.Ptr(int64(42)),
-	})
-	require.NoError(t, err)
-	assert.Equal(t, http.MethodPost, cap.method)
-	assert.Equal(t, "/repos/example-org/example-repo/pulls/7/comments", cap.path)
-	assert.Equal(t, "reply body", cap.body["body"])
-	assert.Equal(t, float64(42), cap.body["in_reply_to"])
-	assert.NotContains(t, cap.body, "position")
+			_, err = g.CreatePullRequestComment(t.Context(), "example-org", "example-repo", 7, &tt.comment)
+			require.NoError(t, err)
+			assert.Equal(t, http.MethodPost, cap.method)
+			assert.Equal(t, "/repos/example-org/example-repo/pulls/7/comments", cap.path)
+			assert.Equal(t, tt.want, cap.body)
+			after, err := json.Marshal(tt.comment)
+			require.NoError(t, err)
+			assert.JSONEq(t, string(before), string(after))
+		})
+	}
+}
+
+func TestCreatePullRequestComment_ReplyResponse(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"created", http.StatusCreated, `{"id":99,"body":"reply body","html_url":"https://example.test/reply"}`},
+		{"API error", http.StatusUnprocessableEntity, `{"message":"invalid reply"}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := newTestClient(t, "https://api.github.com/", roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: tt.status,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(tt.body)),
+					Request:    r,
+				}, nil
+			}))
+			got, err := g.CreatePullRequestComment(t.Context(), "example-org", "example-repo", 7,
+				&github.CreatePullRequestCommentRequest{Body: "reply body", InReplyTo: github.Ptr(int64(42))})
+			if tt.status == http.StatusUnprocessableEntity {
+				var apiErr *github.ErrorResponse
+				require.ErrorAs(t, err, &apiErr)
+				assert.Equal(t, tt.status, apiErr.Response.StatusCode)
+				assert.Equal(t, "invalid reply", apiErr.Message)
+				assert.Nil(t, got)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Equal(t, int64(99), got.GetID())
+			assert.Equal(t, "reply body", got.GetBody())
+			assert.Equal(t, "https://example.test/reply", got.GetHTMLURL())
+		})
+	}
 }
 
 func TestEditPullRequestComment_SendsBodyOnly(t *testing.T) {
