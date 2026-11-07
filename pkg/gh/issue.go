@@ -275,6 +275,9 @@ func GetCommentID(comment any) (int64, error) {
 	case *github.PullRequestComment:
 		return c.GetID(), nil
 	case *CopilotAttributedPullRequestComment:
+		if c == nil {
+			return 0, nil
+		}
 		return c.GetID(), nil
 	case int64:
 		return c, nil
@@ -308,6 +311,11 @@ func GetCommentNodeID(comment any) (string, error) {
 	case *github.IssueComment:
 		return c.GetNodeID(), nil
 	case *github.PullRequestComment:
+		return c.GetNodeID(), nil
+	case *CopilotAttributedPullRequestComment:
+		if c == nil {
+			return "", nil
+		}
 		return c.GetNodeID(), nil
 	case string:
 		return c, nil
