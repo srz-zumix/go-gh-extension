@@ -274,6 +274,8 @@ func GetCommentID(comment any) (int64, error) {
 		return c.GetID(), nil
 	case *github.PullRequestComment:
 		return c.GetID(), nil
+	case *CopilotAttributedPullRequestComment:
+		return c.GetID(), nil
 	case int64:
 		return c, nil
 	}
