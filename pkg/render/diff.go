@@ -31,6 +31,9 @@ func (r *Renderer) RenderDiff(diff any, left, right any, commandBuilder DiffComm
 	}
 
 	diffLines := getDiffLines(diff, left, right, commandBuilder)
+	if diffLines == "" {
+		return nil
+	}
 	if r.Color {
 		diffLines = colorizeDiff(diffLines)
 	}
