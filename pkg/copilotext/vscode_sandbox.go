@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/srz-zumix/go-gh-extension/pkg/logger"
@@ -78,6 +79,9 @@ func readVSCodeTerminalExecutions(path string) (executions []vscodeTerminalExecu
 		}
 		recordSandboxWrapped(value, explicit)
 		root = applyVSCodeChatPatch(root, patch, value)
+		// A nested patch (e.g. setting only isSandboxWrapped) carries no toolCallId in
+		// its value; record the state of every invocation along the patched path.
+		recordSandboxWrappedAlongPath(root, patch.K, explicit)
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("failed to read %q: %w", path, err)
@@ -154,6 +158,66 @@ func recordSandboxWrapped(value any, explicit map[string]bool) {
 			recordSandboxWrapped(child, explicit)
 		}
 	}
+}
+
+// recordSandboxWrappedAlongPath stores the explicitly recorded sandbox state of every
+// tool invocation on the path from root through k, so nested patches that update
+// isSandboxWrapped without the owning toolCallId are not lost.
+func recordSandboxWrappedAlongPath(root any, k []any, explicit map[string]bool) {
+	node := root
+	for _, segment := range k {
+		node = jsonChild(node, segment)
+		if node == nil {
+			return
+		}
+		if callID, ok := jsonField(node, "toolCallId").(string); ok && callID != "" {
+			if wrapped, ok := sandboxWrapped(node); ok {
+				explicit[callID] = wrapped
+			}
+		}
+	}
+}
+
+// listVSCodeChatSessions returns the sessions that have a chatSessions JSONL file under
+// root, regardless of whether a debug-logs directory exists for them.
+func listVSCodeChatSessions(root string) ([]VSCodeSession, error) {
+	hashEntries, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to list workspace storage directory %q: %w", root, err)
+	}
+	var sessions []VSCodeSession
+	for _, h := range hashEntries {
+		if !h.IsDir() {
+			continue
+		}
+		hashDir := filepath.Join(root, h.Name())
+		chatDir := filepath.Join(hashDir, "chatSessions")
+		entries, err := os.ReadDir(chatDir)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				logger.Warn("skipping unreadable chatSessions directory", "dir", chatDir, "error", err)
+			}
+			continue
+		}
+		folder, err := readWorkspaceFolder(hashDir)
+		if err != nil {
+			logger.Warn("unable to read workspace.json; sessions will have no folder attribution", "dir", hashDir, "error", err)
+		}
+		for _, e := range entries {
+			if !e.Type().IsRegular() || filepath.Ext(e.Name()) != ".jsonl" {
+				continue
+			}
+			sessions = append(sessions, VSCodeSession{
+				ID:            strings.TrimSuffix(e.Name(), ".jsonl"),
+				WorkspaceHash: h.Name(),
+				Folder:        folder,
+			})
+		}
+	}
+	return sessions, nil
 }
 
 // applyVSCodeChatPatch applies patch (with decoded value) to root and returns the new root.

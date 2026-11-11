@@ -308,3 +308,39 @@ func TestCollectVSCodeStatsSandbox(t *testing.T) {
 		t.Fatalf("windowed Sandbox = %+v, want only call-2", stats.Sandbox)
 	}
 }
+
+func TestReadVSCodeTerminalExecutionsNestedSandboxPatch(t *testing.T) {
+	hashDir := t.TempDir()
+	writeChatSession(t, hashDir, "s", `{"kind":0,"v":{"requests":[{"timestamp":1000,"response":[{"toolId":"run_in_terminal","toolCallId":"call-1","toolSpecificData":{"commandLine":{"isSandboxWrapped":false}}}]}]}}
+{"kind":1,"k":["requests",0,"response",0,"toolSpecificData","commandLine","isSandboxWrapped"],"v":true}
+{"kind":2,"k":["requests",0,"response"],"i":0,"v":[{"toolId":"run_in_terminal","toolCallId":"call-1"}]}
+`)
+	got, err := readVSCodeTerminalExecutions(filepath.Join(hashDir, "chatSessions", "s.jsonl"))
+	if err != nil {
+		t.Fatalf("readVSCodeTerminalExecutions() error = %v", err)
+	}
+	if len(got) != 1 || got[0].state != SandboxApplied {
+		t.Fatalf("executions = %+v, want one applied execution", got)
+	}
+}
+
+func TestCollectVSCodeStatsSandboxWithoutDebugLog(t *testing.T) {
+	root := t.TempDir()
+	hashA := writeVSCodeWorkspace(t, root, "hash-a", `{"folder":"file:///repo/a"}`)
+	writeChatSession(t, hashA, "chat-only", chatPatches)
+
+	stats, err := CollectVSCodeStats(VSCodeStatsOptions{Root: root})
+	if err != nil {
+		t.Fatalf("CollectVSCodeStats() error = %v", err)
+	}
+	if stats.Sandbox.Sessions != 1 || stats.Sandbox.Executions != 3 {
+		t.Fatalf("Sandbox = %+v, want 3 executions from the chat-only session", stats.Sandbox)
+	}
+	stats, err = CollectVSCodeStats(VSCodeStatsOptions{Root: root, SessionID: "other"})
+	if err != nil {
+		t.Fatalf("CollectVSCodeStats() error = %v", err)
+	}
+	if stats.Sandbox.Executions != 0 {
+		t.Fatalf("Sandbox = %+v, want none for a different session ID", stats.Sandbox)
+	}
+}

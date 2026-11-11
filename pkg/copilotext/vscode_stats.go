@@ -437,17 +437,30 @@ func CollectVSCodeStats(opts VSCodeStatsOptions) (*VSCodeStats, error) {
 		stats.LogDetails = &VSCodeLogDataset{Version: 1, Sessions: []VSCodeSessionDetails{}}
 	}
 
-	for _, s := range sessions {
+	// chatSessions are written independently of debug logs, so discover them separately
+	// and read them regardless of the debug-log modification time gate below.
+	chatSessions, err := listVSCodeChatSessions(root)
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range chatSessions {
 		if opts.SessionID != "" && s.ID != opts.SessionID {
 			continue
 		}
 		if !opts.Scope.matches(s.Folder) {
 			continue
 		}
-		// chatSessions are written independently of debug logs, so read them before the
-		// debug-log modification time gate below.
 		if err := collectVSCodeSandbox(vscodeChatSessionPath(root, s), opts, sandboxFilter, stats.Sandbox, sandboxByTool); err != nil {
 			return nil, err
+		}
+	}
+
+	for _, s := range sessions {
+		if opts.SessionID != "" && s.ID != opts.SessionID {
+			continue
+		}
+		if !opts.Scope.matches(s.Folder) {
+			continue
 		}
 		if !opts.Since.IsZero() && !s.ModifiedAt.IsZero() && s.ModifiedAt.Before(opts.Since) {
 			continue
