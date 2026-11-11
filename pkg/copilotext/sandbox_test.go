@@ -1,8 +1,10 @@
 package copilotext
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -107,6 +109,118 @@ func TestToolExecutionCollectorAmbiguousFallback(t *testing.T) {
 	}
 	if got := ec.sandboxFor("sub-2", "tc-1"); got != SandboxApplied {
 		t.Fatalf("sandboxFor() exact = %q, want applied", got)
+	}
+}
+
+func TestCollectPermissionStatsDoesNotMatchAnotherAgentsUnfinishedExecution(t *testing.T) {
+	root := t.TempDir()
+	writeSessionDir(t, root, "session-a",
+		"id: session-a\ncwd: /work/example\n",
+		`{"type":"tool.execution_start","agentId":"child-a","timestamp":"2026-01-02T02:00:00Z","data":{"toolCallId":"shared","toolName":"bash"}}
+{"type":"tool.execution_start","agentId":"child-b","timestamp":"2026-01-02T02:00:00Z","data":{"toolCallId":"shared","toolName":"bash"}}
+{"type":"permission.requested","agentId":"child-b","timestamp":"2026-01-02T02:05:00Z","data":{"requestId":"req","permissionRequest":{"kind":"shell","toolCallId":"shared"}}}
+{"type":"tool.execution_complete","agentId":"child-a","timestamp":"2026-01-02T03:00:00Z","data":{"toolCallId":"shared","toolTelemetry":{"properties":{"sandboxApplied":true}}}}
+`)
+	applied, err := CollectPermissionStats(PermissionStatsOptions{Root: root, Sandbox: []string{SandboxApplied}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if applied.Requests != 0 || applied.Sandbox.Executions != 1 {
+		t.Fatalf("unfinished request matched another agent's completion: %+v", applied)
+	}
+	unknown, err := CollectPermissionStats(PermissionStatsOptions{Root: root, Sandbox: []string{SandboxUnknown}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unknown.Requests != 1 {
+		t.Fatalf("unfinished request should remain unknown: %+v", unknown)
+	}
+}
+
+func TestSandboxActivityCollectorCorrelatesAllDistinctRequests(t *testing.T) {
+	c := NewSandboxActivityCollector(Session{})
+	observe := func(kind, agent, timestamp, data string) {
+		t.Helper()
+		c.Observe(kind, agent, json.RawMessage(timestamp), json.RawMessage(data))
+	}
+	observe("permission.requested", "", `"invalid"`, `{"requestId":"req-plan","agentMode":"plan","permissionRequest":{"toolCallId":"unique"}}`)
+	observe("tool.execution_complete", "child-a", `"2026-01-02T03:00:00Z"`, `{"toolCallId":"unique","toolTelemetry":{"properties":{"sandboxApplied":true}}}`)
+	observe("permission.requested", "", `"2026-01-02T04:00:00Z"`, `{"requestId":"req-interactive","agentMode":"interactive","permissionRequest":{"toolCallId":"unique"}}`)
+	observe("permission.requested", "", `"2026-01-02T04:01:00Z"`, `{"requestId":"req-plan","agentMode":"replaced","permissionRequest":{"toolCallId":"unique"}}`)
+	observe("tool.execution_complete", "child-a", `"2026-01-02T04:00:00Z"`, `{"toolCallId":"shared","toolTelemetry":{"properties":{"sandboxApplied":true}}}`)
+	observe("tool.execution_complete", "child-b", `"2026-01-02T04:01:00Z"`, `{"toolCallId":"shared","toolTelemetry":{"properties":{"sandboxApplied":false}}}`)
+	observe("permission.requested", "", `"2026-01-02T04:02:00Z"`, `{"requestId":"ambiguous","agentMode":"ignored","permissionRequest":{"toolCallId":"shared"}}`)
+	observe("permission.requested", "child-b", `"2026-01-02T04:03:00Z"`, `{"requestId":"exact","agentMode":null,"permissionRequest":{"toolCallId":"shared"}}`)
+	observe("tool.execution_start", "", `"invalid"`, `{"toolCallId":"null-telemetry","toolName":"powershell"}`)
+	observe("tool.execution_complete", "", `"2026-01-02T05:00:00Z"`, `{"toolCallId":"null-telemetry","toolTelemetry":{"properties":{"sandboxApplied":null}}}`)
+	observe("tool.execution_start", "", `"2026-01-02T05:01:00Z"`, `{"toolCallId":"unfinished","toolName":"bash"}`)
+	observe("tool.execution_start", "", `"2026-01-02T05:02:00Z"`, `{"toolCallId":"irrelevant","toolName":"view"}`)
+	observe("tool.execution_complete", "", `"2026-01-02T05:03:00Z"`, `{"toolCallId":"irrelevant"}`)
+
+	records := c.Records()
+	if len(records) != 4 {
+		t.Fatalf("completed sandbox executions = %+v, want 4", records)
+	}
+	if records[0].State != SandboxApplied || !reflect.DeepEqual(records[0].AgentModes, []string{"interactive", "plan"}) {
+		t.Fatalf("unique fallback and first request snapshots = %+v", records[0])
+	}
+	if len(records[1].AgentModes) != 0 || !reflect.DeepEqual(records[2].AgentModes, []string{"unknown"}) {
+		t.Fatalf("ambiguous and exact request identities = %+v", records[1:3])
+	}
+	if records[3].State != SandboxUnknown || records[3].CompletedAt.IsZero() || len(records[3].AgentModes) != 0 {
+		t.Fatalf("malformed start timestamp and null outcome = %+v", records[3])
+	}
+}
+
+func TestSandboxActivityCollectorDoesNotLinkUnfinishedOrAmbiguousExecutions(t *testing.T) {
+	c := NewSandboxActivityCollector(Session{})
+	observe := func(kind, agent, data string) {
+		t.Helper()
+		c.Observe(kind, agent, json.RawMessage(`"2026-01-02T03:00:00Z"`), json.RawMessage(data))
+	}
+	observe("tool.execution_start", "child-a", `{"toolCallId":"shared","toolName":"bash"}`)
+	observe("permission.requested", "child-b", `{"requestId":"unfinished-plan","agentMode":"plan","permissionRequest":{"toolCallId":"shared"}}`)
+	observe("permission.requested", "child-b", `{"requestId":"unfinished-unknown","permissionRequest":{"toolCallId":"shared"}}`)
+	observe("permission.requested", "", `{"requestId":"ambiguous","agentMode":"interactive","permissionRequest":{"toolCallId":"shared"}}`)
+	observe("permission.requested", "child-a", `{"requestId":"exact","agentMode":"exact","permissionRequest":{"toolCallId":"shared"}}`)
+	observe("tool.execution_complete", "child-a", `{"toolCallId":"shared","toolTelemetry":{"properties":{"sandboxApplied":true}}}`)
+	observe("tool.execution_start", "child-b", `{"toolCallId":"shared","toolName":"bash"}`)
+
+	records := c.Records()
+	if len(records) != 1 || !reflect.DeepEqual(records[0].AgentModes, []string{"exact"}) {
+		t.Fatalf("unfinished or ambiguous requests linked to another execution: %+v", records)
+	}
+	if got := c.executions.sandboxFor("child-b", "shared"); got != SandboxUnknown {
+		t.Fatalf("unfinished execution resolved to state %q, want unknown", got)
+	}
+}
+
+func TestSandboxActivityCollectorUntimedCompletionDoesNotSuppressLaterTimestamp(t *testing.T) {
+	for _, timestamp := range []string{"", "null", `"invalid"`, `"0001-01-01T00:00:00Z"`} {
+		t.Run(timestamp, func(t *testing.T) {
+			c := NewSandboxActivityCollector(Session{})
+			c.Observe("tool.execution_start", "", json.RawMessage(`"invalid"`),
+				json.RawMessage(`{"toolCallId":"call-a","toolName":"bash"}`))
+			c.Observe("tool.execution_complete", "", json.RawMessage(timestamp),
+				json.RawMessage(`{"toolCallId":"call-a","toolTelemetry":{"properties":{"sandboxApplied":false}}}`))
+			c.Observe("tool.execution_complete", "", json.RawMessage(`"2026-01-02T03:00:00Z"`),
+				json.RawMessage(`{"toolCallId":"call-a","toolTelemetry":{"properties":{"sandboxApplied":true}}}`))
+			c.Observe("tool.execution_complete", "", json.RawMessage(`"2026-01-02T04:00:00Z"`),
+				json.RawMessage(`{"toolCallId":"call-a","toolTelemetry":{"properties":{"sandboxApplied":false}}}`))
+			records := c.Records()
+			want := time.Date(2026, 1, 2, 3, 0, 0, 0, time.UTC)
+			if len(records) != 1 || records[0].State != SandboxApplied || !records[0].CompletedAt.Equal(want) {
+				t.Fatalf("duplicate completion records = %+v", records)
+			}
+		})
+	}
+
+	c := NewSandboxActivityCollector(Session{})
+	c.Observe("tool.execution_start", "", nil, json.RawMessage(`{"toolCallId":"untimed","toolName":"bash"}`))
+	c.Observe("tool.execution_complete", "", json.RawMessage(`"invalid"`), json.RawMessage(`{"toolCallId":"untimed"}`))
+	records := c.Records()
+	if len(records) != 1 || records[0].State != SandboxUnknown || !records[0].CompletedAt.IsZero() {
+		t.Fatalf("untimed completion = %+v", records)
 	}
 }
 

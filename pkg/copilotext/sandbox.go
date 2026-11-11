@@ -1,6 +1,7 @@
 package copilotext
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -153,6 +154,7 @@ type toolExecutionCompletion struct {
 
 // toolExecutionRecord is one completed tool execution relevant to sandbox accounting.
 type toolExecutionRecord struct {
+	key         toolExecutionKey
 	tool        string
 	state       string
 	optOut      bool
@@ -188,7 +190,7 @@ type rawToolExecutionEvent struct {
 
 // telemetryBool decodes a telemetry property recorded as "true"/"false" or a JSON bool.
 func telemetryBool(raw json.RawMessage) (value, ok bool) {
-	if len(raw) == 0 {
+	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return false, false
 	}
 	var b bool
@@ -220,6 +222,11 @@ func (ec *toolExecutionCollector) handle(ev rawEvent) {
 		return
 	}
 	key := toolExecutionKey{agentID: ev.AgentID, toolCallID: data.ToolCallID}
+	_, started := ec.tools[key]
+	_, completed := ec.completions[key]
+	if !started && !completed {
+		ec.byCallID[key.toolCallID] = append(ec.byCallID[key.toolCallID], key)
+	}
 	if ev.Type == "tool.execution_start" {
 		if _, exists := ec.tools[key]; !exists {
 			ec.tools[key] = data.ToolName
@@ -239,22 +246,35 @@ func (ec *toolExecutionCollector) handle(ev rawEvent) {
 	completion.optOut, _ = telemetryBool(data.ToolTelemetry.Properties["sandboxOptOutRequested"])
 	ec.completions[key] = completion
 	ec.order = append(ec.order, key)
-	ec.byCallID[key.toolCallID] = append(ec.byCallID[key.toolCallID], key)
+}
+
+// completionKey resolves a request to an exact or uniquely identified completed execution.
+func (ec *toolExecutionCollector) completionKey(agentID, toolCallID string) (toolExecutionKey, bool) {
+	if toolCallID == "" {
+		return toolExecutionKey{}, false
+	}
+	key := toolExecutionKey{agentID: agentID, toolCallID: toolCallID}
+	if _, ok := ec.completions[key]; ok {
+		return key, true
+	}
+	if _, ok := ec.tools[key]; ok {
+		return toolExecutionKey{}, false
+	}
+	if keys := ec.byCallID[toolCallID]; len(keys) == 1 {
+		if _, ok := ec.completions[keys[0]]; ok {
+			return keys[0], true
+		}
+	}
+	return toolExecutionKey{}, false
 }
 
 // sandboxFor resolves the sandbox state of the execution a permission request belongs to.
-// The exact (agentID, toolCallID) match wins; otherwise a toolCallID completed by exactly
-// one agent of the session is used, since requests are sometimes logged without the
-// subagent identity that runs the tool.
+// The exact (agentID, toolCallID) match wins; otherwise a toolCallID observed for
+// exactly one execution in the session is used if it completed. Requests are sometimes
+// logged without the subagent identity that runs the tool.
 func (ec *toolExecutionCollector) sandboxFor(agentID, toolCallID string) string {
-	if toolCallID == "" {
-		return SandboxUnknown
-	}
-	if c, ok := ec.completions[toolExecutionKey{agentID: agentID, toolCallID: toolCallID}]; ok {
-		return c.state
-	}
-	if keys := ec.byCallID[toolCallID]; len(keys) == 1 {
-		return ec.completions[keys[0]].state
+	if key, ok := ec.completionKey(agentID, toolCallID); ok {
+		return ec.completions[key].state
 	}
 	return SandboxUnknown
 }
@@ -272,7 +292,90 @@ func (ec *toolExecutionCollector) records() []toolExecutionRecord {
 		if tool == "" {
 			tool = "unknown"
 		}
-		records = append(records, toolExecutionRecord{tool: tool, state: c.state, optOut: c.optOut, completedAt: c.at})
+		records = append(records, toolExecutionRecord{key: key, tool: tool, state: c.state, optOut: c.optOut, completedAt: c.at})
+	}
+	return records
+}
+
+// SandboxActivityExecution describes one completed sandbox-relevant execution and the
+// Agent modes recorded on its associated permission requests.
+type SandboxActivityExecution struct {
+	State       string
+	CompletedAt time.Time
+	AgentModes  []string
+}
+
+// SandboxActivityCollector gathers sandbox executions and their permission-request modes
+// from one session's event stream.
+type SandboxActivityCollector struct {
+	requests           *permissionCollector
+	executions         *toolExecutionCollector
+	untimedCompletions []rawEvent
+}
+
+// NewSandboxActivityCollector creates an empty collector for a single session.
+func NewSandboxActivityCollector(s Session) *SandboxActivityCollector {
+	return &SandboxActivityCollector{
+		requests: newPermissionCollector(s), executions: newToolExecutionCollector(s),
+	}
+}
+
+// Observe adds an event with its raw timestamp and data to the session collector.
+func (c *SandboxActivityCollector) Observe(eventType, agentID string, timestamp, data json.RawMessage) {
+	var at time.Time
+	if len(timestamp) > 0 {
+		if err := json.Unmarshal(timestamp, &at); err != nil {
+			at = time.Time{}
+		}
+	}
+	ev := rawEvent{Type: eventType, AgentID: agentID, Timestamp: at, Data: data}
+	switch eventType {
+	case "permission.requested":
+		c.requests.handle(ev)
+	case "tool.execution_start":
+		c.executions.handle(ev)
+	case "tool.execution_complete":
+		if at.IsZero() {
+			ev.Data = append(json.RawMessage(nil), data...)
+			c.untimedCompletions = append(c.untimedCompletions, ev)
+			return
+		}
+		c.executions.handle(ev)
+	}
+}
+
+// Records returns completed executions after all session events have been observed.
+func (c *SandboxActivityCollector) Records() []SandboxActivityExecution {
+	// Missing or malformed timestamps contribute to untimed coverage only when no usable completion
+	// for the same execution was recorded.
+	for _, ev := range c.untimedCompletions {
+		c.executions.handle(ev)
+	}
+	modesByExecution := make(map[toolExecutionKey]map[string]struct{})
+	for _, key := range c.requests.order {
+		request := c.requests.requests[key]
+		executionKey, ok := c.executions.completionKey(key.agentID, request.ToolCallID)
+		if !ok {
+			continue
+		}
+		modes := modesByExecution[executionKey]
+		if modes == nil {
+			modes = make(map[string]struct{})
+			modesByExecution[executionKey] = modes
+		}
+		modes[recordedModeKey(request.AgentMode)] = struct{}{}
+	}
+	executions := c.executions.records()
+	records := make([]SandboxActivityExecution, 0, len(executions))
+	for _, execution := range executions {
+		modes := make([]string, 0, len(modesByExecution[execution.key]))
+		for mode := range modesByExecution[execution.key] {
+			modes = append(modes, mode)
+		}
+		sort.Strings(modes)
+		records = append(records, SandboxActivityExecution{
+			State: execution.state, CompletedAt: execution.completedAt, AgentModes: modes,
+		})
 	}
 	return records
 }
