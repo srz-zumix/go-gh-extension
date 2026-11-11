@@ -40,6 +40,10 @@ type VSCodeStatsOptions struct {
 	// IncludeLogStats exports untruncated log-level statistics for local projection.
 	// It cannot be combined with Agent.
 	IncludeLogStats bool
+	// Sandbox, when non-empty, restricts the terminal sandbox statistics to executions
+	// whose sandbox state matches any of these values (SandboxApplied, SandboxNotApplied,
+	// or SandboxUnknown). Other activity statistics are never affected.
+	Sandbox []string
 	// Top, when > 0, keeps only the top N entries (by their primary count, then Key) of
 	// each axis. 0 keeps every entry.
 	Top int
@@ -122,7 +126,11 @@ type VSCodeStats struct {
 	ByModel     []VSCodeModelCount
 	ByAgent     []VSCodeAgentCount
 	ByWorkspace []VSCodeWorkspaceCount
-	LogDetails  *VSCodeLogDataset `json:",omitempty"`
+	// Sandbox summarizes terminal tool invocations recorded in chatSessions by sandbox
+	// state. Session ID, directory scope, time bounds (by request time), and the Sandbox
+	// filter apply; Tool, Model, and Agent filters do not.
+	Sandbox    *SandboxStats
+	LogDetails *VSCodeLogDataset `json:",omitempty"`
 }
 
 // VSCodeLogDataset contains normalized activity and invocation provenance, not raw events.
@@ -416,10 +424,15 @@ func CollectVSCodeStats(opts VSCodeStatsOptions) (*VSCodeStats, error) {
 	if err != nil {
 		return nil, err
 	}
+	sandboxFilter, err := newSandboxFilter(opts.Sandbox)
+	if err != nil {
+		return nil, err
+	}
 
 	agg := newVSCodeAggregator()
+	sandboxByTool := newSandboxCounter()
 	questions := &AskUserStats{}
-	stats := &VSCodeStats{Since: opts.Since, Until: opts.Until, Scope: opts.Scope}
+	stats := &VSCodeStats{Since: opts.Since, Until: opts.Until, Scope: opts.Scope, Sandbox: &SandboxStats{}}
 	if opts.IncludeLogStats {
 		stats.LogDetails = &VSCodeLogDataset{Version: 1, Sessions: []VSCodeSessionDetails{}}
 	}
@@ -430,6 +443,11 @@ func CollectVSCodeStats(opts VSCodeStatsOptions) (*VSCodeStats, error) {
 		}
 		if !opts.Scope.matches(s.Folder) {
 			continue
+		}
+		// chatSessions are written independently of debug logs, so read them before the
+		// debug-log modification time gate below.
+		if err := collectVSCodeSandbox(vscodeChatSessionPath(root, s), opts, sandboxFilter, stats.Sandbox, sandboxByTool); err != nil {
+			return nil, err
 		}
 		if !opts.Since.IsZero() && !s.ModifiedAt.IsZero() && s.ModifiedAt.Before(opts.Since) {
 			continue
@@ -638,6 +656,7 @@ func CollectVSCodeStats(opts VSCodeStatsOptions) (*VSCodeStats, error) {
 	stats.ByModel = agg.finishModels(opts.Top)
 	stats.ByAgent = agg.finishAgents(opts.Top)
 	stats.ByWorkspace = agg.finishWorkspaces(opts.Top)
+	stats.Sandbox.ByTool = sandboxByTool.finish(opts.Top)
 	stats.UserQuestions = vscodeQuestionStats(questions)
 
 	return stats, nil

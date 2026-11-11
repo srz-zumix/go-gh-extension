@@ -81,6 +81,9 @@ type PermissionRecord struct {
 	// DecisionSourceHumanResponse or DecisionSourceUnknown.
 	DecisionSource string
 	DecidedAt      time.Time
+	// Sandbox is the sandbox state of the tool execution the request belongs to
+	// (SandboxApplied, SandboxNotApplied, or SandboxUnknown). Empty means unresolved.
+	Sandbox string
 }
 
 // sessionStateRoot returns the directory containing one subdirectory per Copilot CLI
@@ -494,6 +497,7 @@ type sessionActivity struct {
 	usage       SessionUsage
 	usageFound  bool
 	questions   []questionRecord
+	executions  []toolExecutionRecord
 }
 
 // readSessionActivity gathers permission, usage, and question accounting in one scan.
@@ -502,14 +506,24 @@ func readSessionActivity(s Session, since, until time.Time) (sessionActivity, er
 	pc := newPermissionCollector(s)
 	uc := &usageCollector{session: s}
 	qc := newQuestionCollector(s)
+	ec := newToolExecutionCollector(s)
 	err := scanSessionEvents(s, func(ev rawEvent) {
 		pc.handle(ev)
 		uc.handle(ev)
 		qc.handle(ev)
+		ec.handle(ev)
 	})
 	if err != nil {
 		return sessionActivity{}, err
 	}
 	usage, found := uc.resultWithin(since, until)
-	return sessionActivity{permissions: pc.records(), usage: usage, usageFound: found, questions: qc.records()}, nil
+	permissions := pc.records()
+	// records() preserves pc.order, so each record's agent identity is pc.order[i].
+	for i := range permissions {
+		permissions[i].Sandbox = ec.sandboxFor(pc.order[i].agentID, permissions[i].Request.ToolCallID)
+	}
+	return sessionActivity{
+		permissions: permissions, usage: usage, usageFound: found,
+		questions: qc.records(), executions: ec.records(),
+	}, nil
 }

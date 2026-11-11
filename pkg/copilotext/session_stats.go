@@ -165,6 +165,10 @@ type PermissionStatsOptions struct {
 	// any of these regular expressions (a plain substring is also a valid, unanchored
 	// regular expression).
 	URL []string
+	// Sandbox, when non-empty, restricts permission requests and sandbox execution
+	// statistics to tool executions whose sandbox state matches any of these values
+	// (SandboxApplied, SandboxNotApplied, or SandboxUnknown). Usage is never affected.
+	Sandbox []string
 	// Top, when > 0, keeps only the top N entries (by Total, then Key) of each axis.
 	// 0 keeps every entry.
 	Top int
@@ -216,6 +220,8 @@ type PermissionStats struct {
 	ByCWD            []Count
 	// ByAgentMode groups requests by recorded mode, or "unknown" when unavailable.
 	ByAgentMode []Count
+	// BySandbox groups requests by the sandbox state of their tool execution.
+	BySandbox []Count
 
 	// UsageSessions counts sessions with any recorded usage, including active sessions.
 	UsageSessions           int
@@ -233,6 +239,10 @@ type PermissionStats struct {
 	ByRoleUsage             []UsageCount
 	AskUser                 *AskUserStats
 	PermissionWait          *PermissionWaitStats
+	// Sandbox summarizes completed tool executions by sandbox state. Session scope,
+	// time bounds (by completion time), and the Sandbox filter apply; other permission
+	// filters do not.
+	Sandbox *SandboxStats
 }
 
 // counter accumulates Count entries keyed by an arbitrary string, preserving first-seen
@@ -363,6 +373,8 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	byResult := newCounter()
 	byDecisionSource := newCounter()
 	byAgentMode := newCounter()
+	bySandbox := newCounter()
+	sandboxByTool := newSandboxCounter()
 	byKind := newCounter()
 	byReadOnly := newCounter()
 	byCommand := newCounter()
@@ -375,7 +387,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 
 	stats := &PermissionStats{
 		Since: opts.Since, Until: opts.Until, Scope: opts.Scope,
-		AskUser: &AskUserStats{}, PermissionWait: &PermissionWaitStats{},
+		AskUser: &AskUserStats{}, PermissionWait: &PermissionWaitStats{}, Sandbox: &SandboxStats{},
 	}
 
 	for _, s := range sessions {
@@ -405,6 +417,21 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 		}
 		if questionSession {
 			stats.AskUser.Sessions++
+		}
+		sandboxSession := false
+		for _, exec := range activity.executions {
+			if (!opts.Since.IsZero() && exec.completedAt.Before(opts.Since)) ||
+				(!opts.Until.IsZero() && !exec.completedAt.Before(opts.Until)) {
+				continue
+			}
+			if !filters.matchesSandbox(exec.state) {
+				continue
+			}
+			stats.Sandbox.add(exec.tool, exec.state, exec.optOut, sandboxByTool)
+			sandboxSession = true
+		}
+		if sandboxSession {
+			stats.Sandbox.Sessions++
 		}
 		if found && opts.UsageByAgentMode && !filters.hasAgentModeRequest(records, opts.Since, opts.Until) {
 			found = false
@@ -449,6 +476,9 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 			if !filters.matchesDecisionSource(rec.DecisionSource) {
 				continue
 			}
+			if !filters.matchesSandbox(rec.Sandbox) {
+				continue
+			}
 
 			sessionCounted = true
 			stats.Requests++
@@ -457,6 +487,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 			byResult.add(rec.Result, rec.Result)
 			byDecisionSource.add(rec.DecisionSource, rec.Result)
 			byAgentMode.add(agentModeKey(rec.Request.AgentMode), rec.Result)
+			bySandbox.add(sandboxKey(rec.Sandbox), rec.Result)
 			byKind.add(rec.Request.Kind, rec.Result)
 			byCWD.add(s.CWD, rec.Result)
 
@@ -498,6 +529,8 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	stats.ByResult = byResult.finish(opts.Top)
 	stats.ByDecisionSource = byDecisionSource.finish(opts.Top)
 	stats.ByAgentMode = byAgentMode.finish(opts.Top)
+	stats.BySandbox = bySandbox.finish(opts.Top)
+	stats.Sandbox.ByTool = sandboxByTool.finish(opts.Top)
 	stats.ByKind = byKind.finish(opts.Top)
 	stats.ByReadOnly = byReadOnly.finish(opts.Top)
 	stats.ByCommand = byCommand.finish(opts.Top)
@@ -521,6 +554,7 @@ type permissionFilters struct {
 	kinds           map[string]bool
 	decisionSources map[string]bool
 	commands        map[string]bool
+	sandbox         map[string]bool
 	paths           []*regexp.Regexp
 	urls            []*regexp.Regexp
 }
@@ -572,6 +606,11 @@ func newPermissionFilters(opts PermissionStatsOptions) (*permissionFilters, erro
 	if len(opts.Command) > 0 {
 		f.commands = toSet(opts.Command)
 	}
+	sandbox, err := newSandboxFilter(opts.Sandbox)
+	if err != nil {
+		return nil, err
+	}
+	f.sandbox = sandbox
 	for _, p := range opts.Path {
 		re, err := regexp.Compile(p)
 		if err != nil {
@@ -682,6 +721,12 @@ func (f *permissionFilters) matchesDecisionSource(decisionSource string) bool {
 		return true
 	}
 	return f.decisionSources[decisionSource]
+}
+
+// matchesSandbox reports whether state satisfies the configured sandbox filter. A filter
+// with no values always matches.
+func (f *permissionFilters) matchesSandbox(state string) bool {
+	return len(f.sandbox) == 0 || f.sandbox[sandboxKey(state)]
 }
 
 // requestIsReadOnly reports whether req involves no mutation: its Kind is "read", or its
