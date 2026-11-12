@@ -145,7 +145,7 @@ func (r *Renderer) RenderCodeScanningAlert(alert *github.Alert) error {
 		r.writeLine(fmt.Sprintf(labelFmt, "Ref:", ToString(alert.MostRecentInstance.Ref)))
 		if alert.MostRecentInstance.Location != nil {
 			loc := alert.MostRecentInstance.Location
-			r.writeLine(fmt.Sprintf(labelFmt, "Location:", fmt.Sprintf("%s:%d", ToString(loc.Path), loc.StartLine)))
+			r.writeLine(fmt.Sprintf(labelFmt, "Location:", fmt.Sprintf("%s:%s", ToString(loc.Path), ToString(loc.StartLine))))
 		}
 	}
 
@@ -334,7 +334,7 @@ func (r *Renderer) RenderCodeScanningAlertInstances(instances []*github.MostRece
 	for _, instance := range instances {
 		location := ""
 		if instance.Location != nil {
-			location = fmt.Sprintf("%s:%d", ToString(instance.Location.Path), instance.Location.StartLine)
+			location = fmt.Sprintf("%s:%s", ToString(instance.Location.Path), ToString(instance.Location.StartLine))
 		}
 		row := []string{
 			ToString(instance.Ref),

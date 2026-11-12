@@ -7,6 +7,11 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
+// GetWorkflowJobStepLogsURL returns one job step's download URL without following redirects.
+func GetWorkflowJobStepLogsURL(ctx context.Context, g *GitHubClient, repo repository.Repository, jobID, stepNumber int64) (string, error) {
+	return g.GetWorkflowJobStepLogs(ctx, repo.Owner, repo.Name, jobID, stepNumber)
+}
+
 // GetWorkflowJobByID retrieves a specific workflow job by its ID.
 func GetWorkflowJobByID(ctx context.Context, g *GitHubClient, repo repository.Repository, jobID int64) (*github.WorkflowJob, error) {
 	return g.GetWorkflowJobByID(ctx, repo.Owner, repo.Name, jobID)

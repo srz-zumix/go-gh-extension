@@ -48,8 +48,8 @@ func NewRepositoryRulesetFieldGetters() *repositoryRulesetFieldGetters {
 			"BYPASS_ACTORS": func(ruleset *github.RepositoryRuleset) string {
 				actors := []string{}
 				for _, actor := range ruleset.BypassActors {
-					actors = append(actors, fmt.Sprintf("ID: %d, Type: %s, Mode: %s",
-						actor.ActorID, ToString((*string)(actor.ActorType)), ToString((*string)(actor.BypassMode))))
+					actors = append(actors, fmt.Sprintf("ID: %s, Type: %s, Mode: %s",
+						ToString(actor.ActorID), ToString((*string)(actor.ActorType)), ToString((*string)(actor.BypassMode))))
 				}
 				return strings.Join(actors, "/ ")
 			},
