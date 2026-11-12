@@ -2,12 +2,43 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/google/go-github/v93/github"
 )
+
+// GetWorkflowJobStepLogs returns the download URL for one job step without following redirects.
+func (g *GitHubClient) GetWorkflowJobStepLogs(ctx context.Context, owner, repo string, jobID, stepNumber int64) (location string, err error) {
+	path := fmt.Sprintf("repos/%s/%s/actions/jobs/%d/steps/%d/logs", owner, repo, jobID, stepNumber)
+	req, err := g.client.NewRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return "", err
+	}
+	httpClient := g.client.Client()
+	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	body := resp.Body
+	defer func() { err = errors.Join(err, body.Close()) }()
+	if resp.StatusCode != http.StatusFound {
+		if err := github.CheckResponse(resp); err != nil {
+			return "", err
+		}
+		return "", fmt.Errorf("unexpected step log response status: %d", resp.StatusCode)
+	}
+	target, err := resp.Location()
+	if err != nil {
+		return "", err
+	}
+	return target.String(), nil
+}
 
 // GetWorkflowJobByID retrieves a specific workflow job by its ID.
 func (g *GitHubClient) GetWorkflowJobByID(ctx context.Context, owner string, repo string, jobID int64) (*github.WorkflowJob, error) {
