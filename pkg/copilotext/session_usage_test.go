@@ -263,9 +263,11 @@ func TestCollectPermissionStatsUsageByAgentMode(t *testing.T) {
 	}{
 		{"disabled keeps every session", PermissionStatsOptions{AgentMode: []string{"plan"}}, []string{"/repo/a", "/repo/b", "/repo/c", "/repo/d"}},
 		{"no mode filter keeps every session", PermissionStatsOptions{UsageByAgentMode: true}, []string{"/repo/a", "/repo/b", "/repo/c", "/repo/d"}},
+		{"permission mode does not restrict usage", PermissionStatsOptions{PermissionMode: []string{"assisted"}}, []string{"/repo/a", "/repo/b", "/repo/c", "/repo/d"}},
 		{"plan", PermissionStatsOptions{AgentMode: []string{"plan"}, UsageByAgentMode: true}, []string{"/repo/a", "/repo/c"}},
 		{"multiple modes", PermissionStatsOptions{AgentMode: []string{"plan", "autopilot"}, UsageByAgentMode: true}, []string{"/repo/a", "/repo/b", "/repo/c"}},
 		{"other filters do not apply", PermissionStatsOptions{AgentMode: []string{"plan"}, Kind: []string{"read"}, UsageByAgentMode: true}, []string{"/repo/a", "/repo/c"}},
+		{"permission mode does not restrict agent-selected usage", PermissionStatsOptions{AgentMode: []string{"plan"}, PermissionMode: []string{"assisted"}, UsageByAgentMode: true}, []string{"/repo/a", "/repo/c"}},
 		{"request window", PermissionStatsOptions{AgentMode: []string{"plan"}, Until: time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC), UsageByAgentMode: true}, []string{"/repo/a"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {

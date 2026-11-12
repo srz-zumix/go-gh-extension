@@ -114,6 +114,10 @@ func (r *Renderer) RenderCopilotPermissionStats(stats *copilotext.PermissionStat
 		r.writeLine("only human_response is confirmed user wait; other and unknown-source decisions remain separate; unresolved requests have no duration")
 	}
 
+	if err := r.renderSandboxStats(stats.Sandbox, true); err != nil {
+		return err
+	}
+
 	sections := []struct {
 		name   string
 		counts []copilotext.Count
@@ -121,6 +125,8 @@ func (r *Renderer) RenderCopilotPermissionStats(stats *copilotext.PermissionStat
 		{"RESULT", stats.ByResult},
 		{"DECISION_SOURCE", stats.ByDecisionSource},
 		{"AGENT_MODE", stats.ByAgentMode},
+		{"PERMISSION_MODE", stats.ByPermissionMode},
+		{"SANDBOX_REQUEST", stats.BySandbox},
 		{"KIND", stats.ByKind},
 		{"READONLY", stats.ByReadOnly},
 		{"COMMAND", stats.ByCommand},

@@ -114,6 +114,9 @@ func (r *Renderer) RenderVSCodeStats(stats *copilotext.VSCodeStats) error {
 		r.renderQuestionWait(q.TimedAnswers, q.UntimedAnswers, q.TotalWaitMs, q.AvgWaitMs, q.MaxWaitMs)
 		r.writeLine("completed vscode_askQuestions calls only; multi-question batches share one interval; in-flight questions are unavailable")
 	}
+	if err := r.renderSandboxStats(stats.Sandbox, false); err != nil {
+		return err
+	}
 
 	if err := r.renderVSCodeToolTable(stats.ByTool); err != nil {
 		return err

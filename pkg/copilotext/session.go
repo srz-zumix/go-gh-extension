@@ -63,6 +63,9 @@ type PermissionRequest struct {
 	// AgentMode is captured by the owning turn when permission evaluation begins.
 	// Empty means no usable mode was recorded.
 	AgentMode string
+	// PermissionMode is captured when permission evaluation begins.
+	// Empty means no usable mode was recorded.
+	PermissionMode string
 }
 
 // PermissionRecord pairs a PermissionRequest with its outcome (Result), regardless of
@@ -81,6 +84,9 @@ type PermissionRecord struct {
 	// DecisionSourceHumanResponse or DecisionSourceUnknown.
 	DecisionSource string
 	DecidedAt      time.Time
+	// Sandbox is the sandbox state of the tool execution the request belongs to
+	// (SandboxApplied, SandboxNotApplied, or SandboxUnknown). Empty means unresolved.
+	Sandbox string
 }
 
 // sessionStateRoot returns the directory containing one subdirectory per Copilot CLI
@@ -188,6 +194,7 @@ func (e *possibleURLEntry) UnmarshalJSON(data []byte) error {
 type rawPermissionRequested struct {
 	RequestID         string          `json:"requestId"`
 	AgentMode         json.RawMessage `json:"agentMode"`
+	PermissionMode    json.RawMessage `json:"permissionMode"`
 	PermissionRequest struct {
 		Kind            string `json:"kind"`
 		ToolCallID      string `json:"toolCallId"`
@@ -295,6 +302,16 @@ func newPermissionCollector(s Session) *permissionCollector {
 	}
 }
 
+func (pc *permissionCollector) recordedMode(raw json.RawMessage, field string) string {
+	var mode string
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &mode); err != nil {
+			logger.Warn("ignoring unparsable permission.requested "+field, "dir", pc.session.Dir, "error", err)
+		}
+	}
+	return mode
+}
+
 // handle records ev when it is a permission request or completion event.
 func (pc *permissionCollector) handle(ev rawEvent) {
 	switch ev.Type {
@@ -312,16 +329,11 @@ func (pc *permissionCollector) handle(ev rawEvent) {
 		if _, exists := pc.requests[key]; exists {
 			return
 		}
-		var agentMode string
-		if len(data.AgentMode) > 0 {
-			if err := json.Unmarshal(data.AgentMode, &agentMode); err != nil {
-				logger.Warn("ignoring unparsable permission.requested agent mode", "dir", pc.session.Dir, "error", err)
-			}
-		}
 		req := PermissionRequest{
 			RequestID:       data.RequestID,
 			ToolCallID:      data.PermissionRequest.ToolCallID,
-			AgentMode:       agentMode,
+			AgentMode:       pc.recordedMode(data.AgentMode, "agent mode"),
+			PermissionMode:  pc.recordedMode(data.PermissionMode, "permission mode"),
 			Kind:            data.PermissionRequest.Kind,
 			FullCommandText: data.PermissionRequest.FullCommandText,
 			Intention:       data.PermissionRequest.Intention,
@@ -494,6 +506,7 @@ type sessionActivity struct {
 	usage       SessionUsage
 	usageFound  bool
 	questions   []questionRecord
+	executions  []toolExecutionRecord
 }
 
 // readSessionActivity gathers permission, usage, and question accounting in one scan.
@@ -502,14 +515,24 @@ func readSessionActivity(s Session, since, until time.Time) (sessionActivity, er
 	pc := newPermissionCollector(s)
 	uc := &usageCollector{session: s}
 	qc := newQuestionCollector(s)
+	ec := newToolExecutionCollector(s)
 	err := scanSessionEvents(s, func(ev rawEvent) {
 		pc.handle(ev)
 		uc.handle(ev)
 		qc.handle(ev)
+		ec.handle(ev)
 	})
 	if err != nil {
 		return sessionActivity{}, err
 	}
 	usage, found := uc.resultWithin(since, until)
-	return sessionActivity{permissions: pc.records(), usage: usage, usageFound: found, questions: qc.records()}, nil
+	permissions := pc.records()
+	// records() preserves pc.order, so each record's agent identity is pc.order[i].
+	for i := range permissions {
+		permissions[i].Sandbox = ec.sandboxFor(pc.order[i].agentID, permissions[i].Request.ToolCallID)
+	}
+	return sessionActivity{
+		permissions: permissions, usage: usage, usageFound: found,
+		questions: qc.records(), executions: ec.records(),
+	}, nil
 }

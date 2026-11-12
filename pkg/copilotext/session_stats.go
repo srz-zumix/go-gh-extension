@@ -137,6 +137,9 @@ type PermissionStatsOptions struct {
 	// AgentMode, when non-empty, restricts to requests whose recorded agent mode
 	// exactly matches any of these values. Missing or invalid modes are "unknown".
 	AgentMode []string
+	// PermissionMode, when non-empty, restricts to requests whose recorded permission
+	// mode exactly matches any of these values. Missing or invalid modes are "unknown".
+	PermissionMode []string
 	// Results, when non-empty, restricts to requests whose recorded result exactly
 	// matches any of these values.
 	Results []string
@@ -165,6 +168,10 @@ type PermissionStatsOptions struct {
 	// any of these regular expressions (a plain substring is also a valid, unanchored
 	// regular expression).
 	URL []string
+	// Sandbox, when non-empty, restricts permission requests and sandbox execution
+	// statistics to tool executions whose sandbox state matches any of these values
+	// (SandboxApplied, SandboxNotApplied, or SandboxUnknown). Usage is never affected.
+	Sandbox []string
 	// Top, when > 0, keeps only the top N entries (by Total, then Key) of each axis.
 	// 0 keeps every entry.
 	Top int
@@ -216,6 +223,10 @@ type PermissionStats struct {
 	ByCWD            []Count
 	// ByAgentMode groups requests by recorded mode, or "unknown" when unavailable.
 	ByAgentMode []Count
+	// ByPermissionMode groups requests by recorded permission mode, or "unknown".
+	ByPermissionMode []Count
+	// BySandbox groups requests by the sandbox state of their tool execution.
+	BySandbox []Count
 
 	// UsageSessions counts sessions with any recorded usage, including active sessions.
 	UsageSessions           int
@@ -233,6 +244,10 @@ type PermissionStats struct {
 	ByRoleUsage             []UsageCount
 	AskUser                 *AskUserStats
 	PermissionWait          *PermissionWaitStats
+	// Sandbox summarizes completed tool executions by sandbox state. Session scope,
+	// time bounds (by completion time), and the Sandbox filter apply; other permission
+	// filters do not.
+	Sandbox *SandboxStats
 }
 
 // counter accumulates Count entries keyed by an arbitrary string, preserving first-seen
@@ -363,6 +378,9 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	byResult := newCounter()
 	byDecisionSource := newCounter()
 	byAgentMode := newCounter()
+	byPermissionMode := newCounter()
+	bySandbox := newCounter()
+	sandboxByTool := newSandboxCounter()
 	byKind := newCounter()
 	byReadOnly := newCounter()
 	byCommand := newCounter()
@@ -375,7 +393,7 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 
 	stats := &PermissionStats{
 		Since: opts.Since, Until: opts.Until, Scope: opts.Scope,
-		AskUser: &AskUserStats{}, PermissionWait: &PermissionWaitStats{},
+		AskUser: &AskUserStats{}, PermissionWait: &PermissionWaitStats{}, Sandbox: &SandboxStats{},
 	}
 
 	for _, s := range sessions {
@@ -405,6 +423,21 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 		}
 		if questionSession {
 			stats.AskUser.Sessions++
+		}
+		sandboxSession := false
+		for _, exec := range activity.executions {
+			if (!opts.Since.IsZero() && exec.completedAt.Before(opts.Since)) ||
+				(!opts.Until.IsZero() && !exec.completedAt.Before(opts.Until)) {
+				continue
+			}
+			if !filters.matchesSandbox(exec.state) {
+				continue
+			}
+			stats.Sandbox.add(exec.tool, exec.state, exec.optOut, sandboxByTool)
+			sandboxSession = true
+		}
+		if sandboxSession {
+			stats.Sandbox.Sessions++
 		}
 		if found && opts.UsageByAgentMode && !filters.hasAgentModeRequest(records, opts.Since, opts.Until) {
 			found = false
@@ -449,6 +482,9 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 			if !filters.matchesDecisionSource(rec.DecisionSource) {
 				continue
 			}
+			if !filters.matchesSandbox(rec.Sandbox) {
+				continue
+			}
 
 			sessionCounted = true
 			stats.Requests++
@@ -456,7 +492,9 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 
 			byResult.add(rec.Result, rec.Result)
 			byDecisionSource.add(rec.DecisionSource, rec.Result)
-			byAgentMode.add(agentModeKey(rec.Request.AgentMode), rec.Result)
+			byAgentMode.add(recordedModeKey(rec.Request.AgentMode), rec.Result)
+			byPermissionMode.add(recordedModeKey(rec.Request.PermissionMode), rec.Result)
+			bySandbox.add(sandboxKey(rec.Sandbox), rec.Result)
 			byKind.add(rec.Request.Kind, rec.Result)
 			byCWD.add(s.CWD, rec.Result)
 
@@ -498,6 +536,9 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 	stats.ByResult = byResult.finish(opts.Top)
 	stats.ByDecisionSource = byDecisionSource.finish(opts.Top)
 	stats.ByAgentMode = byAgentMode.finish(opts.Top)
+	stats.ByPermissionMode = byPermissionMode.finish(opts.Top)
+	stats.BySandbox = bySandbox.finish(opts.Top)
+	stats.Sandbox.ByTool = sandboxByTool.finish(opts.Top)
 	stats.ByKind = byKind.finish(opts.Top)
 	stats.ByReadOnly = byReadOnly.finish(opts.Top)
 	stats.ByCommand = byCommand.finish(opts.Top)
@@ -516,11 +557,13 @@ func CollectPermissionStats(opts PermissionStatsOptions) (*PermissionStats, erro
 type permissionFilters struct {
 	operations      map[string]bool
 	agentModes      map[string]bool
+	permissionModes map[string]bool
 	results         map[string]bool
 	commandAccess   map[string]bool
 	kinds           map[string]bool
 	decisionSources map[string]bool
 	commands        map[string]bool
+	sandbox         map[string]bool
 	paths           []*regexp.Regexp
 	urls            []*regexp.Regexp
 }
@@ -538,13 +581,12 @@ func newPermissionFilters(opts PermissionStatsOptions) (*permissionFilters, erro
 			f.operations[op] = true
 		}
 	}
-	if len(opts.AgentMode) > 0 {
-		for _, mode := range opts.AgentMode {
-			if mode == "" {
-				return nil, fmt.Errorf("invalid agent mode %q: use %q for missing modes", mode, "unknown")
-			}
-		}
-		f.agentModes = toSet(opts.AgentMode)
+	var err error
+	if f.agentModes, err = newModeFilter("agent", opts.AgentMode); err != nil {
+		return nil, err
+	}
+	if f.permissionModes, err = newModeFilter("permission", opts.PermissionMode); err != nil {
+		return nil, err
 	}
 	if len(opts.Results) > 0 {
 		for _, result := range opts.Results {
@@ -572,6 +614,11 @@ func newPermissionFilters(opts PermissionStatsOptions) (*permissionFilters, erro
 	if len(opts.Command) > 0 {
 		f.commands = toSet(opts.Command)
 	}
+	sandbox, err := newSandboxFilter(opts.Sandbox)
+	if err != nil {
+		return nil, err
+	}
+	f.sandbox = sandbox
 	for _, p := range opts.Path {
 		re, err := regexp.Compile(p)
 		if err != nil {
@@ -599,7 +646,16 @@ func toSet(values []string) map[string]bool {
 	return set
 }
 
-func agentModeKey(mode string) string {
+func newModeFilter(name string, modes []string) (map[string]bool, error) {
+	for _, mode := range modes {
+		if mode == "" {
+			return nil, fmt.Errorf("invalid %s mode %q: use %q for missing modes", name, mode, "unknown")
+		}
+	}
+	return toSet(modes), nil
+}
+
+func recordedModeKey(mode string) string {
 	if mode == "" {
 		return "unknown"
 	}
@@ -619,6 +675,9 @@ func (f *permissionFilters) matches(req PermissionRequest) bool {
 		}
 	}
 	if !f.matchesAgentMode(req.AgentMode) {
+		return false
+	}
+	if len(f.permissionModes) > 0 && !f.permissionModes[recordedModeKey(req.PermissionMode)] {
 		return false
 	}
 	if len(f.commandAccess) > 0 {
@@ -651,7 +710,7 @@ func (f *permissionFilters) matches(req PermissionRequest) bool {
 // matchesAgentMode reports whether mode satisfies the configured agent mode filter.
 // A filter with no values always matches.
 func (f *permissionFilters) matchesAgentMode(mode string) bool {
-	return len(f.agentModes) == 0 || f.agentModes[agentModeKey(mode)]
+	return len(f.agentModes) == 0 || f.agentModes[recordedModeKey(mode)]
 }
 
 // hasAgentModeRequest reports whether records include a request within [since, until)
@@ -682,6 +741,12 @@ func (f *permissionFilters) matchesDecisionSource(decisionSource string) bool {
 		return true
 	}
 	return f.decisionSources[decisionSource]
+}
+
+// matchesSandbox reports whether state satisfies the configured sandbox filter. A filter
+// with no values always matches.
+func (f *permissionFilters) matchesSandbox(state string) bool {
+	return len(f.sandbox) == 0 || f.sandbox[sandboxKey(state)]
 }
 
 // requestIsReadOnly reports whether req involves no mutation: its Kind is "read", or its
