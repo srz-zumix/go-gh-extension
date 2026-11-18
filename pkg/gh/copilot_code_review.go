@@ -36,8 +36,9 @@ const (
 const CopilotCodeReviewEffortInherit = "inherit"
 
 // CopilotCodeReviewEfforts lists the known review effort levels. The API reports the
-// levels actually available through available_review_efforts.
-var CopilotCodeReviewEfforts = []string{"lite", "balanced", "max"}
+// levels actually available through available_review_efforts. "adaptive" lets Copilot
+// choose lite, balanced, or max for each pull request.
+var CopilotCodeReviewEfforts = []string{"adaptive", "lite", "balanced", "max"}
 
 // CopilotCodeReviewSeverityFilters lists the valid severity_filter values.
 var CopilotCodeReviewSeverityFilters = []string{"no_filter", "low", "low_and_medium"}
