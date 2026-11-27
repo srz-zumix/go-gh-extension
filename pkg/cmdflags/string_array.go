@@ -29,6 +29,29 @@ func quotedSliceString(vals []string) string {
 	return "[" + strings.Join(out, ",") + "]"
 }
 
+// readCSVValues parses val as a single comma-separated record.
+func readCSVValues(val string) ([]string, error) {
+	// Reject empty input upfront so the error matches validateNonEmptyStringValues
+	// rather than surfacing an opaque CSV EOF error.
+	if val == "" {
+		return nil, fmt.Errorf("empty string is not allowed")
+	}
+
+	r := csv.NewReader(strings.NewReader(val))
+	r.TrimLeadingSpace = true
+	parts, err := r.Read()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse value %q: %w", val, err)
+	}
+
+	// Ensure the input contains exactly one CSV record; a second record means the
+	// value contained a newline, which would otherwise be silently truncated.
+	if _, err := r.Read(); err != io.EOF {
+		return nil, fmt.Errorf("value %q must not contain newlines", val)
+	}
+	return parts, nil
+}
+
 // initNonEmptyStringSlice validates val and copies it into *p, panicking with typeName on invalid defaults.
 func initNonEmptyStringSlice(val []string, p *[]string, typeName string) {
 	if err := validateNonEmptyStringValues(val); err != nil {
@@ -104,23 +127,9 @@ func newNonEmptyStringSliceValue(val []string, p *[]string) *nonEmptyStringSlice
 }
 
 func (s *nonEmptyStringSliceValue) Set(val string) error {
-	// Reject empty input upfront so the error matches validateNonEmptyStringValues
-	// rather than surfacing an opaque CSV EOF error.
-	if val == "" {
-		return fmt.Errorf("empty string is not allowed")
-	}
-
-	r := csv.NewReader(strings.NewReader(val))
-	r.TrimLeadingSpace = true
-	parts, err := r.Read()
+	parts, err := readCSVValues(val)
 	if err != nil {
-		return fmt.Errorf("failed to parse value %q: %w", val, err)
-	}
-
-	// Ensure the input contains exactly one CSV record; a second record means the
-	// value contained a newline, which would otherwise be silently truncated.
-	if _, err := r.Read(); err != io.EOF {
-		return fmt.Errorf("value %q must not contain newlines", val)
+		return err
 	}
 
 	if err := validateNonEmptyStringValues(parts); err != nil {
