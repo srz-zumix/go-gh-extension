@@ -112,3 +112,35 @@ func TestRegisterStringSliceEnumCompletion_UnknownFlag(t *testing.T) {
 	cmd := &cobra.Command{Use: "sub"}
 	assert.Error(t, RegisterStringSliceEnumCompletion(cmd, "missing", testEnumOptions))
 }
+
+func TestStringSliceEnumVarGetStringSliceRoundTrip(t *testing.T) {
+	options := []string{"a", `b"q`, `c\d`, "e,f"}
+	tests := []struct {
+		name     string
+		defaults []string
+		args     []string
+		want     []string
+	}{
+		{name: "nil default", defaults: nil, want: []string{}},
+		{name: "empty default", defaults: []string{}, want: []string{}},
+		{name: "plain", defaults: []string{"a"}, want: []string{"a"}},
+		{name: "quote", args: []string{`--item="b""q"`}, want: []string{`b"q`}},
+		{name: "backslash", args: []string{`--item=c\d`}, want: []string{`c\d`}},
+		{name: "comma", args: []string{`--item="e,f",a`}, want: []string{"e,f", "a"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
+			StringSliceEnumVar(cmd, &got, "item", tt.defaults, options, "items")
+			if err := cmd.ParseFlags(tt.args); err != nil {
+				t.Fatalf("ParseFlags error: %v", err)
+			}
+			v, err := cmd.Flags().GetStringSlice("item")
+			if err != nil {
+				t.Fatalf("GetStringSlice error: %v", err)
+			}
+			assert.Equal(t, tt.want, v)
+		})
+	}
+}

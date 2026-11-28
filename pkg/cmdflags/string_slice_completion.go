@@ -1,6 +1,8 @@
 package cmdflags
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
 	"slices"
 	"strings"
@@ -84,11 +86,21 @@ func (s *stringSliceEnumValue) Type() string {
 }
 
 func (s *stringSliceEnumValue) String() string {
-	// An empty string lets pflag treat an empty default as zero and omit it from help.
-	if len(*s.value) == 0 {
+	// Use the same bracketed CSV format as pflag's stringSlice so that
+	// FlagSet.GetStringSlice can round-trip the value.
+	return "[" + writeCSVValues(*s.value) + "]"
+}
+
+// writeCSVValues encodes vals as a single CSV record without a trailing newline.
+func writeCSVValues(vals []string) string {
+	if len(vals) == 0 {
 		return ""
 	}
-	return quotedSliceString(*s.value)
+	b := &bytes.Buffer{}
+	w := csv.NewWriter(b)
+	_ = w.Write(vals)
+	w.Flush()
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 func (s *stringSliceEnumValue) Append(val string) error {
@@ -130,6 +142,10 @@ func StringSliceEnumVarP(cmd *cobra.Command, p *[]string, name, shorthand string
 	}
 	*p = append([]string(nil), defaultValues...)
 	f := cmd.Flags().VarPF(val, name, shorthand, usage)
+	if len(defaultValues) == 0 {
+		// Let pflag treat an empty default as zero and omit it from help.
+		f.DefValue = ""
+	}
 	if err := RegisterStringSliceEnumCompletion(cmd, name, val.options); err != nil {
 		panic(err)
 	}
